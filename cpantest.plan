@@ -1,0 +1,76 @@
+1. Create a VM per OS
+	- debian
+	- gentoo
+	- ubuntu
+	- windows XP
+	- freebsd
+	...
+
+2. install N perls on OS
+	- for OSes with compile capabilities:
+		- use system perl to "bootstrap"
+		- use Perl::Repository::APC
+			- use the local APC mirror
+			- compile/install as many perl versions as possible
+			- perl -MModule::CoreList -e 'print join " ", @{ $Module::CoreList::patchlevel{5.008008} };'
+				maint-5.8 27040
+			- buildaperl --branch=maint-5.8 @27040 --verbose
+			- perl -MModule::CoreList -e 'print join " ", @{ $Module::CoreList::patchlevel{5.006002} };'
+				maint-5.6 21727
+			- buildaperl --branch=maint-5.6 @21727 --verbose
+		- OR use the homebrew script ( compile_perl.pl )
+	- for non-compile capability
+		- use system perl if possible ( and investigate how to install multiple perls on this OS? )
+	- for no system perl OSes
+		- use strawberry for windows
+		- use ActiveState for windows
+		- try to figure out a way to have multiple perls installed on windows?
+
+	- possible perl configuration tweaks:
+		- 64bit/32bit
+		- threads/nothreads
+		- debug/nodebug
+		- and so on...
+		- use CPAN or CPANPLUS
+	- need to come up with code to have a "matrix" of all possible configurations and compile them
+
+3. Configure CPAN/CPANPLUS per Perl version
+	- install all needed dependencies
+		- Bundle::CPANPLUS Bundle::CPAN CPAN::YACSmoke CPANPLUS::YACSmoke POE::Component::SmokeBox
+	- setup CPAN/CPANPLUS configuration ( copy from template files )
+	- setup for cpantesters
+	- use local minicpan mirror
+
+4. Configure SmokeBox
+	- auto-detect the available perl versions
+	- setup the SmokeBox <-> irc code
+	- add smokebox to init.d equivalent
+	- let 'er rip!
+
+10. setup local minicpan mirror
+	- this is on the "ftp/web/etc server"
+	- install minicpan + setup config ( copy from template )
+	- mirror the CPAN
+	- configure ftp/http/rsync access to it
+	- install POE::Component::SmokeBox::Uploads::CPAN::Mini
+	- run a daemon to update the minicpan via PoCo::Mini every 24h and pipe new modules to #cpantesters on local ircd
+	- run the CPAN::Mini::Webserver module to provide web access to it
+
+11. setup local ircd
+	- this is on the "ftp/web/etc server"
+	- install an ircd + setup it for basic shit
+	- it listens on local private IP only
+	- #cpantesters for this stuff
+
+12. setup local DB
+	- this is on the "ftp/web/etc server"
+	- install a DB ( mysql/Pg/CouchDB/etc? ) + setup it for basic stuff
+	- it listens on local private IP only
+	- database "cpantesters" for this stuff
+
+13. setup local APC mirror
+	- this is on the "ftp/web/etc server"
+	- mirror "rsync -avz rsync://ftp.linux.activestate.com/all-of-the-APC-for-mirrors-only/ APC"
+	- setup ftp/http/rsync/nfs access to it
+	- setup cronjob to update it every 24h
+

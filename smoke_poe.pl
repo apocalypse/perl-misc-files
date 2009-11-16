@@ -12,6 +12,11 @@ use File::ReadBackwards;
 # /home/apoc/poe/trunk/poe-test-loops
 # /home/apoc/perl/perl-5.6.1
 
+# various extra setup:
+# win32:
+#	strawberry-5.10.0.4:
+#		Win32::Console, Tk, Event
+
 # default DEBUG is 0
 my $DEBUG = $ARGV[0] || 0;
 
@@ -28,7 +33,7 @@ closedir( PERLVERS ) or die "Unable to closedir: $!";
 chdir( "/home/$ENV{USER}/poe/trunk/poe-test-loops" ) or die "Unable to chdir: $!";
 do_shellcommand( "make distclean" ) if -e 'Makefile';
 
-# Okay, install latest poe-test-loops on those versions	
+# Okay, install latest poe-test-loops on those versions
 foreach my $ver ( @perlvers ) {
 	print "[SMOKER] Installing POE-Test-Loops on $ver...";
 	do_shellcommand( "/home/$ENV{USER}/perl/$ver/bin/perl Makefile.PL" );
@@ -59,11 +64,11 @@ foreach my $ver ( @perlvers ) {
 	eval {
 		local $SIG{ALRM} = sub { die "alarm\n" };
 		alarm 2 * 60;
-		
+
 		# do it!
 		system( "/home/$ENV{USER}/perl/$ver/bin/perl Makefile.PL --default" );
 		system( "make test > /home/$ENV{USER}/poe.smoke.$ver 2>&1" );
-		
+
 		# ok, did not timeout!
 		alarm 0;
 
@@ -85,8 +90,22 @@ foreach my $ver ( @perlvers ) {
 		}
 	}
 
+#	my $result = do_shellcommand( "/home/$ENV{USER}/perl/$ver/bin/perl Makefile.PL --default; make test" );
+#	if ( $result->[-1] =~ /PASS/ ) {
+#		print " OK\n";
+#	} else {
+#		print " FAILED!\n";
+#
+#		# Save the test failure somewhere
+#		open( my $fh, '>', "/home/$ENV{USER}/poe.smoke.$ver" ) or die "Unable to open fh: $!";
+#		foreach my $line ( @$result ) {
+#			print $fh $line, "\n";
+#		}
+#		close( $fh ) or die "Unable to close fh: $!";
+#	}
+
 	do_shellcommand( "make distclean" );
-}	
+}
 
 sub do_shellcommand {
 	my $cmd = shift;

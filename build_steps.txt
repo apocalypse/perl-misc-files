@@ -7,7 +7,7 @@ generic steps
 	make test
 	make install
 	cd /home/apoc/perl/perl-5.x.x
-	
+
 
 5.6.2
 -----
@@ -35,3 +35,20 @@ generic steps
 5.6.0
 -----
 	same as 5.6.2
+
+
+
+
+<Apocalypse> So it is safe to ignore or it would screw up my smoking of 5.8.8?
+<@Bram> It appears to be a test that is broken with 64 bit int (which you are using). So try removing the test or modify it to match the test on 5.8.9
+<@Bram> What smoking? (cpan smoking? perl smoking?)
+<Apocalypse> Sorry, cpan smoking
+<Apocalypse> No use in smoking old perl builds, I'll also setup a blead smoker sometime in the future :)
+<@Bram> As far as I can tell it won't mess up your cpan smoking... it's only a problem if large numbers in sprintf are used..
+<@Bram> Or your could recompile the perl to be 32int instead of 64int (then the test passes but the underlying problem with sprintf still exists)
+<Apocalypse> Ah, so the underlying bug really is fixed in 5.8.9+ or it is still lurking?
+<rjbs> Apocalypse: http://rjbs.manxome.org/rubric/entry/1812 -- boggle
+<+dipsy> [ rjbs's rubric: remarkable behavior of sprintf ]
+<@Bram> From the commits it appears to be fixed
+<Apocalypse> rjbs: :)
+<Apocalypse> Bram: I'll make a note of that and if any cpan modules bombs on < 5.8.9 due to sprintf problems I'll know what's going on :)
