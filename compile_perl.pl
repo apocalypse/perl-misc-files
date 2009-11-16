@@ -7,13 +7,17 @@ use strict; use warnings;
 
 # We have successfully compiled those perl versions:
 # 5.6.0, 5.6.1, 5.6.2
-# 5.8.0, 5.8.1, 5.8.2, 5.8.3, 5.8.4, 5.8.5
+# 5.8.0, 5.8.1, 5.8.2, 5.8.3, 5.8.4, 5.8.5, 5.8.6, 5.8.7, 5.8.8
+# 5.10.0
 
 # TODO
 # CPANPLUS won't work on 5.6.0, also some modules we want to install doesn't like 5.6.x :(
 
 # this script does everything, but we need some layout to be specified!
 # /home/apoc/perl				<-- the main directory
+# /home/apoc/perl/CPANPLUS.config		<-- the default CPANPLUS config
+# /home/apoc/perl/CPAN.config			<-- the default CPAN config
+# /home/apoc/perl/CPANPLUS-Boxed.config		<-- the default CPANPLUS::Boxed config
 # /home/apoc/perl/minicpan			<-- the minicpan sources for CPANPLUS to use
 # /home/apoc/perl/CPANPLUS-0.XX			<-- the extracted CPANPLUS directory we use
 # /home/apoc/perl/build				<-- where we store our perl builds + tarballs
@@ -24,6 +28,9 @@ use strict; use warnings;
 
 # load our dependencies
 use Capture::Tiny qw( capture_merged tee_merged );
+
+# static var...
+my $CPANPLUS_ver = "0.84";
 
 # get our perl version to build
 my $perlver = $ARGV[0];
@@ -36,17 +43,23 @@ my $DEBUG = $ARGV[1] || 0;
 
 # have we already compiled+installed this version?
 if ( ! -d "perl-$perlver" ) {
-	# do prebuild stuff
-	do_prebuild();
-
 	# kick off the build process!
 	do_build();
 } else {
 	print "[COMPILER] Perl-$perlver is already installed...\n";
 }
 
+# do we have CPANPLUS already extracted?
+do_initCPANP_BOXED();
+
 # we go ahead and configure CPANPLUS for this version :)
 do_installCPANPLUS();
+
+# configure CPAN for this version :)
+do_installCPAN();
+
+# move on with the test stuff
+do_installCPANTesters();
 
 # finally, install our POE stuff
 do_installPOE();
@@ -71,66 +84,121 @@ sub do_prebuild {
 	do_prebuild_patches();
 }
 
-sub do_installCPANPLUS {
-	print "[COMPILER] Configuring CPANPLUS...\n";
+sub do_initCPANP_BOXED {
+	print "[COMPILER] Configuring CPANPLUS::Boxed...\n";
+
+	# we need CPANPLUS already configured on the host...
+	eval { require CPANPLUS };
+	if ( $@ ) {
+		die "CPANPLUS is not configured on the host!";
+	}
 
 	# do we have CPANPLUS already extracted?
-	if ( ! -d "CPANPLUS-0.84" ) {
+	if ( ! -d "CPANPLUS-$CPANPLUS_ver" ) {
 		# do we have the tarball?
-		if ( ! -f "CPANPLUS-0.84.tar.gz" ) {
+		if ( ! -f "CPANPLUS-$CPANPLUS_ver.tar.gz" ) {
 			# get it!
-			do_shellcommand( "wget http://search.cpan.org/CPAN/authors/id/K/KA/KANE/CPANPLUS-0.84.tar.gz" );
+			do_shellcommand( "wget http://search.cpan.org/CPAN/authors/id/K/KA/KANE/CPANPLUS-$CPANPLUS_ver.tar.gz" );
 		}
 
 		# extract it!
-		do_shellcommand( "tar -zxf CPANPLUS-0.84.tar.gz" );
+		do_shellcommand( "tar -zxf CPANPLUS-$CPANPLUS_ver.tar.gz" );
 
-		# TODO configure the Boxed Config settings
-		# we need to disable: signature, allow_build_interactivity, and show_startup_tip
-		# we need to enable: no_update
-		# we need to add the local minicpan mirror as the ONLY mirror, so we don't waste inet bw
+		# configure the Boxed Config settings
+		# TODO too lazy to use proper modules heh
+		do_shellcommand( "cp -f CPANP-Boxed.config CPANP-Boxed.config.new" );
+		do_shellcommand( "perl -pi -e 's/XXXCPANPLUSXXX/$CPANPLUS_ver/' CPANP-Boxed.config.new" );
+		do_shellcommand( "perl -pi -e 's/XXXUSERXXX/$ENV{USER}/' CPANP-Boxed.config.new" );
+		do_shellcommand( "cp -f CPANP-Boxed.config.new CPANPLUS-$CPANPLUS_ver/.cpanplus/$ENV{USER}/lib/CPANPLUS/Config/Boxed.pm" );
+		do_shellcommand( "rm CPANP-Boxed.config.new" );
 	} else {
 		# make sure the appdata directory is "clean"
-		if ( -d "CPANPLUS-0.84/.cpanplus/$ENV{USER}/$perlver" ) {
-			do_shellcommand( "rm -rf CPANPLUS-0.84/.cpanplus/$ENV{USER}/$perlver" );
+		if ( -d "CPANPLUS-$CPANPLUS_ver/.cpanplus/$ENV{USER}/$perlver" ) {
+			do_shellcommand( "rm -rf CPANPLUS-$CPANPLUS_ver/.cpanplus/$ENV{USER}/$perlver" );
 		}
 	}
+}
+
+sub do_installCPANPLUS {
+	print "[COMPILER] Configuring CPANPLUS...\n";
 
 	# use cpanp-boxed to install some modules that we know we need to bootstrap, argh! ( mostly found via 5.6.1 )
-	do_shellcommand( "/home/$ENV{USER}/perl/perl-$perlver/bin/perl CPANPLUS-0.84/bin/cpanp-boxed i ExtUtils::MakeMaker Test::More File::Temp" );
+	do_cpanp_install( "i ExtUtils::MakeMaker Test::More File::Temp" );
 
 	# run the cpanp-boxed script and tell it to bootstrap it's dependencies
-	do_shellcommand( "/home/$ENV{USER}/perl/perl-$perlver/bin/perl CPANPLUS-0.84/bin/cpanp-boxed s selfupdate dependencies" );
-	do_shellcommand( "/home/$ENV{USER}/perl/perl-$perlver/bin/perl CPANPLUS-0.84/bin/cpanp-boxed s selfupdate enabled_features" );
+	do_cpanp_install( "s selfupdate dependencies" );
+	do_cpanp_install( "s selfupdate enabled_features" );
 
 	# finally, install CPANPLUS!
-	do_shellcommand( "/home/$ENV{USER}/perl/perl-$perlver/bin/perl CPANPLUS-0.84/bin/cpanp-boxed i CPANPLUS" );
+	do_cpanp_install( "i Bundle::CPANPLUS CPANPLUS" );
 
-	# TODO configure the installed CPANPLUS?
+	# configure the installed CPANPLUS
+	# TODO too lazy to use proper modules heh
+	# Configuration successfully saved to CPANPLUS::Config::User
+	#    (/home/apoc/perl/perl-5.10.0/.cpanplus/lib/CPANPLUS/Config/User.pm)
+	do_shellcommand( "cp -f CPANPLUS.config CPANPLUS.$perlver.config" );
+	do_shellcommand( "perl -pi -e 's/XXXPERLVERXXX/$perlver/' CPANPLUS.$perlver.config" );
+	do_shellcommand( "perl -pi -e 's/XXXUSERXXX/$ENV{USER}/' CPANPLUS.$perlver.config" );
+	do_shellcommand( "cp -f CPANPLUS.$perlver.config /home/$ENV{USER}/perl/perl-$perlver/.cpanplus/lib/CPANPLUS/Config/User.pm" );
+	do_shellcommand( "rm CPANPLUS.$perlver.config" );
+}
+
+sub do_cpanp_install {
+	my $modules = shift;
+
+	do_shellcommand( "/home/$ENV{USER}/perl/perl-$perlver/bin/perl CPANPLUS-$CPANPLUS_ver/bin/cpanp-boxed $modules" ) if defined $modules;
+}
+
+sub do_installCPAN {
+	print "[COMPILER] Configuring CPAN...\n";
+
+	# finally, install CPANPLUS!
+	do_cpanp_install( "i Bundle::CPAN CPAN" );
+
+	# configure the installed CPAN
+	# TODO too lazy to use proper modules heh
+	# commit: wrote '/home/apoc/perl/perl-5.10.0/lib/5.10.0/CPAN/Config.pm'
+	do_shellcommand( "cp -f CPAN.config CPAN.$perlver.config" );
+	do_shellcommand( "perl -pi -e 's/XXXPERLVERXXX/$perlver/' CPAN.$perlver.config" );
+	do_shellcommand( "perl -pi -e 's/XXXUSERXXX/$ENV{USER}/' CPAN.$perlver.config" );
+	do_shellcommand( "cp -f CPAN.$perlver.config /home/$ENV{USER}/perl/perl-$perlver/lib/$perlver/CPAN/Config.pm" );
+}
+
+sub do_installCPANTesters {
+	print "[COMPILER] Configuring CPANTesters...\n";
+
+	# install the basic modules we need
+	do_cpanp_install( "i Test::Reporter CPAN::Reporter CPANPLUS::YACSmoke CPAN::YACSmoke" );
 }
 
 sub do_installPOE {
 	# install POE's dependencies!
 	# The ExtUtils modules are for Glib, which doesn't specify it in the "normal" way, argh!
-	do_shellcommand( "/home/$ENV{USER}/perl/perl-$perlver/bin/perl CPANPLUS-0.84/bin/cpanp-boxed i Test::Pod Test::Pod::Coverage Socket6 Time::HiRes Term::ReadKey Term::Cap IO::Pty URI LWP Module::Build Curses ExtUtils::Depends ExtUtils::PkgConfig" );
+	do_cpanp_install( "i Test::Pod Test::Pod::Coverage Socket6 Time::HiRes Term::ReadKey Term::Cap IO::Pty URI LWP Module::Build Curses ExtUtils::Depends ExtUtils::PkgConfig" );
 
 	# install POE itself to pull in some more stuff
-	do_shellcommand( "/home/$ENV{USER}/perl/perl-$perlver/bin/perl CPANPLUS-0.84/bin/cpanp-boxed i POE" );
+	do_cpanp_install( "i POE" );
 
 	# install our POE loops + their dependencies
+	my $loop_install = "";
+	my $poe_loop_install = "";
 	foreach my $loop ( qw( Event Tk Gtk Wx Prima IO::Poll Glib EV ) ) {
 		# skip problematic loops
 		if ( $perlver =~ /^5\.6\./ and ( $loop eq 'Tk' or $loop eq 'Wx' or $loop eq 'Event' or $loop eq 'Glib' ) ) {
 			next;
 		}
 
-		do_shellcommand( "/home/$ENV{USER}/perl/perl-$perlver/bin/perl CPANPLUS-0.84/bin/cpanp-boxed i $loop" );
-		
+		$loop_install .= " $loop";
+
 		# stupid differing loops
-		my $poeloop = $loop;
-		$poeloop = 'IO_Poll' if $loop eq 'IO::Poll';
-		do_shellcommand( "/home/$ENV{USER}/perl/perl-$perlver/bin/perl CPANPLUS-0.84/bin/cpanp-boxed i POE::Loop::$poeloop" );
+		my $poeloop = $loop;		
+		$poeloop =~ s/\:\:/\_/g;
+		$poe_loop_install .= " POE::Loop::$poeloop";
 	}
+
+	# actually install!
+	do_cpanp_install( "i $loop_install" );
+	do_cpanp_install( "i $poe_loop_install" );
 }
 
 sub do_shellcommand {
@@ -148,6 +216,9 @@ sub do_shellcommand {
 }
 
 sub do_build {
+	# do prebuild stuff
+	do_prebuild();
+
 	# we start off with the Configure step
 	my $extraoptions = '';
 	if ( $perlver =~ /^5\.6\./ ) {
@@ -187,6 +258,9 @@ sub do_build {
 	# okay, do the install!
 	do_shellcommand( "cd build/perl-$perlver; make install" );
 
+	# cleanup the build dir ( lots of space! )
+	do_shellcommand( "cd build/; rm -rf perl-$perlver" );
+
 	# all done!
 	print "[COMPILER] Installed perl-$perlver successfully!\n";
 }
@@ -199,7 +273,7 @@ sub do_prebuild_patches {
 	# okay, what version is this?
 	if ( $perlver =~ /^5\.8\.(\d+)$/ ) {
 		my $v = $1;
-		if ( $v == 0 or $v == 1 or $v == 2 or $v == 3 or $v == 4 or $v == 5 ) {
+		if ( $v == 0 or $v == 1 or $v == 2 or $v == 3 or $v == 4 or $v == 5 or $v == 6 or $v == 7 or $v == 8 ) {
 			patch_makedepend_escape();
 
 			patch_makedepend_cleanups_580();
