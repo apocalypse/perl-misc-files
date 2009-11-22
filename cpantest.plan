@@ -1,10 +1,147 @@
 1. Create a VM per OS
 	- debian
+
 	- gentoo
+
 	- ubuntu
-	- windows XP
+		- install steps:
+			1. install base system
+			2. sudo passwd # to set root passwd
+			3. sudo vi /etc/pam.d/su && sudo groupadd wheel && sudo usermod -a -G wheel apoc
+			3. sudo apt-get update && sudo apt-get upgrade
+			3. sudo apt-get install build-essential ssh nano wget ftp
+			4. sudo nano /etc/network/interfaces # to set static IP
+				iface eth0 inet static
+					address 192.168.0.200
+					netmask 255.255.255.0
+					network 192.168.0.0
+					broadcast 192.168.0.255
+					gateway 192.168.0.1
+			5. sudo nano /etc/resolv.conf # to set smoker-master as dns server
+			6. sudo useradd -m cpan && sudo passwd cpan && sudo usermod -s /bin/bash cpan # passwd is cpan
+			7. setup root/system CPANPLUS
+				7.0 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm
+				7.1 cpanp x --update_source
+				7.1 cpanp s selfupdate all
+				7.2 cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter
+			8. setup cpan CPANPLUS
+				8.0 copy CPANP-cpan.config to /home/cpan/.cpanplus/lib/CPANPLUS/Config/User.pm
+				8.1 cpanp x --update_source
+
 	- freebsd
+		- install steps:
+			1. install base system ( also adding apoc as user + added to wheel group )
+			2. pkg_add -rv nano perl
+			3. chsh -s /usr/local/bin/bash apoc
+			4. /usr/local/bin/nano /etc/rc.conf
+				ifconfig_em0="inet 192.168.0.203 netmask 255.255.255.0"
+				defaultgateway="192.168.0.1"
+			5. /usr/local/bin/nano /etc/resolv.conf # setup smoker-master as dns server
+			6. useradd # add the cpan account, don't forget to set bash as shell
+			7. setup root/system CPANPLUS
+				7.0 configure CPAN, tell it to install CPANPLUS # freebsd doesn't install CPANPLUS by default...
+				7.1 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
+				7.2 cpanp x --update_source
+				7.3 cpanp s selfupdate all
+				7.4 cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter
+			8. setup cpan CPANPLUS
+				8.0 copy CPANP-cpan.config to /home/cpan/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
+				8.1 cpanp x --update_source
+
+	- netbsd
+		- install steps:
+			1. install base system
+				1.0 dd if=/dev/zero bs=1m count=512 of=/swap # add swap
+				1.1 chmod 600 swap
+				1.2 swapctl -a -p1 /swap
+				1.3 vi /etc/fstab
+					/swap           none swap sw,priority=1 0 0
+			2. vi /etc/rc.conf
+				sshd=YES
+				ssh_keygen_flags="-b 1024"
+				ccd=NO
+				raidframe=NO
+				quota=NO
+				cgd=NO
+			3. vi /etc/ifconfig.pcn0
+				inet 192.168.0.205 netmask 255.255.255.0
+			4. vi /etc/myname # set netbsd-64bit or whatever
+			5. vi /etc/defaultdomain # set site or whatever
+			6. vi /etc/mygate # set 192.168.0.1
+			7. vi /etc/resolv.conf # setup smoker-master as dns server
+			8. useradd -m -G wheel apoc
+			9. passwd apoc
+			10. setup pkgsrc # http://www.netbsd.org/docs/pkgsrc/getting.html#getting-first
+				10.0 get pkgsrc-2009Q3 via ftp
+				10.1 cd /usr/pkgsrc/shells/bash && make install
+				10.2 cd /usr/pkgsrc/lang/perl5 && make install
+				10.3 cd /usr/pkgsrc/editors/nano && make install
+				10.4 cd /usr/pkgsrc/net/wget && make install
+			11. usermod -s /usr/pkg/bin/bash apoc && usermod -s /usr/pkg/bin/bash root
+			12. useradd -m cpan
+			13. passwd cpan
+			14. usermod -s /usr/pkg/bin/bash cpan
+			15. setup root/system CPANPLUS
+				15.1 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
+				15.2 cpanp x --update_source
+				15.3 cpanp s selfupdate all
+				15.4 cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter
+			16. setup cpan CPANPLUS
+				16.0 copy CPANP-cpan.config to /home/cpan/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
+				16.1 cpanp x --update_source
+
+	- opensolaris
+		- install steps:
+			1. install base system # don't forget to add apoc user
+			2. sudo nano /etc/resolv.conf # setup smoker-master as dns server
+			3. cp /etc/nsswitch.conf /etc/nsswitch.conf.original
+			4. cp /etc/nsswitch.dns /etc/nsswitch.conf
+			5. svcadm restart svc:/network/dns/client:default
+			6. nano /etc/nwam/llp # change from e1000g0 dhcp to "e1000g0 static 192.168.0.210/24"
+			7. svcadm restart svc:/network/physical:nwam
+			8. pfexec svcadm enable svc:/network/physical:default
+			9. pfexec nano /etc/defaultrouter # add 192.168.0.1 as one line
+			10. pfexec svcadm restart network/routing-setup
+			11. add cpan user via Users/Groups in the GUI
+			12. pfexec svcadm disable XYZ
+				gdm sendmail sendmail-client gconf-cache fc-cache icon-cache rpc/bind pixbuf-loaders-installer
+				desktop-mime-cache mime-types-cache input-method-cache ogl-select
+			12. pfexec pkg install ss-dev
+				12.1 pfexec nano /etc/profile
+					# add those lines:
+					SUNW_NO_UPDATE_NOTIFY=1
+					UT_NO_USAGE_TRACKING=1
+				12.2 pfexec nano /etc/default/su
+					# update the path/supath to this:
+					PATH=/opt/SunStudioExpress/bin:/usr/gnu/bin:/usr/bin:/usr/X11/bin:/usr/sbin:/sbin
+				12.3 pfexec nano /etc/default/login
+					# update the path to this:
+					PATH=/opt/SunStudioExpress/bin:/usr/gnu/bin:/usr/bin:/usr/X11/bin:/usr/sbin:/sbin
+				12.3 nano /export/home/apoc/.profile
+					# remove any PATH stuff
+					# do the same for .bashrc
+			13. setup root/system CPANPLUS
+				13.0 configure CPAN, tell it to install CPANPLUS # opensolaris doesn't install CPANPLUS by default...
+				13.1 copy CPANP-root.config to /export/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
+				13.2 cpanp s selfupdate all
+				13.3 cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter
+			14. setup cpan CPANPLUS
+				14.0 copy CPANP-cpan.config to /home/cpan/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
+				14.1 cpanp x --update_source
+
+
+	- windows XP
 	...
+
+	Once OS is installed:
+		- copy compile_perl.pl + CPANP-Boxed.config + CPANPLUS.config to system # and adjust paths if needed
+		- chmod +x compile_perl.pl
+		- start compiling perls!
+
+	Once perls are compiled:
+		- sudo cpanp i POE::Component::SmokeBox
+		- copy smokebox.pl # and adjust paths if needed
+		- start smoking!
 
 2. install N perls on OS
 	- for OSes with compile capabilities:
@@ -27,17 +164,15 @@
 		- try to figure out a way to have multiple perls installed on windows?
 
 	- possible perl configuration tweaks:
-		- 64bit/32bit
-		- threads/nothreads
-		- debug/nodebug
-		- and so on...
-		- use CPAN or CPANPLUS
+		- 64bit/32bit		( -Duse64bitint or -Duse64bitall )
+		- threads/nothreads	( -Dusethreads or -Uusethreads )
+		- and so on... ( any other major modes I should consider? )
 	- need to come up with code to have a "matrix" of all possible configurations and compile them
 
-3. Configure CPAN/CPANPLUS per Perl version
+3. Configure CPANPLUS per Perl version
 	- install all needed dependencies
-		- Bundle::CPANPLUS Bundle::CPAN CPAN::YACSmoke CPANPLUS::YACSmoke POE::Component::SmokeBox
-	- setup CPAN/CPANPLUS configuration ( copy from template files )
+		- Bundle::CPANPLUS CPANPLUS::YACSmoke POE::Component::SmokeBox
+	- setup CPANPLUS configuration ( copy from template files )
 	- setup for cpantesters
 	- use local minicpan mirror
 
@@ -73,4 +208,8 @@
 	- mirror "rsync -avz rsync://ftp.linux.activestate.com/all-of-the-APC-for-mirrors-only/ APC"
 	- setup ftp/http/rsync/nfs access to it
 	- setup cronjob to update it every 24h
+
+
+<xdg> Apocalypse, too much scrollback for me to read, but two things:  (1) http://cpan.dagolden.com/ is a "fast mirror" updating from PAUSE every 30 seconds (also http://cpan.cpantesters.org/ and http://cpan.hexten.net/)
+
 

@@ -1,5 +1,4 @@
-local: /home/apoc/perl/minicpan/
-remote: ftp://mirrors.kernel.org/pub/CPAN/
+local: /home/cpan/minicpan/
+remote: http://cpan.dagolden.com/
 skip_perl: 1
 class: CPAN::Mini::Devel
-

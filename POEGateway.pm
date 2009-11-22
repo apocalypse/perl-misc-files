@@ -19,7 +19,7 @@ my $HTTP_PORT = 11_111;
 
 POE::Session->create(
 	package_states => [
-		'Test::Reporter::POEGateway', => [ qw(_start _stop _child got_req) ],
+		'Test::Reporter::POEGateway', => [ qw(_start _stop _child got_req smtp_open) ],
 	],
 );
 

@@ -8,9 +8,6 @@ use POE::Component::SmokeBox::Job;
 
 use Data::Dumper;
 
-# the base path to our "perl superdirectory"
-my $PATH = "/home/$ENV{USER}/perl";
-
 # autoflush
 $|++;
 
@@ -41,10 +38,11 @@ sub _start {
 	# Add system perl...
 	# Configuration successfully saved to CPANPLUS::Config::User
 	#    (/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm)
+	my $perl = `which perl`; chomp $perl;
 	$smokebox->add_smoker( POE::Component::SmokeBox::Smoker->new(
-		perl => `which perl`,
+		perl => $perl,
 		env => {
-			'APPDATA' => "/home/$ENV{USER}/",
+			'APPDATA' => "$ENV{HOME}",
 		},
 	) );
 
@@ -69,14 +67,19 @@ sub _stop {
 sub _results {
 	my $results = $_[ARG0];
 print Dumper( $results );
+
+	# TODO report this to IRC
+
+	# TODO remove all .cpanplus/build cruft
+
 	return;
 }
 
 # gets the perls
 sub getPerlVersions {
 	my @perls;
-	opendir( PERLS, $PATH ) or die "unable to opendir: $@";
-	@perls = map { $_ = "$PATH/$_" } grep { /^perl\-/ && -d "$PATH/$_" && -e "$PATH/$_/ready.smoke" } readdir( PERLS );
+	opendir( PERLS, $ENV{HOME} ) or die "unable to opendir: $@";
+	@perls = map { $_ = "$ENV{HOME}/$_" } grep { /^perl\-/ && -d "$ENV{HOME}/$_" && -e "$ENV{HOME}/$_/ready.smoke" } readdir( PERLS );
 	closedir( PERLS ) or die "unable to closedir: $@";
 
 	return \@perls;
