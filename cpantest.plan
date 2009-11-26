@@ -33,15 +33,18 @@
 	- freebsd
 		- install steps:
 			1. install base system ( also adding apoc as user + added to wheel group )
-			2. pkg_add -rv nano perl
+			2. pkg_add -rv nano perl wget bash
 			3. chsh -s /usr/local/bin/bash apoc
 			4. /usr/local/bin/nano /etc/rc.conf
 				ifconfig_em0="inet 192.168.0.203 netmask 255.255.255.0"
 				defaultgateway="192.168.0.1"
+				hostname="freebsd64.0ne.us"
+				defaultrouter="192.168.0.1"
+				sendmail_enable="NONE"
 			5. /usr/local/bin/nano /etc/resolv.conf # setup smoker-master as dns server
-			6. useradd # add the cpan account, don't forget to set bash as shell
-			7. setup root/system CPANPLUS
-				7.0 configure CPAN, tell it to install CPANPLUS # freebsd doesn't install CPANPLUS by default...
+			6. pw useradd cpan -m -s /usr/local/bin/bash
+			7. passwd cpan
+			8. setup root/system CPANPLUS
 				7.1 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
 				7.2 cpanp x --update_source
 				7.3 cpanp s selfupdate all
@@ -123,6 +126,10 @@
 
 
 	- windows XP
+		- install steps:
+			1. install base system
+			2.
+
 	...
 
 	Once OS is installed:
