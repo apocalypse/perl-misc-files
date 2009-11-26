@@ -34,6 +34,17 @@ use strict; use warnings;
 #		- that way, we can know what perl versions to skip and etc
 #		- maybe we can autodetect it?
 #	- add support for devel version of perl ( we smoke only the latest dev version - i.e. 5.11.2 )
+	#	<@timbunce> How can I build a devel version of perl (-Dusedevel) but get the executables installed without the version number appended to them?
+	#	<@Zefram> I have a script that installs the links
+	#	<Apocalypse> timbunce: Hmm, symlink them?
+	#	<@vincent> there's a configure option for that
+	#	<Apocalypse> vincent: We need a bot here who can answer configure options for us ;)
+	#	<@timbunce> vincent: I looked around but couldn't see it. The naming happens in installperl but it wasn't clear to me how to disable it at config time
+	#	<@avar> dipsy: avar configure
+	#	<+purl> rumour has it avar configure is ./Configure -Dcc='ccache gcc' -Dld=gcc -Doptimize=-ggdb3 -Dusedevel -d -e or -Dusethreads
+	#	<@timbunce> installperl +v : Install perl as "perl" and as a binary with the version number in  the name.  (Override whatever config.sh says)
+	#	<@timbunce> Looks like it's Configure -Uversiononly
+	#	<@vincent> that's the fellow
 #	- auto-config the root/system CPANPLUS? ( we need to install SQLite stuff too! )
 #	- for the patch_hints thing, auto-detect the latest perl tarball and copy it from there instead of hardcoding it here...
 
