@@ -27,9 +27,9 @@ sub _start {
 	my $perls = getPerlVersions();
 	foreach my $p ( @$perls ) {
 		my $smoker = POE::Component::SmokeBox::Smoker->new(
-			perl => $p . '/bin/perl',
+			perl => "$ENV{HOME}/perls/$p/bin/perl",
 			env => {
-				'APPDATA' => $p . '/',
+				'APPDATA' => "$ENV{HOME}/cpanp_conf/$p/",
 			},
 		);
 		$smokebox->add_smoker( $smoker );
@@ -42,19 +42,19 @@ sub _start {
 	$smokebox->add_smoker( POE::Component::SmokeBox::Smoker->new(
 		perl => $perl,
 		env => {
-			'APPDATA' => "$ENV{HOME}",
+			'APPDATA' => "$ENV{HOME}/",
 		},
 	) );
 
 	# test a smoke run
 	foreach my $m ( qw( Acme::Drunk Acme::24 ) ) {
-	$smokebox->submit( event => '_results',
-		job => POE::Component::SmokeBox::Job->new(
-			command => 'smoke',
-			module => $m,
-			type => 'CPANPLUS::YACSmoke',
-		),
-	);
+		$smokebox->submit( event => '_results',
+			job => POE::Component::SmokeBox::Job->new(
+				command => 'smoke',
+				module => $m,
+				type => 'CPANPLUS::YACSmoke',
+			),
+		);
 	}
 	return;
 }
@@ -78,10 +78,9 @@ print Dumper( $results );
 # gets the perls
 sub getPerlVersions {
 	my @perls;
-	opendir( PERLS, $ENV{HOME} ) or die "unable to opendir: $@";
-	@perls = map { $_ = "$ENV{HOME}/$_" } grep { /^perl\-/ && -d "$ENV{HOME}/$_" && -e "$ENV{HOME}/$_/ready.smoke" } readdir( PERLS );
+	opendir( PERLS, "$ENV{HOME}/perls" ) or die "unable to opendir: $@";
+	@perls = grep { /^perl\-/ && -d "$ENV{HOME}/perls/$_" && -e "$ENV{HOME}/perls/$_/ready.smoke" } readdir( PERLS );
 	closedir( PERLS ) or die "unable to closedir: $@";
 
 	return \@perls;
 }
-

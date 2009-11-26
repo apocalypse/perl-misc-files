@@ -6,6 +6,8 @@
 	- ubuntu
 		- install steps:
 			1. install base system
+				1.0 make sure to install a swap partition > 1G
+				1.1 make sure rootfs is mounted with noatime
 			2. sudo passwd # to set root passwd
 			3. sudo vi /etc/pam.d/su && sudo groupadd wheel && sudo usermod -a -G wheel apoc
 			3. sudo apt-get update && sudo apt-get upgrade
@@ -18,15 +20,15 @@
 					broadcast 192.168.0.255
 					gateway 192.168.0.1
 			5. sudo nano /etc/resolv.conf # to set smoker-master as dns server
+				domain 0ne.us
+				search 0ne.us
+				nameserver 192.168.0.200
 			6. sudo useradd -m cpan && sudo passwd cpan && sudo usermod -s /bin/bash cpan # passwd is cpan
 			7. setup root/system CPANPLUS
 				7.0 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm
 				7.1 cpanp x --update_source
 				7.1 cpanp s selfupdate all
 				7.2 cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter
-			8. setup cpan CPANPLUS
-				8.0 copy CPANP-cpan.config to /home/cpan/.cpanplus/lib/CPANPLUS/Config/User.pm
-				8.1 cpanp x --update_source
 
 	- freebsd
 		- install steps:
@@ -44,9 +46,6 @@
 				7.2 cpanp x --update_source
 				7.3 cpanp s selfupdate all
 				7.4 cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter
-			8. setup cpan CPANPLUS
-				8.0 copy CPANP-cpan.config to /home/cpan/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
-				8.1 cpanp x --update_source
 
 	- netbsd
 		- install steps:
@@ -74,7 +73,6 @@
 			10. setup pkgsrc # http://www.netbsd.org/docs/pkgsrc/getting.html#getting-first
 				10.0 get pkgsrc-2009Q3 via ftp
 				10.1 cd /usr/pkgsrc/shells/bash && make install
-				10.2 cd /usr/pkgsrc/lang/perl5 && make install
 				10.3 cd /usr/pkgsrc/editors/nano && make install
 				10.4 cd /usr/pkgsrc/net/wget && make install
 			11. usermod -s /usr/pkg/bin/bash apoc && usermod -s /usr/pkg/bin/bash root
@@ -86,26 +84,23 @@
 				15.2 cpanp x --update_source
 				15.3 cpanp s selfupdate all
 				15.4 cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter
-			16. setup cpan CPANPLUS
-				16.0 copy CPANP-cpan.config to /home/cpan/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
-				16.1 cpanp x --update_source
 
 	- opensolaris
 		- install steps:
 			1. install base system # don't forget to add apoc user
-			2. sudo nano /etc/resolv.conf # setup smoker-master as dns server
-			3. cp /etc/nsswitch.conf /etc/nsswitch.conf.original
-			4. cp /etc/nsswitch.dns /etc/nsswitch.conf
-			5. svcadm restart svc:/network/dns/client:default
-			6. nano /etc/nwam/llp # change from e1000g0 dhcp to "e1000g0 static 192.168.0.210/24"
-			7. svcadm restart svc:/network/physical:nwam
+			2. pfexec nano /etc/resolv.conf # setup smoker-master as dns server
+			3. pfexec cp /etc/nsswitch.conf /etc/nsswitch.conf.original
+			4. pfexec cp /etc/nsswitch.dns /etc/nsswitch.conf
+			5. pfexec svcadm restart svc:/network/dns/client:default
+			6. pfexec nano /etc/nwam/llp # change from e1000g0 dhcp to "e1000g0 static 192.168.0.207/24"
+			7. pfexec svcadm restart svc:/network/physical:nwam
 			8. pfexec svcadm enable svc:/network/physical:default
 			9. pfexec nano /etc/defaultrouter # add 192.168.0.1 as one line
 			10. pfexec svcadm restart network/routing-setup
 			11. add cpan user via Users/Groups in the GUI
 			12. pfexec svcadm disable XYZ
 				gdm sendmail sendmail-client gconf-cache fc-cache icon-cache rpc/bind pixbuf-loaders-installer
-				desktop-mime-cache mime-types-cache input-method-cache ogl-select
+				desktop-mime-cache mime-types-cache input-method-cache ogl-select ppd-cache-update dns/multicast ktkt_warn
 			12. pfexec pkg install ss-dev
 				12.1 pfexec nano /etc/profile
 					# add those lines:
@@ -113,28 +108,25 @@
 					UT_NO_USAGE_TRACKING=1
 				12.2 pfexec nano /etc/default/su
 					# update the path/supath to this:
-					PATH=/opt/SunStudioExpress/bin:/usr/gnu/bin:/usr/bin:/usr/X11/bin:/usr/sbin:/sbin
+					PATH=/opt/SunStudioExpress/bin:/usr/gnu/bin:/usr/bin:/usr/sbin:/sbin
 				12.3 pfexec nano /etc/default/login
 					# update the path to this:
-					PATH=/opt/SunStudioExpress/bin:/usr/gnu/bin:/usr/bin:/usr/X11/bin:/usr/sbin:/sbin
+					PATH=/opt/SunStudioExpress/bin:/usr/gnu/bin:/usr/bin:/usr/sbin:/sbin
 				12.3 nano /export/home/apoc/.profile
 					# remove any PATH stuff
 					# do the same for .bashrc
 			13. setup root/system CPANPLUS
 				13.0 configure CPAN, tell it to install CPANPLUS # opensolaris doesn't install CPANPLUS by default...
 				13.1 copy CPANP-root.config to /export/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
-				13.2 cpanp s selfupdate all
-				13.3 cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter
-			14. setup cpan CPANPLUS
-				14.0 copy CPANP-cpan.config to /home/cpan/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
-				14.1 cpanp x --update_source
+				13.2 pfexec cpanp s selfupdate all
+				13.3 pfexec cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter
 
 
 	- windows XP
 	...
 
 	Once OS is installed:
-		- copy compile_perl.pl + CPANP-Boxed.config + CPANPLUS.config to system # and adjust paths if needed
+		- copy compile_perl.pl
 		- chmod +x compile_perl.pl
 		- start compiling perls!
 
@@ -160,7 +152,7 @@
 		- use system perl if possible ( and investigate how to install multiple perls on this OS? )
 	- for no system perl OSes
 		- use strawberry for windows
-		- use ActiveState for windows
+		- use ActiveState for windows # http://www.perlmonks.org/index.pl/jacques?node_id=216842
 		- try to figure out a way to have multiple perls installed on windows?
 
 	- possible perl configuration tweaks:
@@ -182,13 +174,12 @@
 	- add smokebox to init.d equivalent
 	- let 'er rip!
 
-10. setup local minicpan mirror
+10. setup local CPAN mirror
 	- this is on the "ftp/web/etc server"
-	- install minicpan + setup config ( copy from template )
 	- mirror the CPAN
-	- configure ftp/http/rsync access to it
-	- install POE::Component::SmokeBox::Uploads::CPAN::Mini
-	- run a daemon to update the minicpan via PoCo::Mini every 24h and pipe new modules to #cpantesters on local ircd
+	- configure ftp access to it
+	- install POE::Component::SmokeBox::Uploads::RSS and pipe output to #cpan on local ircd
+	- http://search.cpan.org/~andk/File-Rsync-Mirror-Recent/ # to setup rsync system to mirror from cpan.cpantesters.org
 	- run the CPAN::Mini::Webserver module to provide web access to it
 
 11. setup local ircd
@@ -212,4 +203,133 @@
 
 <xdg> Apocalypse, too much scrollback for me to read, but two things:  (1) http://cpan.dagolden.com/ is a "fast mirror" updating from PAUSE every 30 seconds (also http://cpan.cpantesters.org/ and http://cpan.hexten.net/)
 
+
+<Apocalypse> Alias: I'm hoping you can answer this - is there a doc somewhere I can read on tips on installing multiple strawberries on a win box? I want to smoke CPAN and don't have the resources to load one VM per strawberry install... I'm sure there's some sneaky tricks I can do :)
+<Apocalypse> It would also rock if I could get multiple AS perls onto the same VM too...
+<@Alias> hrm
+<@Alias> Well, to summarise
+<@Alias> 1. Download the Portable version
+<@Alias> 2. Never install to paths with spaces
+<@Alias> 3. Avoid having a default install, just the portable ones
+<Apocalypse> Hm, I see there is only a few portable releases available, and not for all perl versions :(
+<@Alias> 4. Find a way to ensure that the PATH and TERM and FTP_PASSIVE environment variables get set before you run the program
+<@Alias> Portable only works for 5.10
+<@Alias> It relies on relocation
+<@Alias> The only way I can think of to have lots of different versions on Windows is to hand build the entire distro yourself
+<@Alias> Because they have fixed, locked, install paths
+<Apocalypse> Ah, what I was thinking is to use some crazy file moving tricks so I "swap" entire directories around and run the smoke... say C:\perls\straw-5.10.1 and C:\perls\straw-5.8.9 and just juggle them around to C:\strawberry when doing the tests - is that sane or not?
+<@Alias> Although some people have done stuff with just manual string munging
+<@Alias> oh yeah!
+<@Alias> Directory moving?
+<@Alias> Like a CD disk changer
+<@Alias> That could work too
+<Apocalypse> yeah just move them to the "default location" and run a smoke, then swap them
+<Apocalypse> exactly haha
+<@Alias> I hadn't considered that option
+<@Alias> You still want to only use zip versions, and twiddle the environment by hand
+<@Alias> You could really freak out MSI doing disk changing tricks
+<Apocalypse> One potential roadblock I have was that I'm gonna run poco-smokebox and I need a system perl installed - now I didn't think of portable - I can use that as the "smoker perl" and use it to smoke the juggled directories
+<@Alias> zip, but not portable
+<@Alias> No
+<@Alias> Grab bootperl
+<@Alias> There's a special magic "Bootstrap Perl" that CSJewell and I use to build strawberry
+<@Alias> It's just an oldish custom-built 5.8.8 with some pre-installed stuff that has been compiled to live at C:\bootperl
+<@Alias> Because you can't use Strawberry to build Strawberry :)
+<@Alias> Directory clash :)
+<@Alias> If you get a copy or link from CSJewell, that would be best, I think
+<@Alias> Now I need to go, gotta be on a plane to OSDC in a few hours
+<@Alias> And don't forget to blog your progress, it's a really interesting area
+* Alias has quit (Quit: http://www.mibbit.com ajax IRC Client)
+<Apocalypse> Dang Alias, but yeah I definitely would write up a doc somewhere once I get the entire thing figured out and *working* :)
+<Apocalypse> CSJewell: You there? I just had a talk with Alias about installing multiple strawberries on a windows box for CPAN smoking - and he told me to get the "Bootstrap Perl" so I have a sane perl to use, do you have the link? Thanks!
+<@CSJewell> Sure. Just a second.
+<@CSJewell> http://strawberryperl.com/download/bootstrap/bootstrap-perl-5.10.1.0.msi
+
+
+<Apocalypse> ah MUCH better, before I was failing tons of tests now all passed :)
+<Apocalypse> I should write down everything I did and blog it somewhere heh
+<Apocalypse> A lot of tiny things to fix...
+<Bram> Can you create a patch for it and mail it to me?
+<Apocalypse> for 5.6.1 or 2? I'm compiling them both here
+<Bram> When I have time I will take a look at  buildaperl  (from Perl::Repository::APC)  to see if the patch can be integrated there.
+<Bram> Both if you don't mind
+<Apocalypse> ah thats cool
+<Apocalypse> sure I'll email it to ya - what address?
+<Bram> p5p@perl.wizbit.be
+
+
+http://www.nntp.perl.org/group/perl.perl5.porters/2007/08/msg127609.html
+	to fix the asm/page.h error
+
+http://perl5.git.perl.org/perl.git/commitdiff/2bce232
+http://perl5.git.perl.org/perl.git/commitdiff/a9ff62c8
+	to fix configure problems
+	be sure to remove all instances of "command-line" and "built-in" in the makefile
+
+also use -Ui_db argument to sh Configure so we disable DB_File
+
+<Apocalypse> The following 1 signals are available: SIGZERO
+<Apocalypse> funny heh
+<Apocalypse> /usr/bin/sort: open failed: +1: No such file or directory
+<Bram> Hmm. That could be a problem with a newer version of sort.. I remember seeing a Change of it a long time ago but again don't fully remember...
+<Bram> In Configure (on 5.6.1): replace the first  $sort -n +1  with:  ($sort -n -k 2 2>/dev/null || $sort -n +1) |\  and the second with  $sort -n
+	do that to fix signal problem
+
+on windows, hack Test::Harness to use Win32::Autoglob for t/*.t goodness!
+
+
+generic steps
+-------------
+	extract tarball
+	apply version-specific patches
+	sh Configure -des -Dprefix=/home/apoc/perl/perl-5.x.x
+	make depend
+	make test
+	make install
+	cd /home/apoc/perl/perl-5.x.x
+
+
+5.6.2
+-----
+	http://www.nntp.perl.org/group/perl.perl5.porters/2007/08/msg127609.html
+	to fix the asm/page.h error
+
+	http://perl5.git.perl.org/perl.git/commitdiff/2bce232
+	http://perl5.git.perl.org/perl.git/commitdiff/a9ff62c8
+		to fix configure problems
+		be sure to remove all instances of "command-line" and "built-in" in the makefile
+
+	also use -Ui_db argument to sh Configure so we disable DB_File
+
+	<Apocalypse> The following 1 signals are available: SIGZERO
+	<Apocalypse> funny heh
+	<Apocalypse> /usr/bin/sort: open failed: +1: No such file or directory
+	<Bram> Hmm. That could be a problem with a newer version of sort.. I remember seeing a Change of it a long time ago but again don't fully remember...
+	<Bram> In Configure (on 5.6.1): replace the first  $sort -n +1  with:  ($sort -n -k 2 2>/dev/null || $sort -n +1) |\  and the second with  $sort -n
+		do that to fix signal problem
+
+5.6.1
+-----
+	same as 5.6.2
+
+5.6.0
+-----
+	same as 5.6.2
+
+
+
+
+<Apocalypse> So it is safe to ignore or it would screw up my smoking of 5.8.8?
+<@Bram> It appears to be a test that is broken with 64 bit int (which you are using). So try removing the test or modify it to match the test on 5.8.9
+<@Bram> What smoking? (cpan smoking? perl smoking?)
+<Apocalypse> Sorry, cpan smoking
+<Apocalypse> No use in smoking old perl builds, I'll also setup a blead smoker sometime in the future :)
+<@Bram> As far as I can tell it won't mess up your cpan smoking... it's only a problem if large numbers in sprintf are used..
+<@Bram> Or your could recompile the perl to be 32int instead of 64int (then the test passes but the underlying problem with sprintf still exists)
+<Apocalypse> Ah, so the underlying bug really is fixed in 5.8.9+ or it is still lurking?
+<rjbs> Apocalypse: http://rjbs.manxome.org/rubric/entry/1812 -- boggle
+<+dipsy> [ rjbs's rubric: remarkable behavior of sprintf ]
+<@Bram> From the commits it appears to be fixed
+<Apocalypse> rjbs: :)
+<Apocalypse> Bram: I'll make a note of that and if any cpan modules bombs on < 5.8.9 due to sprintf problems I'll know what's going on :)
 

@@ -18,27 +18,30 @@ use strict; use warnings;
 #<Apocalypse> Ah, so CPANPLUS definitely won't work on 5.6.0? I should just drop it...
 
 # this script does everything, but we need some layout to be specified!
-# /home/cpan				<-- the main directory
-# /home/cpan/CPANPLUS-0.XX		<-- the extracted CPANPLUS directory we use
-# /home/cpan/build			<-- where we store our perl builds + tarballs
-# /home/cpan/build/perl-5.6.2.tar.gz	<-- one perl tarball
-# /home/cpan/build/perl-5.6.2		<-- one extracted perl build
-# /home/cpan/perl-5.6.2			<-- finalized perl install
-# /home/cpan/compile_perl.pl		<-- where this script should be
+# /home/cpan					<-- the main directory
+# /home/cpan/CPANPLUS-0.XX			<-- the extracted CPANPLUS directory we use
+# /home/cpan/build				<-- where we store our perl builds + tarballs
+# /home/cpan/build/perl-5.6.2.tar.gz		<-- one perl tarball
+# /home/cpan/build/perl-5.6.2-thr-32		<-- one extracted perl build
+# /home/cpan/perls				<-- the perl installation directory
+# /home/cpan/perls/perl-5.6.2-thr-32		<-- finalized perl install
+# /home/cpan/cpanp_conf				<-- where we store the CPANPLUS configs
+# /home/cpan/cpanp_conf/perl-5.6.2-thr-32	<-- CPANPLUS config location for a specific perl
+# /home/cpan/compile_perl.pl			<-- where this script should be
 
 # TODO LIST
 #	- create "hints" file that sets operating system, 64bit, etc
 #		- that way, we can know what perl versions to skip and etc
 #		- maybe we can autodetect it?
-#	- reset patch_num for every build
 #	- better logging of failures ( accumulate logs? )
-#	- automatically setup the "cpan" user's CPANPLUS config
+#	- detect cpanplus install module failure
+#	- add support for devel version of perl ( we smoke only the latest dev version - i.e. 5.11.2 )
+#	- auto-config the root/system CPANPLUS? ( we need to install SQLite stuff too! )
 
 # load our dependencies
 use Capture::Tiny qw( capture_merged tee_merged );
 use Prompt::Timeout;
 use Sort::Versions;
-use CPANPLUS::Backend;
 #use Term::Title qw( set_titlebar );	# TODO use this? too fancy...
 
 # static var...
@@ -70,6 +73,10 @@ if ( $res ne 'a' ) {
 exit 0;
 
 sub get_CPANPLUS_ver {
+	# is the "cpan" user's CPANPLUS configured?
+	do_config_localCPANPLUS();
+
+	require CPANPLUS::Backend;
 	my $cb = CPANPLUS::Backend->new;
 	my $mod = $cb->module_tree( "CPANPLUS" );
 	my $ver = defined $mod ? $mod->package_version : undef;
@@ -79,6 +86,118 @@ sub get_CPANPLUS_ver {
 		# the default
 		return "0.88";
 	}
+}
+
+sub do_config_localCPANPLUS {
+	# configure the local user Config settings
+	my $uconfig = <<'END';
+###############################################
+###
+###  Configuration structure for CPANPLUS::Config::User
+###
+###############################################
+
+#last changed: Sun Mar  1 10:56:52 2009 GMT
+
+### minimal pod, so you can find it with perldoc -l, etc
+=pod
+
+=head1 NAME
+
+CPANPLUS::Config::User
+
+=head1 DESCRIPTION
+
+This is a CPANPLUS configuration file. Editing this
+config changes the way CPANPLUS will behave
+
+=cut
+
+package CPANPLUS::Config::User;
+
+use strict;
+
+sub setup {
+	my $conf = shift;
+
+	### conf section
+	$conf->set_conf( allow_build_interactivity => 0 );
+	$conf->set_conf( base => 'XXXHOMEXXX/.cpanplus' );
+	$conf->set_conf( buildflags => '' );
+	$conf->set_conf( cpantest => 1 );
+	$conf->set_conf( cpantest_mx => '' );
+	$conf->set_conf( cpantest_reporter_args => {
+		transport => 'HTTPGateway',
+		transport_args => [ 'http://192.168.0.200:11111/submit' ],
+	} );
+	$conf->set_conf( debug => 0 );
+	$conf->set_conf( dist_type => '' );
+	$conf->set_conf( email => 'perl@0ne.us' );
+	$conf->set_conf( enable_custom_sources => 0 );
+	$conf->set_conf( extractdir => '' );
+	$conf->set_conf( fetchdir => '' );
+	$conf->set_conf( flush => 1 );
+	$conf->set_conf( force => 0 );
+	$conf->set_conf( hosts => [
+		{
+			'path' => '/CPAN/',
+			'scheme' => 'ftp',
+			'host' => '192.168.0.200',
+		},
+	] );
+	$conf->set_conf( lib => [] );
+	$conf->set_conf( makeflags => '' );
+	$conf->set_conf( makemakerflags => '' );
+	$conf->set_conf( md5 => 1 );
+	$conf->set_conf( no_update => 1 );
+	$conf->set_conf( passive => 1 );
+	$conf->set_conf( prefer_bin => 0 );
+	$conf->set_conf( prefer_makefile => 1 );
+	$conf->set_conf( prereqs => 1 );
+	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
+	$conf->set_conf( show_startup_tip => 0 );
+	$conf->set_conf( signature => 0 );
+	$conf->set_conf( skiptest => 0 );
+	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::SQLite' );
+	$conf->set_conf( storable => 1 );
+	$conf->set_conf( timeout => 300 );
+	$conf->set_conf( verbose => 1 );
+	$conf->set_conf( write_install_logs => 0 );
+
+	### program section
+	$conf->set_program( editor => 'XXXWHICH-nanoXXX' );
+	$conf->set_program( make => 'XXXWHICH-makeXXX' );
+	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
+	$conf->set_program( perlwrapper => 'XXXWHICH-cpanp-run-perlXXX' );
+	$conf->set_program( shell => 'XXXWHICH-bashXXX' );
+	$conf->set_program( sudo => undef );
+
+	return 1;
+}
+
+1;
+END
+
+	# okay, look at the default CPANPLUS config location
+	if ( ! -e "$ENV{HOME}/.cpanplus/lib/CPANPLUS/Config/User.pm" ) {
+		print "[COMPILER] Configuring the local user's CPANPLUS config...\n";
+
+		# transform the XXXargsXXX
+		$uconfig = do_replacements( $uconfig );
+
+		# save it!
+		# TODO use File::Path::Tiny
+		do_shellcommand( "mkdir -p $ENV{HOME}/.cpanplus/lib/CPANPLUS/Config" );
+		open( my $config, '>', "$ENV{HOME}/.cpanplus/lib/CPANPLUS/Config/User.pm" ) or die "unable to create config: $@";
+		print $config $uconfig;
+		close( $config );
+
+		# force an update
+		# we don't use do_cpanp_install() here because we need to use the local user's CPANPLUS config not the boxed one...
+		do_shellcommand( "APPDATA=$ENV{HOME}/ cpanp x --update_source" );
+	}
+
+	return;
 }
 
 sub prompt_debug {
@@ -136,7 +255,7 @@ sub get_perl_tarballs {
 			mkdir( "$PATH/build" ) or die "Unable to mkdir: $!";
 
 			# TODO make this configurable
-			do_shellcommand( "wget ftp://192.168.0.200/perl_dists/all_perls.tar.gz" );
+			do_shellcommand( "wget ftp://192.168.0.200/perl_dists/src/all_perls.tar.gz" );
 			do_shellcommand( "tar -C $PATH/build -xf all_perls.tar.gz" );
 			unlink( 'all_perls.tar.gz' ) or die "Unable to unlink: $!";
 
@@ -144,6 +263,11 @@ sub get_perl_tarballs {
 			# TODO make this configurable
 			foreach my $v ( qw( 5.8.0 5.6.0 ) ) {
 				unlink( "$PATH/build/perl-$v.tar.gz" ) or die "Unable to unlink: $!";
+			}
+
+			# make the perls directory
+			if ( ! -d "$PATH/perls" ) {
+				mkdir( "$PATH/perls" ) or die "Unable to mkdir: $!";
 			}
 		} else {
 			print "[COMPILER] No perl tarballs available...\n";
@@ -158,6 +282,10 @@ sub make_perl {
 	my $perl = shift;
 	$perlver = $perl;
 
+	# build a default build
+	$perlopts = 'default';
+	make_perl_opts( $perlver, $perlopts );
+
 	# loop over all the options we have
 	# TODO use hints to figure out if this is 64bit or 32bit OS
 	foreach my $thr ( qw( thr nothr ) ) {
@@ -167,10 +295,6 @@ sub make_perl {
 		}
 	}
 
-	# build a default build
-	$perlopts = 'default';
-	make_perl_opts( $perlver, $perlopts );
-
 	return;
 }
 
@@ -178,9 +302,9 @@ sub make_perl_opts {
 	# ignore the args for now, as we use globals :(
 
 	# have we already compiled+installed this version?
-	if ( ! -d "$PATH/perl-$perlver-$perlopts" ) {
+	if ( ! -d "$PATH/perls/perl-$perlver-$perlopts" ) {
 		# did the compile fail?
-		if ( -e "$PATH/perl-$perlver-$perlopts.fail" ) {
+		if ( -e "$PATH/perls/perl-$perlver-$perlopts.fail" ) {
 			print "[COMPILER] Perl-$perlver-$perlopts already failed, skipping...\n";
 			return;
 		}
@@ -198,7 +322,7 @@ sub make_perl_opts {
 		}
 	} else {
 		# all done with configuring?
-		if ( -e "$PATH/perl-$perlver-$perlopts/ready.smoke" ) {
+		if ( -e "$PATH/perls/perl-$perlver-$perlopts/ready.smoke" ) {
 			print "[COMPILER] Perl-$perlver-$perlopts is ready to smoke...\n";
 			return;
 		} else {
@@ -229,12 +353,10 @@ sub make_perl_opts {
 sub finalize_perl {
 	# thanks to BiNGOs for the idea!
 	# TODO annoying to do it for each run...
-	#foreach my $dir ( qw( man lib bin ) ) {
-	#	do_shellcommand( "sudo chown -R root:root perl-$perlver-$perlopts/$dir" );
-	#}
+	#do_shellcommand( "sudo chown -R root:root $PATH/perls/perl-$perlver-$perlopts" );
 
 	# we're really done!
-	do_shellcommand( "touch $PATH/perl-$perlver-$perlopts/ready.smoke" );
+	do_shellcommand( "touch $PATH/perls/perl-$perlver-$perlopts/ready.smoke" );
 }
 
 sub do_prebuild {
@@ -244,9 +366,17 @@ sub do_prebuild {
 		do_shellcommand( "rm -rf $PATH/build/perl-$perlver-$perlopts" );
 	}
 
+	# make sure we have the output dir ready
+	if ( ! -d "$PATH/perls" ) {
+		mkdir( "$PATH/perls" ) or die "Unable to mkdir: $!";
+	}
+
 	# extract the tarball!
 	do_shellcommand( "tar -C $PATH/build -zxf $PATH/build/perl-$perlver.tar.gz" );
 	do_shellcommand( "mv $PATH/build/perl-$perlver $PATH/build/perl-$perlver-$perlopts" );
+
+	# reset the patch counter
+	do_patch_reset();
 
 	# now, apply the patches each version needs
 	do_prebuild_patches();
@@ -268,7 +398,8 @@ sub do_initCPANP_BOXED {
 	# do we have the tarball?
 	if ( ! -f "$PATH/CPANPLUS-$CPANPLUS_ver.tar.gz" ) {
 		# get it!
-		do_shellcommand( "wget ftp://192.168.0.200/minicpan/authors/id/K/KA/KANE/CPANPLUS-$CPANPLUS_ver.tar.gz" );
+		# TODO the author might change... waht's a portable way?
+		do_shellcommand( "wget ftp://192.168.0.200/CPAN/authors/id/K/KA/KANE/CPANPLUS-$CPANPLUS_ver.tar.gz" );
 	}
 
 	# extract it!
@@ -315,8 +446,8 @@ sub setup {
 
 	### conf section
 	$conf->set_conf( allow_build_interactivity => 0 );
-	$conf->set_conf( base => '/XXXPATHXXX/CPANPLUS-XXXCPANPLUSXXX/.cpanplus/XXXUSERXXX' );
-	$conf->set_conf( buildflags => '--installdirs site --uninst=1' );
+	$conf->set_conf( base => 'XXXPATHXXX/CPANPLUS-XXXCPANPLUSXXX/.cpanplus/XXXUSERXXX' );
+	$conf->set_conf( buildflags => '' );
 	$conf->set_conf( cpantest => 0 );
 	$conf->set_conf( cpantest_mx => '' );
 	$conf->set_conf( cpantest_reporter_args => {} );
@@ -330,14 +461,14 @@ sub setup {
 	$conf->set_conf( force => 0 );
 	$conf->set_conf( hosts => [
 		{
-			'path' => '/minicpan/',
+			'path' => '/CPAN/',
 			'scheme' => 'ftp',
 			'host' => '192.168.0.200',
 		},
 	] );
 	$conf->set_conf( lib => [] );
-	$conf->set_conf( makeflags => 'UNINST=1' );
-	$conf->set_conf( makemakerflags => 'INSTALLDIRS=site' );
+	$conf->set_conf( makeflags => '' );
+	$conf->set_conf( makemakerflags => '' );
 	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
@@ -348,7 +479,7 @@ sub setup {
 	$conf->set_conf( show_startup_tip => 0 );
 	$conf->set_conf( signature => 0 );
 	$conf->set_conf( skiptest => 1 );
-	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::Memory' );
+	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::SQLite' );
 	$conf->set_conf( storable => 1 );
 	$conf->set_conf( timeout => 300 );
 	$conf->set_conf( verbose => 1 );
@@ -385,13 +516,14 @@ sub do_replacements {
 	my $str = shift;
 
 	# basic stuff
+	$str =~ s/XXXHOMEXXX/$ENV{HOME}/g;
 	$str =~ s/XXXUSERXXX/$ENV{USER}/g;
 	$str =~ s/XXXPATHXXX/$PATH/g;
 	$str =~ s/XXXCPANPLUSXXX/$CPANPLUS_ver/g;
 	$str =~ s/XXXPERLVERXXX/$perlver-$perlopts/g;
 
 	# find binary locations
-	$str =~ s/XXXWHICH-(\w+)XXX/get_binary_path( $1 )/ge;
+	$str =~ s/XXXWHICH-([\w\-]+)XXX/get_binary_path( $1 )/ge;
 
 	return $str;
 }
@@ -421,7 +553,8 @@ sub do_installCPANPLUS {
 	# Module::Build -> ExtUtils::CBuilder, ExtUtils::ParseXS
 	# Module::Signature -> Digest::SHA ( fucking AutoInstall! )
 	# LWP on perl-5.8.2 bombs on Encode
-	do_cpanp_install( "i ExtUtils::MakeMaker ExtUtils::CBuilder ExtUtils::ParseXS Test::More File::Temp Time::HiRes Digest::SHA Encode" );
+	# CPANPLUS::SQLite -> DBD::SQLite, DBIx::Simple
+	do_cpanp_install( "i ExtUtils::MakeMaker ExtUtils::CBuilder ExtUtils::ParseXS Test::More File::Temp Time::HiRes Digest::SHA Encode DBD::SQLite DBIx::Simple" );
 
 	# run the cpanp-boxed script and tell it to bootstrap it's dependencies
 	do_cpanp_install( "s selfupdate dependencies" );
@@ -438,7 +571,7 @@ sub do_installCPANPLUS {
 
 	# force an update
 	# we don't use do_cpanp_install() here because we need to use the perl's CPANPLUS config not the boxed one...
-	do_shellcommand( "APPDATA=$PATH/perl-$perlver-$perlopts/ $PATH/perl-$perlver-$perlopts/bin/perl $PATH/perl-$perlver-$perlopts/bin/cpanp x --update_source" );
+	do_shellcommand( "APPDATA=$PATH/cpanp_conf/perl-$perlver-$perlopts/ $PATH/perls/perl-$perlver-$perlopts/bin/perl $PATH/perls/perl-$perlver-$perlopts/bin/cpanp x --update_source" );
 }
 
 sub do_installCPANPLUS_config {
@@ -475,8 +608,8 @@ sub setup {
 
 	### conf section
 	$conf->set_conf( allow_build_interactivity => 0 );
-	$conf->set_conf( base => '/XXXPATHXXX/perl-XXXPERLVERXXX/.cpanplus' );
-	$conf->set_conf( buildflags => '--installdirs site' );
+	$conf->set_conf( base => 'XXXPATHXXX/cpanp_conf/perl-XXXPERLVERXXX/.cpanplus' );
+	$conf->set_conf( buildflags => '' );
 	$conf->set_conf( cpantest => 1 );
 	$conf->set_conf( cpantest_mx => '' );
 	$conf->set_conf( cpantest_reporter_args => {
@@ -493,14 +626,14 @@ sub setup {
 	$conf->set_conf( force => 0 );
 	$conf->set_conf( hosts => [
 		{
-			'path' => '/minicpan/',
+			'path' => '/CPAN/',
 			'scheme' => 'ftp',
 			'host' => '192.168.0.200',
 		},
 	] );
 	$conf->set_conf( lib => [] );
 	$conf->set_conf( makeflags => '' );
-	$conf->set_conf( makemakerflags => 'INSTALLDIRS=site' );
+	$conf->set_conf( makemakerflags => '' );
 	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
@@ -511,7 +644,7 @@ sub setup {
 	$conf->set_conf( show_startup_tip => 0 );
 	$conf->set_conf( signature => 0 );
 	$conf->set_conf( skiptest => 0 );
-	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::Memory' );
+	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::SQLite' );
 	$conf->set_conf( storable => 1 );
 	$conf->set_conf( timeout => 300 );
 	$conf->set_conf( verbose => 1 );
@@ -521,7 +654,7 @@ sub setup {
 	$conf->set_program( editor => 'XXXWHICH-nanoXXX' );
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
 	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
-	$conf->set_program( perlwrapper => 'XXXPATHXXX/perl-XXXPERLVERXXX/bin/cpanp-run-perl' );
+	$conf->set_program( perlwrapper => 'XXXPATHXXX/perls/perl-XXXPERLVERXXX/bin/cpanp-run-perl' );
 	$conf->set_program( shell => 'XXXWHICH-bashXXX' );
 	$conf->set_program( sudo => undef );
 
@@ -536,8 +669,8 @@ END
 
 	# save it!
 	# TODO use File::Path::Tiny
-	do_shellcommand( "mkdir -p $PATH/perl-$perlver-$perlopts/.cpanplus/lib/CPANPLUS/Config" );
-	open( my $config, '>', "$PATH/perl-$perlver-$perlopts/.cpanplus/lib/CPANPLUS/Config/User.pm" ) or die "unable to create config: $@";
+	do_shellcommand( "mkdir -p $PATH/cpanp_conf/perl-$perlver-$perlopts/.cpanplus/lib/CPANPLUS/Config" );
+	open( my $config, '>', "$PATH/cpanp_conf/perl-$perlver-$perlopts/.cpanplus/lib/CPANPLUS/Config/User.pm" ) or die "unable to create config: $@";
 	print $config $cpanplus;
 	close( $config );
 
@@ -550,7 +683,7 @@ sub do_cpanp_install {
 
 	# use default answer to prompts ( MakeMaker stuff - PERL_MM_USE_DEFAULT )
 	# TODO check output to see if modules were installed OK
-	do_shellcommand( "PERL_MM_USE_DEFAULT=1 $PATH/perl-$perlver-$perlopts/bin/perl $PATH/CPANPLUS-$CPANPLUS_ver/bin/cpanp-boxed $modules" );
+	do_shellcommand( "PERL_MM_USE_DEFAULT=1 $PATH/perls/perl-$perlver-$perlopts/bin/perl $PATH/CPANPLUS-$CPANPLUS_ver/bin/cpanp-boxed $modules" );
 }
 
 sub do_installCPAN {
@@ -651,7 +784,7 @@ sub do_build {
 	}
 
 	# actually do the configure!
-	do_shellcommand( "cd build/perl-$perlver-$perlopts; sh Configure -des -Dprefix=$PATH/perl-$perlver-$perlopts $extraoptions" );
+	do_shellcommand( "cd $PATH/build/perl-$perlver-$perlopts; sh Configure -des -Dprefix=$PATH/perls/perl-$perlver-$perlopts $extraoptions" );
 
 	# some versions need extra patching after the Configure part :(
 	do_premake_patches();
@@ -689,7 +822,7 @@ sub do_build {
 sub save_error_log {
 	my $output = shift;
 
-	open( my $errlog, '>', "$PATH/perl-$perlver-$perlopts.fail" ) or die "Unable to create errlog: $!";
+	open( my $errlog, '>', "$PATH/perls/perl-$perlver-$perlopts.fail" ) or die "Unable to create errlog: $!";
 	foreach my $l ( @$output ) {
 		print $errlog "$l\n";
 	}
@@ -761,7 +894,6 @@ sub do_prebuild_patches {
 		my( $patchdata ) = @_;
 
 		# okay, apply it!
-		$patch_num = 0 if ! defined $patch_num;
 		open( my $patch, '>', "$PATH/build/perl-$perlver-$perlopts/patch.$patch_num" ) or die "Unable to create patchfile: $!";
 		print $patch $patchdata;
 		close( $patch ) or die "Unable to close patchfile: $!";
@@ -771,6 +903,11 @@ sub do_prebuild_patches {
 		$patch_num++;
 
 		return 1;
+	}
+
+	sub do_patch_reset {
+		$patch_num = 0;
+		return;
 	}
 }
 

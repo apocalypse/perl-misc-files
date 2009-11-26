@@ -1,30 +1,10 @@
-smoker-master
-	ubuntu 9.10 server 64bit
-	192.168.0.200
-	minicpan mirror
-	dnsmasq host
-	vsftpd host
-
-ubuntu-32bit
-	ubuntu 9.10 server 32bit
-	192.168.0.201
-
-ubuntu-64bit
-	ubuntu 9.10 server 64bit
-	192.168.0.202
-
-freebsd-64bit
-	freebsd 7.2-release amd64
-	192.168.0.203
-
-freebsd-32bit
-	freebsd 7.2-release i386
-	192.168.0.204
-
-netbsd-64bit
-	netbsd 5.0.1 amd64
-	192.168.0.205
-
-opensolaris-64bit
-	opensolaris 2009.06 amd64
-	192.168.0.210
+my $host_aliases = {
+	'192.168.0.201'	=> 'Ubuntu 9.10 server 32bit',
+	'192.168.0.202'	=> 'Ubuntu 9.10 server 64bit',
+	'192.168.0.203'	=> 'FreeBSD 7.2-RELEASE amd64',
+	'192.168.0.204'	=> 'FreeBSD 7.2-RELEASE i386',
+	'192.168.0.205'	=> 'NetBSD 5.0.1 amd64',
+	'192.168.0.206'	=> 'NetBSD 5.0.1 x86',
+	'192.168.0.207'	=> 'OpenSolaris 2009.06 amd64',
+	'192.168.0.208'	=> 'OpenSolaris 2009.06 x86',
+};
