@@ -310,9 +310,9 @@ sub make_perl {
 	$perlopts = 'default';
 	if ( ! make_perl_opts( $perlver, $perlopts ) ) {
 		save_logs();
-	} else {
-		reset_logs();
 	}
+
+	reset_logs();
 
 	# loop over all the options we have
 	# TODO use hints to figure out if this is 64bit or 32bit OS
