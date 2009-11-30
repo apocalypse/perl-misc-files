@@ -33,18 +33,6 @@ use strict; use warnings;
 #	- create "hints" file that sets operating system, 64bit, etc
 #		- that way, we can know what perl versions to skip and etc
 #		- maybe we can autodetect it?
-#	- add support for devel version of perl ( we smoke only the latest dev version - i.e. 5.11.2 )
-	#	<@timbunce> How can I build a devel version of perl (-Dusedevel) but get the executables installed without the version number appended to them?
-	#	<@Zefram> I have a script that installs the links
-	#	<Apocalypse> timbunce: Hmm, symlink them?
-	#	<@vincent> there's a configure option for that
-	#	<Apocalypse> vincent: We need a bot here who can answer configure options for us ;)
-	#	<@timbunce> vincent: I looked around but couldn't see it. The naming happens in installperl but it wasn't clear to me how to disable it at config time
-	#	<@avar> dipsy: avar configure
-	#	<+purl> rumour has it avar configure is ./Configure -Dcc='ccache gcc' -Dld=gcc -Doptimize=-ggdb3 -Dusedevel -d -e or -Dusethreads
-	#	<@timbunce> installperl +v : Install perl as "perl" and as a binary with the version number in  the name.  (Override whatever config.sh says)
-	#	<@timbunce> Looks like it's Configure -Uversiononly
-	#	<@vincent> that's the fellow
 #	- auto-config the root/system CPANPLUS? ( we need to install SQLite stuff too! )
 #	- for the patch_hints thing, auto-detect the latest perl tarball and copy it from there instead of hardcoding it here...
 
@@ -55,7 +43,7 @@ use Sort::Versions;
 #use Term::Title qw( set_titlebar );	# TODO use this? too fancy...
 
 # static var...
-my $PATH = "$ENV{HOME}";
+my $PATH = $ENV{HOME};
 my $perlver;
 my $perlopts;
 my $CPANPLUS_ver;
@@ -89,11 +77,13 @@ sub reset_logs {
 }
 
 sub save_logs {
-	open( my $errlog, '>', "$PATH/perls/perl-$perlver-$perlopts.fail" ) or die "Unable to create errlog: $!";
+	my $end = shift;
+
+	open( my $log, '>', "$PATH/perls/perl-$perlver-$perlopts.$end" ) or die "Unable to create log: $!";
 	foreach my $l ( @LOGS ) {
-		print $errlog "$l\n";
+		print $log "$l\n";
 	}
-	close( $errlog ) or die "Unable to close errlog: $!";
+	close( $log ) or die "Unable to close log: $!";
 	return;
 }
 
@@ -320,7 +310,9 @@ sub make_perl {
 	# build a default build
 	$perlopts = 'default';
 	if ( ! make_perl_opts( $perlver, $perlopts ) ) {
-		save_logs();
+		save_logs( 'fail' );
+	} else {
+		save_logs( 'ok' );
 	}
 
 	reset_logs();
@@ -328,13 +320,21 @@ sub make_perl {
 	# loop over all the options we have
 	# TODO use hints to figure out if this is 64bit or 32bit OS
 	foreach my $thr ( qw( thr nothr ) ) {
-		foreach my $bitness ( qw( 32 64i 64a ) ) {
-			$perlopts = $thr . '-' . $bitness;
-			if ( ! make_perl_opts( $perlver, $perlopts ) ) {
-				save_logs();
-			}
+		foreach my $multi ( qw( multi nomulti ) ) {
+			foreach my $long ( qw( long nolong ) ) {
+				foreach my $malloc ( qw( mymalloc nomymalloc ) ) {
+					foreach my $bitness ( qw( 32 64i 64a ) ) {
+						$perlopts = $thr . '-' . $multi . '-' . $long . '-' . $malloc . '-' . $bitness;
+						if ( ! make_perl_opts( $perlver, $perlopts ) ) {
+							save_logs( 'fail' );
+						} else {
+							save_logs( 'ok' );
+						}
 
-			reset_logs();
+						reset_logs();
+					}
+				}
+			}
 		}
 	}
 
@@ -612,23 +612,13 @@ sub do_installCPANPLUS {
 	# use cpanp-boxed to install some modules that we know we need to bootstrap, argh!
 	# perl-5.6.1 -> ExtUtils::MakeMaker, Test::More, File::Temp, Time::HiRes
 	# Module::Build -> ExtUtils::CBuilder, ExtUtils::ParseXS
-	# Module::Signature -> Digest::SHA ( fucking AutoInstall! ), Crypt::OpenPGP ( goddamn no gnupg on certain OSes, it blows up Bundle::CPANPLUS )
 	# LWP on perl-5.8.2 bombs on Encode
 	# CPANPLUS::SQLite -> DBD::SQLite, DBIx::Simple
-	if ( ! do_cpanp_install( "i ExtUtils::MakeMaker ExtUtils::CBuilder ExtUtils::ParseXS Test::More File::Temp Time::HiRes Digest::SHA Encode DBD::SQLite DBIx::Simple Crypt::OpenPGP" ) ) {
+	if ( ! do_cpanp_install( "i ExtUtils::MakeMaker ExtUtils::CBuilder ExtUtils::ParseXS Test::More File::Temp Time::HiRes Encode DBD::SQLite DBIx::Simple" ) ) {
 		return 0;
 	}
 
-#	# run the cpanp-boxed script and tell it to bootstrap it's dependencies
-#	do_cpanp_install( "s selfupdate dependencies" );
-#	do_cpanp_install( "s selfupdate enabled_features" );
-
-	# finally, install CPANPLUS!
-	if ( ! do_cpanp_install( "i Bundle::CPANPLUS CPANPLUS" ) ) {
-		return 0;
-	}
-
-	# Update any leftover stuff
+	# Install CPANPLUS and it's stuff!
 	if ( ! do_cpanp_install( "s selfupdate all" ) ) {
 		return 0;
 	}
@@ -859,12 +849,16 @@ sub do_build {
 
 	# we start off with the Configure step
 	my $extraoptions = '';
-	if ( $perlver =~ /^5\.6\./ ) {
-		# disable DB_File support ( buggy )
-		$extraoptions .= '-Ui_db';
-	} elsif ( $perlver =~ /^5\.8\./ ) {
-		# disable DB_File support ( buggy )
-		$extraoptions .= '-Ui_db';
+	if ( $perlver =~ /^5\.(\d+)\./ ) {
+		my $v = $1;
+
+		# Are we running a devel version?
+		if ( $v % 2 != 0 ) {
+			$extraoptions .= ' -Dusedevel -Uversiononly';
+		} elsif ( $v == 6 or $v == 8 ) {
+			# disable DB_File support ( buggy )
+			$extraoptions .= ' -Ui_db';
+		}
 	}
 
 	# parse the perlopts
@@ -874,6 +868,25 @@ sub do_build {
 		} elsif ( $perlopts =~ /thr/ ) {
 			$extraoptions .= ' -Dusethreads';
 		}
+
+		if ( $perlopts =~ /nomulti/ ) {
+			$extraoptions .= ' -Uusemultiplicity';
+		} elsif ( $perlopts =~ /multi/ ) {
+			$extraoptions .= ' -Dusemultiplicity';
+		}
+
+		if ( $perlopts =~ /nolong/ ) {
+			$extraoptions .= ' -Uuselongdouble';
+		} elsif ( $perlopts =~ /long/ ) {
+			$extraoptions .= ' -Duselongdouble';
+		}
+
+		if ( $perlopts =~ /nomymalloc/ ) {
+			$extraoptions .= ' -Uusemymalloc';
+		} elsif ( $perlopts =~ /mymalloc/ ) {
+			$extraoptions .= ' -Dusemymalloc';
+		}
+
 		if ( $perlopts =~ /64a/ ) {
 			$extraoptions .= ' -Duse64bitall';
 		} elsif ( $perlopts =~ /64i/ ) {

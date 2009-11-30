@@ -186,7 +186,7 @@
 	- mirror the CPAN
 	- configure ftp access to it
 	- install POE::Component::SmokeBox::Uploads::RSS and pipe output to #cpan on local ircd
-	- http://search.cpan.org/~andk/File-Rsync-Mirror-Recent/ # to setup rsync system to mirror from cpan.cpantesters.org
+	- http://search.cpan.org/~andk/File-Rsync-Mirror-Recent/ # to setup rsync system to mirror from cpan.cpantesters.org::cpan
 	- run the CPAN::Mini::Webserver module to provide web access to it
 
 11. setup local ircd
