@@ -6,16 +6,10 @@ use strict; use warnings;
 # it's a LOT of libs and some stupid wrangling...
 
 # We have successfully compiled those perl versions:
-# 5.6.0, 5.6.1, 5.6.2
-# 5.8.0, 5.8.1, 5.8.2, 5.8.3, 5.8.4, 5.8.5, 5.8.6, 5.8.7, 5.8.8, 5.8.9
+# 5.6.1, 5.6.2
+# 5.8.1, 5.8.2, 5.8.3, 5.8.4, 5.8.5, 5.8.6, 5.8.7, 5.8.8, 5.8.9
 # 5.10.0 5.10.1
-
-# TODO?
-# CPANPLUS won't work on 5.6.0, also some modules we want to install doesn't like 5.6.x :(
-#<Apocalypse> Yeah wish me luck, last year I managed to get 5.6.0 built but couldn't get CPANPLUS to install on it
-#<Apocalypse> Maybe the situation is better now - I'm working downwards so I'll hit 5.6.X sometime later tonite after I finish 5.8.5, 5.8.4, and so on :)
-#<@kane> 5.6.1 is the minimum
-#<Apocalypse> Ah, so CPANPLUS definitely won't work on 5.6.0? I should just drop it...
+# 5.11.2
 
 # this script does everything, but we need some layout to be specified!
 # /home/cpan					<-- the main directory
@@ -33,8 +27,9 @@ use strict; use warnings;
 #	- create "hints" file that sets operating system, 64bit, etc
 #		- that way, we can know what perl versions to skip and etc
 #		- maybe we can autodetect it?
-#	- auto-config the root/system CPANPLUS? ( we need to install SQLite stuff too! )
+#	- auto-config the root/system CPANPLUS?
 #	- for the patch_hints thing, auto-detect the latest perl tarball and copy it from there instead of hardcoding it here...
+#	- figure out how to install CPAN without somehow breaking CPANPLUS...
 
 # load our dependencies
 use Capture::Tiny qw( capture_merged tee_merged );
@@ -79,11 +74,18 @@ sub reset_logs {
 sub save_logs {
 	my $end = shift;
 
-	open( my $log, '>', "$PATH/perls/perl-$perlver-$perlopts.$end" ) or die "Unable to create log: $!";
-	foreach my $l ( @LOGS ) {
-		print $log "$l\n";
+	# Make sure we don't overwrite logs
+	if ( -e "$PATH/perls/perl-$perlver-$perlopts.$end" ) {
+		print "[LOGS] Skipping log save of '$PATH/perls/perl-$perlver-$perlopts.$end' as it already exists\n";
+	} else {
+		do_log( "[LOGS] Saving log to '$PATH/perls/perl-$perlver-$perlopts.$end'" );
+		open( my $log, '>', "$PATH/perls/perl-$perlver-$perlopts.$end" ) or die "Unable to create log: $!";
+		foreach my $l ( @LOGS ) {
+			print $log "$l\n";
+		}
+		close( $log ) or die "Unable to close log: $!";
 	}
-	close( $log ) or die "Unable to close log: $!";
+
 	return;
 }
 
@@ -181,7 +183,7 @@ sub setup {
 	$conf->set_conf( show_startup_tip => 0 );
 	$conf->set_conf( signature => 0 );
 	$conf->set_conf( skiptest => 0 );
-	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::SQLite' );
+	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::Memory' );
 	$conf->set_conf( storable => 1 );
 	$conf->set_conf( timeout => 300 );
 	$conf->set_conf( verbose => 1 );
@@ -203,7 +205,7 @@ END
 
 	# okay, look at the default CPANPLUS config location
 	if ( ! -e "$ENV{HOME}/.cpanplus/lib/CPANPLUS/Config/User.pm" ) {
-		do_log( "[COMPILER] Configuring the local user's CPANPLUS config..." );
+		do_log( "[CPANPLUS] Configuring the local user's CPANPLUS config..." );
 
 		# transform the XXXargsXXX
 		$uconfig = do_replacements( $uconfig );
@@ -263,9 +265,9 @@ sub getPerlVersions {
 	get_perl_tarballs();
 
 	my @perls;
-	opendir( PERLS, $PATH . '/build' ) or die "unable to opendir: $@";
+	opendir( PERLS, $PATH . '/build' ) or die "Unable to opendir: $@";
 	@perls = sort versioncmp map { $_ =~ /^perl\-([\d\.]+)\./; $_ = $1; } grep { /^perl\-[\d\.]+\.tar\.gz$/ && -f "$PATH/build/$_"  } readdir( PERLS );
-	closedir( PERLS ) or die "unable to closedir: $@";
+	closedir( PERLS ) or die "Unable to closedir: $@";
 
 	return \@perls;
 }
@@ -275,21 +277,18 @@ sub get_perl_tarballs {
 		# automatically get the perl tarballs?
 		my $res = prompt( "Do you want me to automatically get the perl tarballs", 'y', 10, 1 );
 		if ( lc( $res ) eq 'y' ) {
+			do_log( "[GETPERLS] mkdir '$PATH/build'" );
 			mkdir( "$PATH/build" ) or die "Unable to mkdir: $!";
 
-			# TODO make this configurable
+			# TODO get rid of all_perls.tar.gz and download individually?
 			do_shellcommand( "wget ftp://192.168.0.200/perl_dists/src/all_perls.tar.gz" );
 			do_shellcommand( "tar -C $PATH/build -xf all_perls.tar.gz" );
+			do_log( "[GETPERLS] unlink 'all_perls.tar.gz'" );
 			unlink( 'all_perls.tar.gz' ) or die "Unable to unlink: $!";
-
-			# remove problematic dists
-			# TODO make this configurable
-			foreach my $v ( qw( 5.8.0 5.6.0 ) ) {
-				unlink( "$PATH/build/perl-$v.tar.gz" ) or die "Unable to unlink: $!";
-			}
 
 			# make the perls directory
 			if ( ! -d "$PATH/perls" ) {
+				do_log( "[GETPERLS] mkdir '$PATH/perls'" );
 				mkdir( "$PATH/perls" ) or die "Unable to mkdir: $!";
 			}
 		} else {
@@ -307,12 +306,26 @@ sub make_perl {
 
 	reset_logs();
 
+	# Skip problematic perls
+	# TODO make this configurable
+	if ( $perlver eq '5.6.0' or $perlver eq '5.8.0' ) {
+		# CPANPLUS won't work on 5.6.0, also some modules we want to install doesn't like 5.6.x :(
+		# <Apocalypse> Yeah wish me luck, last year I managed to get 5.6.0 built but couldn't get CPANPLUS to install on it
+		# <Apocalypse> Maybe the situation is better now - I'm working downwards so I'll hit 5.6.X sometime later tonite after I finish 5.8.5, 5.8.4, and so on :)
+		# <@kane> 5.6.1 is the minimum
+		# <Apocalypse> Ah, so CPANPLUS definitely won't work on 5.6.0? I should just drop it...
+
+		# 5.8.0 blows up horribly in it's tests everywhere I try to compile it...
+		do_log( "[PERLBUILDER] Skipping perl-$perlver because of known problems..." );
+		return;
+	}
+
 	# build a default build
 	$perlopts = 'default';
 	if ( ! make_perl_opts( $perlver, $perlopts ) ) {
 		save_logs( 'fail' );
 	} else {
-		save_logs( 'ok' );
+#		save_logs( 'ok' );
 	}
 
 	reset_logs();
@@ -328,7 +341,7 @@ sub make_perl {
 						if ( ! make_perl_opts( $perlver, $perlopts ) ) {
 							save_logs( 'fail' );
 						} else {
-							save_logs( 'ok' );
+#							save_logs( 'ok' );
 						}
 
 						reset_logs();
@@ -384,17 +397,13 @@ sub make_perl_opts {
 		return 0;
 	}
 
-	# configure CPAN for this version :)
+	# configure CPAN so some stupid modules don't try to use it... /me looks at old Module::Install !!
 	# TODO we forget about CPAN for now, because it is unnecessary and keeps blowing up Term::ReadLine::Perl somehow...
-	#do_installCPAN();
 
 	# move on with the test stuff
 	if ( ! do_installCPANTesters() ) {
 		return 0;
 	}
-
-	# finally, install our POE stuff
-	#do_installPOE();
 
 	# finalize the perl install!
 	if ( ! finalize_perl() ) {
@@ -409,6 +418,9 @@ sub finalize_perl {
 	# thanks to BiNGOs for the idea!
 	# TODO annoying to do it for each run...
 	#do_shellcommand( "sudo chown -R root:root $PATH/perls/perl-$perlver-$perlopts" );
+
+	# Get rid of the man directories!
+	do_shellcommand( "rm -rf $PATH/perls/perl-$perlver-$perlopts/man" );
 
 	# we're really done!
 	do_shellcommand( "touch $PATH/perls/perl-$perlver-$perlopts/ready.smoke" );
@@ -425,6 +437,7 @@ sub do_prebuild {
 
 	# make sure we have the output dir ready
 	if ( ! -d "$PATH/perls" ) {
+		do_log( "[PERLBUILDER] mkdir '$PATH/perls'" );
 		mkdir( "$PATH/perls" ) or die "Unable to mkdir: $!";
 	}
 
@@ -437,37 +450,57 @@ sub do_prebuild {
 
 	# now, apply the patches each version needs
 	do_prebuild_patches();
+
+	# TODO this sucks, but lib/Benchmark.t usually takes forever and fails unnecessarily on my loaded box...
+	if ( -f "$PATH/build/perl-$perlver-$perlopts/lib/Benchmark.t" ) {
+		do_log( "[PERLBUILDER] Removing problematic Benchmark.t test" );
+		unlink( "$PATH/build/perl-$perlver-$perlopts/lib/Benchmark.t" ) or die "Unable to unlink: $!";
+
+		# argh, we have to munge MANIFEST
+		do_shellcommand( "perl -nli -e 'print if ! /^lib\\/Benchmark\\.t/' $PATH/build/perl-$perlver-$perlopts/MANIFEST" );
+	}
+
+	return;
 }
 
 sub do_initCPANP_BOXED {
-	do_log( "[COMPILER] Configuring CPANPLUS::Boxed..." );
+	do_log( "[CPANPLUS] Configuring CPANPLUS::Boxed..." );
 
 	# Get the cpanplus version
 	$CPANPLUS_ver = get_CPANPLUS_ver() if ! defined $CPANPLUS_ver;
 
 	# do we have CPANPLUS already extracted?
 	if ( -d "$PATH/CPANPLUS-$CPANPLUS_ver" ) {
-		# just get rid of it
-		# TODO use File::Path::Tiny
-		do_shellcommand( "rm -rf $PATH/CPANPLUS-$CPANPLUS_ver" );
-	}
+		# cleanup the cruft
+		opendir( CPANPLUS, "$PATH/CPANPLUS-$CPANPLUS_ver/.cpanplus/$ENV{USER}" ) or die "Unable to opendir: $!";
+		my @dirlist = readdir( CPANPLUS );
+		closedir( CPANPLUS ) or die "Unable to closedir: $!";
 
-	# do we have the tarball?
-	if ( ! -f "$PATH/CPANPLUS-$CPANPLUS_ver.tar.gz" ) {
-		# get it!
-		# TODO the author might change... waht's a portable way?
-		do_shellcommand( "wget ftp://192.168.0.200/CPAN/authors/id/K/KA/KANE/CPANPLUS-$CPANPLUS_ver.tar.gz" );
-	}
+		# look for perl versions of build directory
+		# /export/home/cpan/CPANPLUS-0.88/.cpanplus/cpan/5.10.0
+		@dirlist = grep { /^\d+\.\d+\.\d+$/ } @dirlist;
+		foreach my $d ( @dirlist ) {
+			# TODO use File::Path::Tiny
+			do_shellcommand( "rm -rf $PATH/CPANPLUS-$CPANPLUS_ver/.cpanplus/$ENV{USER}/$d" );
+		}
+	} else {
+		# do we have the tarball?
+		if ( ! -f "$PATH/CPANPLUS-$CPANPLUS_ver.tar.gz" ) {
+			# get it!
+			# TODO the author might change... waht's a portable way?
+			do_shellcommand( "wget ftp://192.168.0.200/CPAN/authors/id/K/KA/KANE/CPANPLUS-$CPANPLUS_ver.tar.gz" );
+		}
 
-	# extract it!
-	do_shellcommand( "tar -zxf $PATH/CPANPLUS-$CPANPLUS_ver.tar.gz" );
+		# extract it!
+		do_shellcommand( "tar -zxf $PATH/CPANPLUS-$CPANPLUS_ver.tar.gz" );
 
-	# configure the Boxed.pm file
-	do_installCPANP_BOXED_config();
+		# configure the Boxed.pm file
+		do_installCPANP_BOXED_config();
 
-	# force an update
-	if ( ! do_cpanp_install( "x --update_source" ) ) {
-		return 0;
+		# force an update
+		if ( ! do_cpanp_install( "x --update_source" ) ) {
+			return 0;
+		}
 	}
 
 	return 1;
@@ -603,18 +636,14 @@ sub get_binary_path {
 }
 
 sub do_installCPANPLUS {
-	do_log( "[COMPILER] Configuring CPANPLUS..." );
+	do_log( "[CPANPLUS] Configuring CPANPLUS..." );
 
-	# damn Term::ReadLine::Perl for prompting us!
-	# Net::DNS ALWAYS fails it's tests for me...
-	#do_cpanp_install( "i Term::ReadLine::Perl Net::DNS --skiptest" );
-
-	# use cpanp-boxed to install some modules that we know we need to bootstrap, argh!
+	# use cpanp-boxed to install some modules that we know we need to bootstrap, argh! ( cpanp-boxed already skips tests so this should be fast )
 	# perl-5.6.1 -> ExtUtils::MakeMaker, Test::More, File::Temp, Time::HiRes
 	# Module::Build -> ExtUtils::CBuilder, ExtUtils::ParseXS
 	# LWP on perl-5.8.2 bombs on Encode
-	# CPANPLUS::SQLite -> DBD::SQLite, DBIx::Simple
-	if ( ! do_cpanp_install( "i ExtUtils::MakeMaker ExtUtils::CBuilder ExtUtils::ParseXS Test::More File::Temp Time::HiRes Encode DBD::SQLite DBIx::Simple" ) ) {
+	# Test::Reporter::HTTPGateway -> LWP::UserAgent ( missing prereq, wow! )
+	if ( ! do_cpanp_install( "i ExtUtils::MakeMaker ExtUtils::CBuilder ExtUtils::ParseXS Test::More File::Temp Time::HiRes Encode LWP::UserAgent" ) ) {
 		return 0;
 	}
 
@@ -703,7 +732,7 @@ sub setup {
 	$conf->set_conf( show_startup_tip => 0 );
 	$conf->set_conf( signature => 0 );
 	$conf->set_conf( skiptest => 0 );
-	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::SQLite' );
+	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::Memory' );
 	$conf->set_conf( storable => 1 );
 	$conf->set_conf( timeout => 300 );
 	$conf->set_conf( verbose => 1 );
@@ -741,7 +770,6 @@ sub do_cpanp_install {
 
 	# use default answer to prompts ( MakeMaker stuff - PERL_MM_USE_DEFAULT )
 	my $ret = do_shellcommand( "PERL_MM_USE_DEFAULT=1 $PATH/perls/perl-$perlver-$perlopts/bin/perl $PATH/CPANPLUS-$CPANPLUS_ver/bin/cpanp-boxed $modules" );
-	push( @LOGS, @$ret );
 
 	if ( $modules =~ /^i/ ) {
 		#	root@blackhole:/home/apoc# cpanp i DBI
@@ -765,65 +793,13 @@ sub do_cpanp_install {
 	}
 }
 
-sub do_installCPAN {
-	do_log( "[COMPILER] Configuring CPAN..." );
-
-	# finally, install CPAN!
-	if ( ! do_cpanp_install( "i Bundle::CPAN CPAN" ) ) {
-		return 0;
-	}
-
-	# configure the installed CPAN
-	# TODO too lazy to use proper modules heh
-	# commit: wrote '/home/apoc/perl/perl-5.10.0/lib/5.10.0/CPAN/Config.pm'
-	do_shellcommand( "cp -f $PATH/CPAN.config $PATH/Config.pm" );
-	do_shellcommand( "perl -pi -e 's/XXXPERLVERXXX/$perlver/g' $PATH/Config.pm" );
-	do_shellcommand( "perl -pi -e 's/XXXUSERXXX/$ENV{USER}/g' $PATH/Config.pm" );
-	do_shellcommand( "mkdir -p $PATH/perl-$perlver/lib/$perlver/CPAN" );
-	do_shellcommand( "mv Config.pm $PATH/perl-$perlver/lib/$perlver/CPAN/Config.pm" );
-
-	return 1;
-}
-
 sub do_installCPANTesters {
-	do_log( "[COMPILER] Configuring CPANTesters..." );
+	do_log( "[CPANPLUS] Configuring CPANTesters..." );
 
 	# install the basic modules we need
 	if ( ! do_cpanp_install( "i Test::Reporter CPANPLUS::YACSmoke" ) ) {
 		return 0;
 	}
-
-	return 1;
-}
-
-sub do_installPOE {
-	# install POE's dependencies!
-	# The ExtUtils modules are for Glib, which doesn't specify it in the "normal" way, argh!
-	do_cpanp_install( "i Test::Pod Test::Pod::Coverage Socket6 Time::HiRes Term::ReadKey Term::Cap IO::Pty URI LWP Module::Build Curses ExtUtils::Depends ExtUtils::PkgConfig" );
-
-	# install POE itself to pull in some more stuff
-	do_cpanp_install( "i POE" );
-
-	# install our POE loops + their dependencies
-	my $loop_install = "";
-	my $poe_loop_install = "";
-	foreach my $loop ( qw( Event Tk Gtk Wx Prima IO::Poll Glib EV ) ) {
-		# skip problematic loops
-		if ( $perlver =~ /^5\.6\./ and ( $loop eq 'Tk' or $loop eq 'Wx' or $loop eq 'Event' or $loop eq 'Glib' ) ) {
-			next;
-		}
-
-		$loop_install .= " $loop";
-
-		# stupid differing loops
-		my $poeloop = $loop;
-		$poeloop =~ s/\:\:/\_/g;
-		$poe_loop_install .= " POE::Loop::$poeloop";
-	}
-
-	# actually install!
-	do_cpanp_install( "i $loop_install" );
-	do_cpanp_install( "i $poe_loop_install" );
 
 	return 1;
 }

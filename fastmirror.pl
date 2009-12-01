@@ -3,14 +3,15 @@ use strict; use warnings;
 
 use File::Rsync::Mirror::Recent;
 
-# set the server
+# set some options
 my $rsyncserver = 'cpan.cpantesters.org::cpan';
+my $mirrortime = 1200;
 
 # setup the dirs we will loop over
 my @rrr = map {
 	File::Rsync::Mirror::Recent->new(
-		localroot                  => "/home/ftp/pub/PAUSE/$_", # your local path
-		remote                     => "pause.perl.org::PAUSE/$_/RECENT.recent", # your upstream
+		localroot                  => "$ENV{HOME}/CPAN/$_", # your local path
+		remote                     => "$rsyncserver/$_/RECENT.recent", # your upstream
 		max_files_per_connection   => 1024,
 		ttl                        => 10,
 		rsync_options              => {
@@ -22,8 +23,9 @@ my @rrr = map {
 			'omit-dir-times'  => 1, # not available before rsync 3.0.3
 		},
 		verbose                    => 1,
-		verboselog                 => "/var/log/rmirror-pause.log",
-	) } "authors", "modules";
+		verboselog                 => "$ENV{HOME}/rmirror.log",
+	)
+} "authors", "modules";
 
 die "directory $_ doesn't exist, giving up" for grep { ! -d $_->localroot } @rrr;
 while () {

@@ -65,6 +65,7 @@
 				raidframe=NO
 				quota=NO
 				cgd=NO
+				postfix=NO
 			3. vi /etc/ifconfig.pcn0
 				inet 192.168.0.205 netmask 255.255.255.0
 			4. vi /etc/myname # set netbsd-64bit or whatever
@@ -101,6 +102,9 @@
 			9. pfexec nano /etc/defaultrouter # add 192.168.0.1 as one line
 			10. pfexec svcadm restart network/routing-setup
 			11. add cpan user via Users/Groups in the GUI
+			12. expand swap space
+				12.1 pfexec zfs set volsize=2G rpool/swap
+				12.2 pfexec shutdown -y -g 5 -i 6	# reboot
 			12. pfexec svcadm disable XYZ
 				gdm sendmail sendmail-client gconf-cache fc-cache icon-cache rpc/bind pixbuf-loaders-installer
 				desktop-mime-cache mime-types-cache input-method-cache ogl-select ppd-cache-update dns/multicast ktkt_warn
@@ -129,6 +133,13 @@
 		- install steps:
 			1. install base system
 			2.
+		<@obra> Is there a reasonable sshd for windows so that I don't need to type into my VM?
+		<@mst> a friend of mine got openssh under cygwin to use cmd.exe
+		<@obra> mmm. 15 years in and we're still at "anecdotal" for sshd on windows.:/
+		<@BinGOs> http://www.freesshd.com/
+		<+dipsy> [ freeSSHd and freeFTPd - open source SSH and SFTP servers for Windows ]
+		<@obra> awesome.
+		<@obra> thanks, bingos
 
 	...
 
@@ -340,3 +351,60 @@ generic steps
 <Apocalypse> rjbs: :)
 <Apocalypse> Bram: I'll make a note of that and if any cpan modules bombs on < 5.8.9 due to sprintf problems I'll know what's going on :)
 
+
+
+
+
+sub do_installPOE {
+	# install POE's dependencies!
+	# The ExtUtils modules are for Glib, which doesn't specify it in the "normal" way, argh!
+	do_cpanp_install( "i Test::Pod Test::Pod::Coverage Socket6 Time::HiRes Term::ReadKey Term::Cap IO::Pty URI LWP Module::Build Curses ExtUtils::Depends ExtUtils::PkgConfig" );
+
+	# install POE itself to pull in some more stuff
+	do_cpanp_install( "i POE" );
+
+	# install our POE loops + their dependencies
+	my $loop_install = "";
+	my $poe_loop_install = "";
+	foreach my $loop ( qw( Event Tk Gtk Wx Prima IO::Poll Glib EV ) ) {
+		# skip problematic loops
+		if ( $perlver =~ /^5\.6\./ and ( $loop eq 'Tk' or $loop eq 'Wx' or $loop eq 'Event' or $loop eq 'Glib' ) ) {
+			next;
+		}
+
+		$loop_install .= " $loop";
+
+		# stupid differing loops
+		my $poeloop = $loop;
+		$poeloop =~ s/\:\:/\_/g;
+		$poe_loop_install .= " POE::Loop::$poeloop";
+	}
+
+	# actually install!
+	do_cpanp_install( "i $loop_install" );
+	do_cpanp_install( "i $poe_loop_install" );
+
+	return 1;
+}
+
+
+
+sub do_installCPAN {
+	do_log( "[COMPILER] Configuring CPAN..." );
+
+	# finally, install CPAN!
+	if ( ! do_cpanp_install( "i Bundle::CPAN CPAN" ) ) {
+		return 0;
+	}
+
+	# configure the installed CPAN
+	# TODO too lazy to use proper modules heh
+	# commit: wrote '/home/apoc/perl/perl-5.10.0/lib/5.10.0/CPAN/Config.pm'
+	do_shellcommand( "cp -f $PATH/CPAN.config $PATH/Config.pm" );
+	do_shellcommand( "perl -pi -e 's/XXXPERLVERXXX/$perlver/g' $PATH/Config.pm" );
+	do_shellcommand( "perl -pi -e 's/XXXUSERXXX/$ENV{USER}/g' $PATH/Config.pm" );
+	do_shellcommand( "mkdir -p $PATH/perl-$perlver/lib/$perlver/CPAN" );
+	do_shellcommand( "mv Config.pm $PATH/perl-$perlver/lib/$perlver/CPAN/Config.pm" );
+
+	return 1;
+}
