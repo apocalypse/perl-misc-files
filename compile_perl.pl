@@ -1,15 +1,15 @@
 #!/usr/bin/env perl
 use strict; use warnings;
 
-# make sure we already installed all the distro libraries we need
-# e.x. libncurses, libgtk, etc via apt-get or emerge or whatever
-# it's a LOT of libs and some stupid wrangling...
-
 # We have successfully compiled those perl versions:
 # 5.6.1, 5.6.2
 # 5.8.1, 5.8.2, 5.8.3, 5.8.4, 5.8.5, 5.8.6, 5.8.7, 5.8.8, 5.8.9
 # 5.10.0 5.10.1
 # 5.11.2
+
+# This compiler builds each perl with a matrix of 49 possible combinations.
+# Compiling the entire perl suite as of 5.11.2 will result in: 686 perls!
+# Each perl averages 45M with all the necessary modules to smoke CPAN preinstalled. ( 30.15GB total! )
 
 # this script does everything, but we need some layout to be specified!
 # /home/cpan					<-- the main directory
@@ -38,33 +38,105 @@ use Sort::Versions;
 #use Term::Title qw( set_titlebar );	# TODO use this? too fancy...
 
 # static var...
-my $PATH = $ENV{HOME};
-my $perlver;
-my $perlopts;
-my $CPANPLUS_ver;
-my $DEBUG = 0;
-my @LOGS = ();
-
-# get our perl tarballs
-my $perls = getPerlVersions();
+my $PATH = $ENV{HOME};	# the home path where we do our stuff
+my $perlver;		# the perl version we're processing now
+my $perlopts;		# the perl options we're using for this run
+my $CPANPLUS_ver;	# the CPANPLUS version we'll use for cpanp-boxed
+my $DEBUG = 0;		# spews stuff on console or just top-level data
+my @LOGS = ();		# holds stored logs for a run
+my $domatrix = 1;	# compile the matrix of perl options or not?
+my @perls = ();		# the available perl tarballs found under $PATH/build
 
 # ask user for debugging
 prompt_debug();
 
-# prompt user for perl version to compile
-my $res = prompt_perlver();
-if ( $res ne 'a' ) {
-	# do the stuff!
-	make_perl( $res );
-} else {
-	# loop through all versions, starting from newest to oldest
-	foreach my $p ( reverse @$perls ) {
-		make_perl( $p );
-	}
-}
+# What option do we want to do?
+prompt_action();
 
 # all done!
-exit 0;
+exit;
+
+sub prompt_action {
+	my $res;
+	while ( ! defined $res ) {
+		$res = lc( prompt( "What action do you want to do today? [b/x/i/e/s]", 'b', 10, 1 ) );
+		if ( $res eq 'b' ) {
+			# Should we compile the matrix of options?
+			prompt_perlmatrix();
+
+			# prompt user for perl version to compile
+			$res = prompt_perlver();
+			if ( $res ne 'a' ) {
+				# do the stuff!
+				install_perl( $res );
+			} else {
+				# loop through all versions, starting from newest to oldest
+				foreach my $p ( reverse @perls ) {
+					install_perl( $p );
+				}
+			}
+		} elsif ( $res eq 'x' ) {
+			# update all CPANPLUS indexes
+			do_log( "[CPANPLUS] Updating indexes on all perls..." );
+			foreach my $p ( @{ getReadyperls() } ) {
+				if ( do_cpanp_action( $p, "x --update_source" ) ) {
+					do_log( "[CPANPLUS] Updated index on $p" );
+				} else {
+					do_log( "[CPANPLUS] Failed to update index on $p" );
+				}
+			}
+		} elsif ( $res eq 'i' ) {
+			# install a specific module
+		} elsif ( $res eq 's' ) {
+			# perform CPANPLUS s selfupdate all
+			do_log( "[CPANPLUS] Executing selfupdate on all CPANPLUS installs..." );
+			foreach my $p ( @{ getReadyperls() } ) {
+				if ( do_cpanp_action( $p, "s selfupdate all" ) ) {
+					do_log( "[CPANPLUS] Successfully updated CPANPLUS" );
+				} else {
+					do_log( "[CPANPLUS] Failed to update CPANPLUS" );
+				}
+			}
+		} elsif ( $res eq 'e' ) {
+			exit;
+		} else {
+			print "Unknown action, please try again.\n";
+			$res = undef;
+		}
+	}
+
+	return;
+}
+
+# finds all installed perls that have smoke.ready file in them
+sub getReadyperls {
+	opendir( PERLS, "$PATH/perls" ) or die "Unable to opendir: $!";
+	my @list = readdir( PERLS );
+	closedir( PERLS ) or die "Unable to closedir: $!";
+
+	# find the ready ones
+	my @ready = ();
+	foreach my $p ( @list ) {
+		if ( $p =~ /^perl\-/ and -d "$PATH/perls/$p" and -e "$PATH/perls/$p/ready.smoke" ) {
+			push( @ready, $p );
+		}
+	}
+
+	do_log( "[READYPERLS] Found " . scalar @ready . " perls ready to smoke" );
+
+	return \@ready;
+}
+
+sub prompt_perlmatrix {
+	my $res = prompt( "Compile the perl matrix", 'y', 10, 1 );
+	if ( lc( $res ) eq 'y' ) {
+		$domatrix = 1;
+	} else {
+		$domatrix = 0;
+	}
+
+	return;
+}
 
 sub reset_logs {
 	@LOGS = ();
@@ -101,16 +173,17 @@ sub get_CPANPLUS_ver {
 	# is the "cpan" user's CPANPLUS configured?
 	do_config_localCPANPLUS();
 
-	require CPANPLUS::Backend;
-	my $cb = CPANPLUS::Backend->new;
-	my $mod = $cb->module_tree( "CPANPLUS" );
-	my $ver = defined $mod ? $mod->package_version : undef;
-	if ( defined $ver ) {
-		return $ver;
-	} else {
+	# TODO disabled, because it consumed gobs of RAM unnecessarily...
+#	require CPANPLUS::Backend;
+#	my $cb = CPANPLUS::Backend->new;
+#	my $mod = $cb->module_tree( "CPANPLUS" );
+#	my $ver = defined $mod ? $mod->package_version : undef;
+#	if ( defined $ver ) {
+#		return $ver;
+#	} else {
 		# the default
 		return "0.88";
-	}
+#	}
 }
 
 sub do_config_localCPANPLUS {
@@ -218,7 +291,7 @@ END
 		close( $config );
 
 		# force an update
-		# we don't use do_cpanp_install() here because we need to use the local user's CPANPLUS config not the boxed one...
+		# we don't use do_cpanp_action() here because we need to use the local user's CPANPLUS config not the boxed one...
 		do_shellcommand( "APPDATA=$ENV{HOME}/ cpanp x --update_source" );
 	}
 
@@ -236,18 +309,21 @@ sub prompt_debug {
 
 # prompt the user for perl version
 sub prompt_perlver {
+	# get our perl tarballs
+	@perls = @{ getPerlVersions() };
+
 	my $res;
 	while ( ! defined $res ) {
-		$res = prompt( "Which perl version to compile [ver/d/a]", $perls->[-1], 10, 1 );
+		$res = prompt( "Which perl version to compile [ver/d/a]", $perls[-1], 10, 1 );
 		if ( lc( $res ) eq 'd' ) {
 			# display available versions
-			print "Available Perls: " . join( ' ', @$perls ) . "\n";
+			print "Available Perls: " . join( ' ', @perls ) . "\n";
 			$res = undef;
 		} elsif ( lc( $res ) eq 'a' ) {
 			return 'a';
 		} else {
 			# make sure the version exists
-			if ( ! grep { $_ eq $res } @$perls ) {
+			if ( ! grep { $_ eq $res } @perls ) {
 				print "Selected version doesn't exist, please try again.\n";
 				$res = undef;
 			} else {
@@ -300,9 +376,8 @@ sub get_perl_tarballs {
 	return;
 }
 
-sub make_perl {
+sub install_perl {
 	my $perl = shift;
-	$perlver = $perl;
 
 	reset_logs();
 
@@ -321,30 +396,31 @@ sub make_perl {
 	}
 
 	# build a default build
-	$perlopts = 'default';
-	if ( ! make_perl_opts( $perlver, $perlopts ) ) {
+	if ( ! build_perl_opts( $perl, 'default' ) ) {
 		save_logs( 'fail' );
 	} else {
 #		save_logs( 'ok' );
 	}
 
-	reset_logs();
+	# Should we also compile the matrix?
+	if ( $domatrix ) {
+		reset_logs();
 
-	# loop over all the options we have
-	# TODO use hints to figure out if this is 64bit or 32bit OS
-	foreach my $thr ( qw( thr nothr ) ) {
-		foreach my $multi ( qw( multi nomulti ) ) {
-			foreach my $long ( qw( long nolong ) ) {
-				foreach my $malloc ( qw( mymalloc nomymalloc ) ) {
-					foreach my $bitness ( qw( 32 64i 64a ) ) {
-						$perlopts = $thr . '-' . $multi . '-' . $long . '-' . $malloc . '-' . $bitness;
-						if ( ! make_perl_opts( $perlver, $perlopts ) ) {
-							save_logs( 'fail' );
-						} else {
-#							save_logs( 'ok' );
+		# loop over all the options we have
+		# TODO use hints to figure out if this is 64bit or 32bit OS
+		foreach my $thr ( qw( thr nothr ) ) {
+			foreach my $multi ( qw( multi nomulti ) ) {
+				foreach my $long ( qw( long nolong ) ) {
+					foreach my $malloc ( qw( mymalloc nomymalloc ) ) {
+						foreach my $bitness ( qw( 32 64i 64a ) ) {
+							if ( ! build_perl_opts( $perl, $thr . '-' . $multi . '-' . $long . '-' . $malloc . '-' . $bitness ) ) {
+								save_logs( 'fail' );
+							} else {
+#								save_logs( 'ok' );
+							}
+
+							reset_logs();
 						}
-
-						reset_logs();
 					}
 				}
 			}
@@ -354,7 +430,10 @@ sub make_perl {
 	return;
 }
 
-sub make_perl_opts {
+sub build_perl_opts {
+	# set the perl stuff
+	( $perlver, $perlopts ) = @_;
+
 	# ignore the args for now, as we use globals :(
 	do_log( "[PERLBUILDER] Preparing to build perl-$perlver-$perlopts" );
 
@@ -498,7 +577,7 @@ sub do_initCPANP_BOXED {
 		do_installCPANP_BOXED_config();
 
 		# force an update
-		if ( ! do_cpanp_install( "x --update_source" ) ) {
+		if ( ! do_cpanpboxed_action( "x --update_source" ) ) {
 			return 0;
 		}
 	}
@@ -643,12 +722,12 @@ sub do_installCPANPLUS {
 	# Module::Build -> ExtUtils::CBuilder, ExtUtils::ParseXS
 	# LWP on perl-5.8.2 bombs on Encode
 	# Test::Reporter::HTTPGateway -> LWP::UserAgent ( missing prereq, wow! )
-	if ( ! do_cpanp_install( "i ExtUtils::MakeMaker ExtUtils::CBuilder ExtUtils::ParseXS Test::More File::Temp Time::HiRes Encode LWP::UserAgent" ) ) {
+	if ( ! do_cpanpboxed_action( "i ExtUtils::MakeMaker ExtUtils::CBuilder ExtUtils::ParseXS Test::More File::Temp Time::HiRes Encode LWP::UserAgent" ) ) {
 		return 0;
 	}
 
 	# Install CPANPLUS and it's stuff!
-	if ( ! do_cpanp_install( "s selfupdate all" ) ) {
+	if ( ! do_cpanpboxed_action( "s selfupdate all" ) ) {
 		return 0;
 	}
 
@@ -656,8 +735,7 @@ sub do_installCPANPLUS {
 	do_installCPANPLUS_config();
 
 	# force an update
-	# we don't use do_cpanp_install() here because we need to use the perl's CPANPLUS config not the boxed one...
-	do_shellcommand( "APPDATA=$PATH/cpanp_conf/perl-$perlver-$perlopts/ $PATH/perls/perl-$perlver-$perlopts/bin/perl $PATH/perls/perl-$perlver-$perlopts/bin/cpanp x --update_source" );
+	do_cpanp_action( "perl-$perlver-$perlopts", "x --update_source" );
 
 	return 1;
 }
@@ -765,13 +843,19 @@ END
 	return;
 }
 
-sub do_cpanp_install {
-	my $modules = shift;
+sub do_cpanpboxed_action {
+	my $action = shift;
 
 	# use default answer to prompts ( MakeMaker stuff - PERL_MM_USE_DEFAULT )
-	my $ret = do_shellcommand( "PERL_MM_USE_DEFAULT=1 $PATH/perls/perl-$perlver-$perlopts/bin/perl $PATH/CPANPLUS-$CPANPLUS_ver/bin/cpanp-boxed $modules" );
+	my $ret = do_shellcommand( "PERL_MM_USE_DEFAULT=1 $PATH/perls/perl-$perlver-$perlopts/bin/perl $PATH/CPANPLUS-$CPANPLUS_ver/bin/cpanp-boxed $action" );
 
-	if ( $modules =~ /^i/ ) {
+	return analyze_cpanp_install( $action, $ret );
+}
+
+sub analyze_cpanp_install {
+	my( $action, $ret ) = @_;
+
+	if ( $action =~ /^i/ ) {
 		#	root@blackhole:/home/apoc# cpanp i DBI
 		#	Installing DBI (1.609)
 		#	[MSG] Module 'DBI' already up to date, won't install without force
@@ -784,20 +868,30 @@ sub do_cpanp_install {
 		} else {
 			return 0;
 		}
-	} elsif ( $modules =~ /^s/ ) {
+	} elsif ( $action =~ /^s/ ) {
 		# TODO analyse this?
 		return 1;
-	} elsif ( $modules =~ /^x/ ) {
+	} elsif ( $action =~ /^x/ ) {
 		# always succeeds
 		return 1;
 	}
+}
+
+sub do_cpanp_action {
+	my $perl = shift;
+	my $action = shift;
+
+	# use default answer to prompts ( MakeMaker stuff - PERL_MM_USE_DEFAULT )
+	my $ret = do_shellcommand( "PERL_MM_USE_DEFAULT=1 APPDATA=$PATH/cpanp_conf/$perl/ $PATH/perls/$perl/bin/perl $PATH/perls/$perl/bin/cpanp $action" );
+
+	return analyze_cpanp_install( $action, $ret );
 }
 
 sub do_installCPANTesters {
 	do_log( "[CPANPLUS] Configuring CPANTesters..." );
 
 	# install the basic modules we need
-	if ( ! do_cpanp_install( "i Test::Reporter CPANPLUS::YACSmoke" ) ) {
+	if ( ! do_cpanpboxed_action( "i Test::Reporter CPANPLUS::YACSmoke" ) ) {
 		return 0;
 	}
 

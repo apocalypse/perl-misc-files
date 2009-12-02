@@ -28,7 +28,7 @@
 				7.0 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm
 				7.1 cpanp x --update_source
 				7.1 cpanp s selfupdate all
-				7.2 cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter
+				7.2 cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased
 
 	- freebsd
 		- install steps:
@@ -48,7 +48,7 @@
 				7.1 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
 				7.2 cpanp x --update_source
 				7.3 cpanp s selfupdate all
-				7.4 cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter
+				7.4 cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased
 
 	- netbsd
 		- install steps:
@@ -87,7 +87,7 @@
 				15.1 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
 				15.2 cpanp x --update_source
 				15.3 cpanp s selfupdate all
-				15.4 cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter
+				15.4 cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased
 
 	- opensolaris
 		- install steps:
@@ -108,6 +108,7 @@
 			12. pfexec svcadm disable XYZ
 				gdm sendmail sendmail-client gconf-cache fc-cache icon-cache rpc/bind pixbuf-loaders-installer
 				desktop-mime-cache mime-types-cache input-method-cache ogl-select ppd-cache-update dns/multicast ktkt_warn
+				rmvolmgr power dbus gss smserver avahi-bridge-dsd vnc-config
 			12. pfexec pkg install ss-dev
 				12.1 pfexec nano /etc/profile
 					# add those lines:
@@ -125,14 +126,16 @@
 			13. setup root/system CPANPLUS
 				13.0 configure CPAN, tell it to install CPANPLUS # opensolaris doesn't install CPANPLUS by default...
 				13.1 copy CPANP-root.config to /export/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
+				13.1 pfexec cpanp x --update_source
 				13.2 pfexec cpanp s selfupdate all
-				13.3 pfexec cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter
+				13.3 pfexec cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased
 
 
 	- windows XP
 		- install steps:
 			1. install base system
 			2.
+
 		<@obra> Is there a reasonable sshd for windows so that I don't need to type into my VM?
 		<@mst> a friend of mine got openssh under cygwin to use cmd.exe
 		<@obra> mmm. 15 years in and we're still at "anecdotal" for sshd on windows.:/
@@ -145,12 +148,12 @@
 
 	Once OS is installed:
 		- copy compile_perl.pl
-		- chmod +x compile_perl.pl
+		- chmod +x compile_perl.pl && perl -c compile_perl.pl
 		- start compiling perls!
 
 	Once perls are compiled:
-		- sudo cpanp i POE::Component::SmokeBox
 		- copy smokebox.pl # and adjust paths if needed
+		- chmod +x smokebox.pl && perl -c smokebox.pl
 		- start smoking!
 
 2. install N perls on OS
