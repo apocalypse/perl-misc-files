@@ -35,6 +35,7 @@
 			1. install base system ( also adding apoc as user + added to wheel group )
 			2. pkg_add -rv nano perl wget bash
 			3. chsh -s /usr/local/bin/bash apoc
+			3. chsh -s /usr/local/bin/bash root
 			4. /usr/local/bin/nano /etc/rc.conf
 				ifconfig_em0="inet 192.168.0.203 netmask 255.255.255.0"
 				defaultgateway="192.168.0.1"
@@ -74,8 +75,10 @@
 			7. vi /etc/resolv.conf # setup smoker-master as dns server
 			8. useradd -m -G wheel apoc
 			9. passwd apoc
+			10. reboot
 			10. setup pkgsrc # http://www.netbsd.org/docs/pkgsrc/getting.html#getting-first
-				10.0 get pkgsrc-2009Q3 via ftp
+				10.0 ftp ftp://ftp.netbsd.org/pub/pkgsrc/pkgsrc-2009Q3/pkgsrc-2009Q3.tar.gz
+				10.1 tar -zxf pkgsrc-2009Q3.tar.gz -C /usr
 				10.1 cd /usr/pkgsrc/shells/bash && make install
 				10.3 cd /usr/pkgsrc/editors/nano && make install
 				10.4 cd /usr/pkgsrc/net/wget && make install

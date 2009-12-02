@@ -30,6 +30,8 @@ use strict; use warnings;
 #	- auto-config the root/system CPANPLUS?
 #	- for the patch_hints thing, auto-detect the latest perl tarball and copy it from there instead of hardcoding it here...
 #	- figure out how to install CPAN without somehow breaking CPANPLUS...
+#	- investigate how to use one CPANPLUS sourcedir for all the perls ( saves a ton of space! )
+#		- builddir/extractdir could be versioned away into cpanp_conf, the source into cpanp_main or something...
 
 # load our dependencies
 use Capture::Tiny qw( capture_merged tee_merged );
@@ -59,7 +61,7 @@ exit;
 sub prompt_action {
 	my $res;
 	while ( ! defined $res ) {
-		$res = lc( prompt( "What action do you want to do today? [b/x/i/e/s]", 'b', 10, 1 ) );
+		$res = lc( prompt( "What action do you want to do today? [(b)uild/inde(x)/(i)nstall/(e)xit/(s)elfupdate]", 'e', 120 ) );
 		if ( $res eq 'b' ) {
 			# Should we compile the matrix of options?
 			prompt_perlmatrix();
@@ -87,6 +89,17 @@ sub prompt_action {
 			}
 		} elsif ( $res eq 'i' ) {
 			# install a specific module
+			my $module = prompt( "What module should we install?", '', 120 );
+			if ( defined $module and length $module ) {
+				do_log( "[CPANPLUS] Installing '$module' on all perls..." );
+				foreach my $p ( @{ getReadyperls() } ) {
+					if ( do_cpanp_action( $p, "i $module" ) ) {
+						do_log( "[CPANPLUS] Installed $module on $p" );
+					} else {
+						do_log( "[CPANPLUS] Failed to install $module on $p" );
+					}
+				}
+			}
 		} elsif ( $res eq 's' ) {
 			# perform CPANPLUS s selfupdate all
 			do_log( "[CPANPLUS] Executing selfupdate on all CPANPLUS installs..." );
@@ -101,8 +114,10 @@ sub prompt_action {
 			exit;
 		} else {
 			print "Unknown action, please try again.\n";
-			$res = undef;
 		}
+
+		# allow the user to run another loop
+		$res = undef;
 	}
 
 	return;
@@ -110,26 +125,31 @@ sub prompt_action {
 
 # finds all installed perls that have smoke.ready file in them
 sub getReadyperls {
-	opendir( PERLS, "$PATH/perls" ) or die "Unable to opendir: $!";
-	my @list = readdir( PERLS );
-	closedir( PERLS ) or die "Unable to closedir: $!";
+	if ( -d "$PATH/perls" ) {
+		opendir( PERLS, "$PATH/perls" ) or die "Unable to opendir: $!";
+		my @list = readdir( PERLS );
+		closedir( PERLS ) or die "Unable to closedir: $!";
 
-	# find the ready ones
-	my @ready = ();
-	foreach my $p ( @list ) {
-		if ( $p =~ /^perl\-/ and -d "$PATH/perls/$p" and -e "$PATH/perls/$p/ready.smoke" ) {
-			push( @ready, $p );
+		# find the ready ones
+		my @ready = ();
+		foreach my $p ( @list ) {
+			if ( $p =~ /^perl\-/ and -d "$PATH/perls/$p" and -e "$PATH/perls/$p/ready.smoke" ) {
+				push( @ready, $p );
+			}
 		}
+
+		do_log( "[READYPERLS] Found " . scalar @ready . " perls ready to smoke" );
+
+		return \@ready;
+	} else {
+		do_log( "[READYPERLS] No perl distribution is built yet..." );
+		return [];
 	}
-
-	do_log( "[READYPERLS] Found " . scalar @ready . " perls ready to smoke" );
-
-	return \@ready;
 }
 
 sub prompt_perlmatrix {
-	my $res = prompt( "Compile the perl matrix", 'y', 10, 1 );
-	if ( lc( $res ) eq 'y' ) {
+	my $res = lc( prompt( "Compile the perl matrix", 'y', 120 ) );
+	if ( $res eq 'y' ) {
 		$domatrix = 1;
 	} else {
 		$domatrix = 0;
@@ -299,8 +319,8 @@ END
 }
 
 sub prompt_debug {
-	my $res = prompt( "Turn on debugging", 'y', 10, 1 );
-	if ( lc( $res ) eq 'y' ) {
+	my $res = lc( prompt( "Turn on debugging", 'y', 120 ) );
+	if ( $res eq 'y' ) {
 		$DEBUG = 1;
 	}
 
@@ -314,12 +334,12 @@ sub prompt_perlver {
 
 	my $res;
 	while ( ! defined $res ) {
-		$res = prompt( "Which perl version to compile [ver/d/a]", $perls[-1], 10, 1 );
-		if ( lc( $res ) eq 'd' ) {
+		$res = lc( prompt( "Which perl version to compile [ver/d/a]", $perls[-1], 120 ) );
+		if ( $res eq 'd' ) {
 			# display available versions
 			print "Available Perls: " . join( ' ', @perls ) . "\n";
 			$res = undef;
-		} elsif ( lc( $res ) eq 'a' ) {
+		} elsif ( $res eq 'a' ) {
 			return 'a';
 		} else {
 			# make sure the version exists
@@ -351,8 +371,8 @@ sub getPerlVersions {
 sub get_perl_tarballs {
 	if ( ! -d "$PATH/build" ) {
 		# automatically get the perl tarballs?
-		my $res = prompt( "Do you want me to automatically get the perl tarballs", 'y', 10, 1 );
-		if ( lc( $res ) eq 'y' ) {
+		my $res = lc( prompt( "Do you want me to automatically get the perl tarballs", 'y', 120 ) );
+		if ( $res eq 'y' ) {
 			do_log( "[GETPERLS] mkdir '$PATH/build'" );
 			mkdir( "$PATH/build" ) or die "Unable to mkdir: $!";
 
@@ -383,7 +403,7 @@ sub install_perl {
 
 	# Skip problematic perls
 	# TODO make this configurable
-	if ( $perlver eq '5.6.0' or $perlver eq '5.8.0' ) {
+	if ( $perl eq '5.6.0' or $perl eq '5.8.0' ) {
 		# CPANPLUS won't work on 5.6.0, also some modules we want to install doesn't like 5.6.x :(
 		# <Apocalypse> Yeah wish me luck, last year I managed to get 5.6.0 built but couldn't get CPANPLUS to install on it
 		# <Apocalypse> Maybe the situation is better now - I'm working downwards so I'll hit 5.6.X sometime later tonite after I finish 5.8.5, 5.8.4, and so on :)
@@ -391,7 +411,7 @@ sub install_perl {
 		# <Apocalypse> Ah, so CPANPLUS definitely won't work on 5.6.0? I should just drop it...
 
 		# 5.8.0 blows up horribly in it's tests everywhere I try to compile it...
-		do_log( "[PERLBUILDER] Skipping perl-$perlver because of known problems..." );
+		do_log( "[PERLBUILDER] Skipping perl-$perl because of known problems..." );
 		return;
 	}
 
@@ -498,8 +518,19 @@ sub finalize_perl {
 	# TODO annoying to do it for each run...
 	#do_shellcommand( "sudo chown -R root:root $PATH/perls/perl-$perlver-$perlopts" );
 
-	# Get rid of the man directories!
-	do_shellcommand( "rm -rf $PATH/perls/perl-$perlver-$perlopts/man" );
+	# Get rid of the man directory!
+	if ( -d "$PATH/perls/perl-$perlver-$perlopts/man" ) {
+		do_shellcommand( "rm -rf $PATH/perls/perl-$perlver-$perlopts/man" );
+	}
+
+	# get rid of the default pod...
+#	/home/cpan/perls/perl-5.10.1-default/lib/5.10.1/pod/perlwin32.pod
+#	/home/cpan/perls/perl-5.10.1-default/lib/5.10.1/pod/perlxs.pod
+#	/home/cpan/perls/perl-5.10.1-default/lib/5.10.1/pod/perlxstut.pod
+#	/home/cpan/perls/perl-5.10.1-default/lib/5.10.1/pod/a2p.pod
+	if ( -d "$PATH/perls/perl-$perlver-$perlopts/lib/$perlver/pod" ) {
+		do_shellcommand( "rm -rf $PATH/perls/perl-$perlver-$perlopts/lib/$perlver/pod" );
+	}
 
 	# we're really done!
 	do_shellcommand( "touch $PATH/perls/perl-$perlver-$perlopts/ready.smoke" );
@@ -531,12 +562,15 @@ sub do_prebuild {
 	do_prebuild_patches();
 
 	# TODO this sucks, but lib/Benchmark.t usually takes forever and fails unnecessarily on my loaded box...
-	if ( -f "$PATH/build/perl-$perlver-$perlopts/lib/Benchmark.t" ) {
-		do_log( "[PERLBUILDER] Removing problematic Benchmark.t test" );
-		unlink( "$PATH/build/perl-$perlver-$perlopts/lib/Benchmark.t" ) or die "Unable to unlink: $!";
+	# TODO also do it for t/op/alarm.t and t/op/time.t ?
+	foreach my $t ( qw( lib/Benchmark.t ) ) {
+		if ( -f "$PATH/build/perl-$perlver-$perlopts/$t" ) {
+			do_log( "[PERLBUILDER] Removing problematic '$t' test" );
+			unlink( "$PATH/build/perl-$perlver-$perlopts/$t" ) or die "Unable to unlink: $!";
 
-		# argh, we have to munge MANIFEST
-		do_shellcommand( "perl -nli -e 'print if ! /^lib\\/Benchmark\\.t/' $PATH/build/perl-$perlver-$perlopts/MANIFEST" );
+			# argh, we have to munge MANIFEST
+			do_shellcommand( "perl -nli -e 'print if ! /^" . quotemeta( $t ) . "/' $PATH/build/perl-$perlver-$perlopts/MANIFEST" );
+		}
 	}
 
 	return;
@@ -549,7 +583,7 @@ sub do_initCPANP_BOXED {
 	$CPANPLUS_ver = get_CPANPLUS_ver() if ! defined $CPANPLUS_ver;
 
 	# do we have CPANPLUS already extracted?
-	if ( -d "$PATH/CPANPLUS-$CPANPLUS_ver" ) {
+	if ( -d "$PATH/CPANPLUS-$CPANPLUS_ver" and -d "$PATH/CPANPLUS-$CPANPLUS_ver/.cpanplus/$ENV{USER}" ) {
 		# cleanup the cruft
 		opendir( CPANPLUS, "$PATH/CPANPLUS-$CPANPLUS_ver/.cpanplus/$ENV{USER}" ) or die "Unable to opendir: $!";
 		my @dirlist = readdir( CPANPLUS );
@@ -844,7 +878,7 @@ END
 }
 
 sub do_cpanpboxed_action {
-	my $action = shift;
+	my( $action ) = @_;
 
 	# use default answer to prompts ( MakeMaker stuff - PERL_MM_USE_DEFAULT )
 	my $ret = do_shellcommand( "PERL_MM_USE_DEFAULT=1 $PATH/perls/perl-$perlver-$perlopts/bin/perl $PATH/CPANPLUS-$CPANPLUS_ver/bin/cpanp-boxed $action" );
@@ -872,14 +906,29 @@ sub analyze_cpanp_install {
 		# TODO analyse this?
 		return 1;
 	} elsif ( $action =~ /^x/ ) {
-		# always succeeds
-		return 1;
+#		[root@freebsd64 ~]# cpanp x --update_source
+#		[MSG] Checking if source files are up to date
+#		[MSG] Updating source file '01mailrc.txt.gz'
+#		[MSG] Trying to get 'ftp://192.168.0.200/CPAN/authors/01mailrc.txt.gz'
+#		[MSG] Updating source file '03modlist.data.gz'
+#		[MSG] Trying to get 'ftp://192.168.0.200/CPAN/modules/03modlist.data.gz'
+#		[MSG] Updating source file '02packages.details.txt.gz'
+#		[MSG] Trying to get 'ftp://192.168.0.200/CPAN/modules/02packages.details.txt.gz'
+#		[MSG] No '/root/.cpanplus/custom-sources' dir, skipping custom sources
+#		[MSG] Rebuilding author tree, this might take a while
+#		[MSG] Rebuilding module tree, this might take a while
+#		[MSG] Writing compiled source information to disk. This might take a little while.
+#		[root@freebsd64 ~]#
+		if ( $ret->[-1] =~ /Writing\s+compiled\s+source\s+information/ ) {
+			return 1;
+		} else {
+			return 0;
+		}
 	}
 }
 
 sub do_cpanp_action {
-	my $perl = shift;
-	my $action = shift;
+	my( $perl, $action ) = @_;
 
 	# use default answer to prompts ( MakeMaker stuff - PERL_MM_USE_DEFAULT )
 	my $ret = do_shellcommand( "PERL_MM_USE_DEFAULT=1 APPDATA=$PATH/cpanp_conf/$perl/ $PATH/perls/$perl/bin/perl $PATH/perls/$perl/bin/cpanp $action" );
