@@ -23,7 +23,12 @@
 				domain 0ne.us
 				search 0ne.us
 				nameserver 192.168.0.200
+			6. disable ipv6!
+				6.1 sudo nano /etc/default/grub # set  GRUB_CMDLINE_LINUX="ipv6.disable=1"
 			6. sudo useradd -m cpan && sudo passwd cpan && sudo usermod -s /bin/bash cpan # passwd is cpan
+			6. customize PS1
+				nano ~/.bashrc
+					PS1='[\u@\h \w]\$ '
 			7. setup root/system CPANPLUS
 				7.0 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm
 				7.1 cpanp x --update_source
@@ -45,6 +50,8 @@
 			5. /usr/local/bin/nano /etc/resolv.conf # setup smoker-master as dns server
 			6. pw useradd cpan -m -s /usr/local/bin/bash
 			7. passwd cpan
+			8. customize PS1
+				PS1='[\u@\h \w]\$ '; export PS1
 			8. setup root/system CPANPLUS
 				7.1 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
 				7.2 cpanp x --update_source
@@ -86,6 +93,10 @@
 			12. useradd -m cpan
 			13. passwd cpan
 			14. usermod -s /usr/pkg/bin/bash cpan
+			14. customize PS1
+				nano ~/.profile
+					PS1='[\u@\h \w]\$ '
+					export PS1
 			15. setup root/system CPANPLUS
 				15.1 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
 				15.2 cpanp x --update_source
@@ -126,6 +137,9 @@
 				12.3 nano /export/home/apoc/.profile
 					# remove any PATH stuff
 					# do the same for .bashrc
+			13. customize PS1
+				nano ~/.profile
+					PS1='[\u@\h \w]\$ '
 			13. setup root/system CPANPLUS
 				13.0 configure CPAN, tell it to install CPANPLUS # opensolaris doesn't install CPANPLUS by default...
 				13.1 copy CPANP-root.config to /export/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!

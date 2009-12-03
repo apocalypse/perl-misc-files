@@ -10,6 +10,7 @@ use strict; use warnings;
 # This compiler builds each perl with a matrix of 49 possible combinations.
 # Compiling the entire perl suite as of 5.11.2 will result in: 686 perls!
 # Each perl averages 45M with all the necessary modules to smoke CPAN preinstalled. ( 30.15GB total! )
+# All the perls share the same CPANPLUS sourcedir in $ENV{HOME}/.cpanplus but build in $ENV{HOME}/cpanp_conf/perl-$perlver/.cpanplus/build
 
 # this script does everything, but we need some layout to be specified!
 # /home/cpan					<-- the main directory
@@ -29,15 +30,14 @@ use strict; use warnings;
 #		- maybe we can autodetect it?
 #	- auto-config the root/system CPANPLUS?
 #	- for the patch_hints thing, auto-detect the latest perl tarball and copy it from there instead of hardcoding it here...
-#	- figure out how to install CPAN without somehow breaking CPANPLUS...
-#	- investigate how to use one CPANPLUS sourcedir for all the perls ( saves a ton of space! )
-#		- builddir/extractdir could be versioned away into cpanp_conf, the source into cpanp_main or something...
+#	- use File::Spec for the directory stuff... ( I'm just too lazy )
 
 # load our dependencies
 use Capture::Tiny qw( capture_merged tee_merged );
 use Prompt::Timeout;
 use Sort::Versions;
-#use Term::Title qw( set_titlebar );	# TODO use this? too fancy...
+use Term::Title qw( set_titlebar );
+use Sys::Hostname qw( hostname );
 
 # static var...
 my $PATH = $ENV{HOME};	# the home path where we do our stuff
@@ -47,13 +47,15 @@ my $CPANPLUS_ver;	# the CPANPLUS version we'll use for cpanp-boxed
 my $DEBUG = 0;		# spews stuff on console or just top-level data
 my @LOGS = ();		# holds stored logs for a run
 my $domatrix = 1;	# compile the matrix of perl options or not?
-my @perls = ();		# the available perl tarballs found under $PATH/build
 
-# ask user for debugging
-prompt_debug();
+# Set a nice term title
+set_titlebar( "Perl-Compiler@" . hostname() );
 
 # What option do we want to do?
 prompt_action();
+
+# TODO doesn't do what I expect... how do I restore the old terminal title?
+#set_titlebar( undef );
 
 # all done!
 exit;
@@ -61,85 +63,119 @@ exit;
 sub prompt_action {
 	my $res;
 	while ( ! defined $res ) {
-		$res = lc( prompt( "What action do you want to do today? [(b)uild/inde(x)/(i)nstall/(e)xit/(s)elfupdate]", 'e', 120 ) );
-		if ( $res eq 'b' ) {
+		$res = lc( prompt( "What action do you want to do today? [(b)uild/(d)ebug/(e)xit/(i)nstall/(s)elfupdate/(u)ninstall/inde(x)]", 'e', 120 ) );
+		if ( $res eq 'd' ) {
+			# flip the debug state
+			if ( $DEBUG ) {
+				do_log( "[COMPILER] Debug turned off..." );
+				$DEBUG = 0;
+			} else {
+				do_log( "[COMPILER] Debug turned on..." );
+				$DEBUG = 1;
+			}
+		} elsif ( $res eq 'b' ) {
 			# Should we compile the matrix of options?
 			prompt_perlmatrix();
 
 			# prompt user for perl version to compile
 			$res = prompt_perlver();
-			if ( $res ne 'a' ) {
-				# do the stuff!
-				install_perl( $res );
-			} else {
-				# loop through all versions, starting from newest to oldest
-				foreach my $p ( reverse @perls ) {
-					install_perl( $p );
+			if ( defined $res ) {
+				if ( $res ne 'a' ) {
+					# do the stuff!
+					install_perl( $res );
+				} else {
+					# loop through all versions, starting from newest to oldest
+					foreach my $p ( reverse @{ getPerlVersions() } ) {
+						install_perl( $p );
+					}
 				}
 			}
 		} elsif ( $res eq 'x' ) {
-			# update all CPANPLUS indexes
-			do_log( "[CPANPLUS] Updating indexes on all perls..." );
-			foreach my $p ( @{ getReadyperls() } ) {
-				if ( do_cpanp_action( $p, "x --update_source" ) ) {
-					do_log( "[CPANPLUS] Updated index on $p" );
-				} else {
-					do_log( "[CPANPLUS] Failed to update index on $p" );
-				}
-			}
+			# update the local user's CPANPLUS index ( the one we share with all perls )
+			do_log( "[CPANPLUS] Updating CPANPLUS index..." );
+			do_shellcommand( "APPDATA=$ENV{HOME}/ cpanp x --update_source" );
 		} elsif ( $res eq 'i' ) {
 			# install a specific module
 			my $module = prompt( "What module should we install?", '', 120 );
 			if ( defined $module and length $module ) {
 				do_log( "[CPANPLUS] Installing '$module' on all perls..." );
-				foreach my $p ( @{ getReadyperls() } ) {
+				foreach my $p ( @{ getReadyPerls() } ) {
 					if ( do_cpanp_action( $p, "i $module" ) ) {
-						do_log( "[CPANPLUS] Installed $module on $p" );
+						do_log( "[CPANPLUS] Installed the module on '$p'" );
 					} else {
-						do_log( "[CPANPLUS] Failed to install $module on $p" );
+						do_log( "[CPANPLUS] Failed to install the module on '$p'" );
 					}
 				}
+			} else {
+				do_log( "[COMPILER] Module name not specified, please try again." );
+			}
+		} elsif ( $res eq 'u' ) {
+			# uinstall a specific module
+			my $module = prompt( "What module should we uninstall?", '', 120 );
+			if ( defined $module and length $module ) {
+				do_log( "[CPANPLUS] Uninstalling '$module' on all perls..." );
+				foreach my $p ( @{ getReadyPerls() } ) {
+					# use --force so we skip the prompt
+					if ( do_cpanp_action( $p, "u $module --force" ) ) {
+						do_log( "[CPANPLUS] Uninstalled the module from '$p'" );
+					} else {
+						do_log( "[CPANPLUS] Failed to uninstall the module from '$p'" );
+					}
+				}
+			} else {
+				do_log( "[COMPILER] Module name not specified, please try again." );
 			}
 		} elsif ( $res eq 's' ) {
 			# perform CPANPLUS s selfupdate all
 			do_log( "[CPANPLUS] Executing selfupdate on all CPANPLUS installs..." );
-			foreach my $p ( @{ getReadyperls() } ) {
+			foreach my $p ( @{ getReadyPerls() } ) {
 				if ( do_cpanp_action( $p, "s selfupdate all" ) ) {
-					do_log( "[CPANPLUS] Successfully updated CPANPLUS" );
+					do_log( "[CPANPLUS] Successfully updated CPANPLUS on '$p'" );
 				} else {
-					do_log( "[CPANPLUS] Failed to update CPANPLUS" );
+					do_log( "[CPANPLUS] Failed to update CPANPLUS on '$p'" );
 				}
 			}
 		} elsif ( $res eq 'e' ) {
-			exit;
+			return;
 		} else {
-			print "Unknown action, please try again.\n";
+			do_log( "[COMPILER] Unknown action, please try again." );
 		}
 
 		# allow the user to run another loop
 		$res = undef;
+		reset_logs();
 	}
 
 	return;
 }
 
 # finds all installed perls that have smoke.ready file in them
-sub getReadyperls {
+sub getReadyPerls {
 	if ( -d "$PATH/perls" ) {
 		opendir( PERLS, "$PATH/perls" ) or die "Unable to opendir: $!";
 		my @list = readdir( PERLS );
 		closedir( PERLS ) or die "Unable to closedir: $!";
 
 		# find the ready ones
-		my @ready = ();
+		my %ready = ();
 		foreach my $p ( @list ) {
 			if ( $p =~ /^perl\-/ and -d "$PATH/perls/$p" and -e "$PATH/perls/$p/ready.smoke" ) {
-				push( @ready, $p );
+				# rip out the version
+				if ( $p =~ /^perl\-([\d\.]+)\-/ ) {
+					push( @{ $ready{ $1 } }, $p );
+				}
 			}
 		}
 
-		do_log( "[READYPERLS] Found " . scalar @ready . " perls ready to smoke" );
+		# crap, but I want the list sorted for aesthetics :)
+		my @ready;
+		foreach my $p ( reverse sort versioncmp keys %ready ) {
+			foreach my $perl ( sort {$a cmp $b} @{ $ready{ $p } } ) {
+				push( @ready, $perl );
+			}
+		}
 
+		do_log( "[READYPERLS] Found " . ( scalar @ready ) . " perls ready to smoke" );
 		return \@ready;
 	} else {
 		do_log( "[READYPERLS] No perl distribution is built yet..." );
@@ -170,7 +206,7 @@ sub save_logs {
 	if ( -e "$PATH/perls/perl-$perlver-$perlopts.$end" ) {
 		print "[LOGS] Skipping log save of '$PATH/perls/perl-$perlver-$perlopts.$end' as it already exists\n";
 	} else {
-		do_log( "[LOGS] Saving log to '$PATH/perls/perl-$perlver-$perlopts.$end'" );
+		print "[LOGS] Saving log to '$PATH/perls/perl-$perlver-$perlopts.$end'\n";
 		open( my $log, '>', "$PATH/perls/perl-$perlver-$perlopts.$end" ) or die "Unable to create log: $!";
 		foreach my $l ( @LOGS ) {
 			print $log "$l\n";
@@ -296,6 +332,14 @@ sub setup {
 1;
 END
 
+	# blow away the old cpanplus dir if it's there
+	if ( -d "$ENV{HOME}/.cpanplus" ) {
+		do_log( "[CPANPLUS] Removing old CPANPLUS conf directory in '$ENV{HOME}/.cpanplus'" );
+
+		# TODO use File::Path::Tiny
+		do_shellcommand( "rm -rf $ENV{HOME}/.cpanplus" );
+	}
+
 	# okay, look at the default CPANPLUS config location
 	if ( ! -e "$ENV{HOME}/.cpanplus/lib/CPANPLUS/Config/User.pm" ) {
 		do_log( "[CPANPLUS] Configuring the local user's CPANPLUS config..." );
@@ -311,8 +355,19 @@ END
 		close( $config );
 
 		# force an update
-		# we don't use do_cpanp_action() here because we need to use the local user's CPANPLUS config not the boxed one...
+		# we don't use do_cpanp_action() here because we need to use the local user's CPANPLUS config not the perl's one...
 		do_shellcommand( "APPDATA=$ENV{HOME}/ cpanp x --update_source" );
+	}
+
+	# blow away any annoying .cpan directories that remain
+	if ( -d "$ENV{HOME}/.cpan" ) {
+		do_log( "[CPANPLUS] Sanitizing the '$ENV{HOME}/.cpan' directory..." );
+		do_shellcommand( "rm -rf $ENV{HOME}/.cpan" );
+		mkdir( "$ENV{HOME}/.cpan" );
+
+		# TODO annoying to do it every run...
+		# thanks to BinGOs for the idea to prevent rogue module installs via CPAN
+		#do_shellcommand( "sudo chown root $ENV{HOME}/.cpan" );
 	}
 
 	return;
@@ -330,42 +385,50 @@ sub prompt_debug {
 # prompt the user for perl version
 sub prompt_perlver {
 	# get our perl tarballs
-	@perls = @{ getPerlVersions() };
+	my $perls = getPerlVersions();
 
 	my $res;
 	while ( ! defined $res ) {
-		$res = lc( prompt( "Which perl version to compile [ver/d/a]", $perls[-1], 120 ) );
+		$res = lc( prompt( "Which perl version to compile [ver/(d)isplay/(a)ll/(e)xit]", $perls->[-1], 120 ) );
 		if ( $res eq 'd' ) {
 			# display available versions
-			print "Available Perls: " . join( ' ', @perls ) . "\n";
-			$res = undef;
+			do_log( "[READYPERLS] Available Perls[" . ( scalar @$perls ) . "]: " . join( ' ', @$perls ) );
 		} elsif ( $res eq 'a' ) {
 			return 'a';
+		} elsif ( $res eq 'e' ) {
+			return undef;
 		} else {
 			# make sure the version exists
-			if ( ! grep { $_ eq $res } @perls ) {
-				print "Selected version doesn't exist, please try again.\n";
-				$res = undef;
+			if ( ! grep { $_ eq $res } @$perls ) {
+				do_log( "[READYPERLS] Selected version doesn't exist, please try again." );
 			} else {
 				return $res;
 			}
 		}
+
+		$res = undef;
 	}
 
 	return;
 }
 
-# gets the perls
-sub getPerlVersions {
-	# do we even have a build dir?
-	get_perl_tarballs();
+# cache the @perls array
+{
+	my $perls = undef;
 
-	my @perls;
-	opendir( PERLS, $PATH . '/build' ) or die "Unable to opendir: $@";
-	@perls = sort versioncmp map { $_ =~ /^perl\-([\d\.]+)\./; $_ = $1; } grep { /^perl\-[\d\.]+\.tar\.gz$/ && -f "$PATH/build/$_"  } readdir( PERLS );
-	closedir( PERLS ) or die "Unable to closedir: $@";
+	# gets the perls
+	sub getPerlVersions {
+		return $perls if defined $perls;
 
-	return \@perls;
+		# do we even have a build dir?
+		get_perl_tarballs();
+
+		opendir( PERLS, $PATH . '/build' ) or die "Unable to opendir: $@";
+		$perls = [ sort versioncmp map { $_ =~ /^perl\-([\d\.]+)\./; $_ = $1; } grep { /^perl\-[\d\.]+\.tar\.gz$/ && -f "$PATH/build/$_"  } readdir( PERLS ) ];
+		closedir( PERLS ) or die "Unable to closedir: $@";
+
+		return $perls;
+	}
 }
 
 sub get_perl_tarballs {
@@ -373,18 +436,15 @@ sub get_perl_tarballs {
 		# automatically get the perl tarballs?
 		my $res = lc( prompt( "Do you want me to automatically get the perl tarballs", 'y', 120 ) );
 		if ( $res eq 'y' ) {
-			do_log( "[GETPERLS] mkdir '$PATH/build'" );
+			do_log( "[GETPERLS] mkdir '$PATH/build'" ) if $DEBUG;
 			mkdir( "$PATH/build" ) or die "Unable to mkdir: $!";
 
-			# TODO get rid of all_perls.tar.gz and download individually?
-			do_shellcommand( "wget ftp://192.168.0.200/perl_dists/src/all_perls.tar.gz" );
-			do_shellcommand( "tar -C $PATH/build -xf all_perls.tar.gz" );
-			do_log( "[GETPERLS] unlink 'all_perls.tar.gz'" );
-			unlink( 'all_perls.tar.gz' ) or die "Unable to unlink: $!";
+			# Download all the tarballs we see
+			do_shellcommand( "wget ftp://192.168.0.200/perl_dists/src/* -P $PATH/build" );
 
 			# make the perls directory
 			if ( ! -d "$PATH/perls" ) {
-				do_log( "[GETPERLS] mkdir '$PATH/perls'" );
+				do_log( "[GETPERLS] mkdir '$PATH/perls'" ) if $DEBUG;
 				mkdir( "$PATH/perls" ) or die "Unable to mkdir: $!";
 			}
 		} else {
@@ -454,9 +514,6 @@ sub build_perl_opts {
 	# set the perl stuff
 	( $perlver, $perlopts ) = @_;
 
-	# ignore the args for now, as we use globals :(
-	do_log( "[PERLBUILDER] Preparing to build perl-$perlver-$perlopts" );
-
 	# have we already compiled+installed this version?
 	if ( ! -d "$PATH/perls/perl-$perlver-$perlopts" ) {
 		# did the compile fail?
@@ -496,9 +553,6 @@ sub build_perl_opts {
 		return 0;
 	}
 
-	# configure CPAN so some stupid modules don't try to use it... /me looks at old Module::Install !!
-	# TODO we forget about CPAN for now, because it is unnecessary and keeps blowing up Term::ReadLine::Perl somehow...
-
 	# move on with the test stuff
 	if ( ! do_installCPANTesters() ) {
 		return 0;
@@ -514,10 +568,6 @@ sub build_perl_opts {
 }
 
 sub finalize_perl {
-	# thanks to BiNGOs for the idea!
-	# TODO annoying to do it for each run...
-	#do_shellcommand( "sudo chown -R root:root $PATH/perls/perl-$perlver-$perlopts" );
-
 	# Get rid of the man directory!
 	if ( -d "$PATH/perls/perl-$perlver-$perlopts/man" ) {
 		do_shellcommand( "rm -rf $PATH/perls/perl-$perlver-$perlopts/man" );
@@ -531,6 +581,10 @@ sub finalize_perl {
 	if ( -d "$PATH/perls/perl-$perlver-$perlopts/lib/$perlver/pod" ) {
 		do_shellcommand( "rm -rf $PATH/perls/perl-$perlver-$perlopts/lib/$perlver/pod" );
 	}
+
+	# thanks to BiNGOs for the idea!
+	# TODO annoying to do it for each run...
+	#do_shellcommand( "sudo chown -R root:root $PATH/perls/perl-$perlver-$perlopts" );
 
 	# we're really done!
 	do_shellcommand( "touch $PATH/perls/perl-$perlver-$perlopts/ready.smoke" );
@@ -547,7 +601,7 @@ sub do_prebuild {
 
 	# make sure we have the output dir ready
 	if ( ! -d "$PATH/perls" ) {
-		do_log( "[PERLBUILDER] mkdir '$PATH/perls'" );
+		do_log( "[PERLBUILDER] mkdir '$PATH/perls'" ) if $DEBUG;
 		mkdir( "$PATH/perls" ) or die "Unable to mkdir: $!";
 	}
 
@@ -754,9 +808,13 @@ sub do_installCPANPLUS {
 	# use cpanp-boxed to install some modules that we know we need to bootstrap, argh! ( cpanp-boxed already skips tests so this should be fast )
 	# perl-5.6.1 -> ExtUtils::MakeMaker, Test::More, File::Temp, Time::HiRes
 	# Module::Build -> ExtUtils::CBuilder, ExtUtils::ParseXS
-	# LWP on perl-5.8.2 bombs on Encode
+	# LWP on perl-5.8.2 bombs on Encode ( unable to install Encode on 5.6.x! )
 	# Test::Reporter::HTTPGateway -> LWP::UserAgent ( missing prereq, wow! )
-	if ( ! do_cpanpboxed_action( "i ExtUtils::MakeMaker ExtUtils::CBuilder ExtUtils::ParseXS Test::More File::Temp Time::HiRes Encode LWP::UserAgent" ) ) {
+	my $mod_list = "ExtUtils::MakeMaker ExtUtils::CBuilder ExtUtils::ParseXS Test::More File::Temp Time::HiRes";
+	if ( $perlver !~ /^5\.6/ ) {
+		$mod_list .= " Encode";
+	}
+	if ( ! do_cpanpboxed_action( "i $mod_list" ) ) {
 		return 0;
 	}
 
@@ -769,7 +827,8 @@ sub do_installCPANPLUS {
 	do_installCPANPLUS_config();
 
 	# force an update
-	do_cpanp_action( "perl-$perlver-$perlopts", "x --update_source" );
+	# no longer needed, as we use the HOME cpanplus source
+	#do_cpanp_action( "perl-$perlver-$perlopts", "x --update_source" );
 
 	return 1;
 }
@@ -808,7 +867,7 @@ sub setup {
 
 	### conf section
 	$conf->set_conf( allow_build_interactivity => 0 );
-	$conf->set_conf( base => 'XXXPATHXXX/cpanp_conf/perl-XXXPERLVERXXX/.cpanplus' );
+	$conf->set_conf( base => 'XXXHOMEXXX/.cpanplus' );
 	$conf->set_conf( buildflags => '' );
 	$conf->set_conf( cpantest => 1 );
 	$conf->set_conf( cpantest_mx => '' );
@@ -820,7 +879,7 @@ sub setup {
 	$conf->set_conf( dist_type => '' );
 	$conf->set_conf( email => 'perl@0ne.us' );
 	$conf->set_conf( enable_custom_sources => 0 );
-	$conf->set_conf( extractdir => '' );
+	$conf->set_conf( extractdir => 'XXXPATHXXX/cpanp_conf/perl-XXXPERLVERXXX/.cpanplus/build' );
 	$conf->set_conf( fetchdir => '' );
 	$conf->set_conf( flush => 1 );
 	$conf->set_conf( force => 0 );
@@ -866,6 +925,14 @@ END
 
 	# transform the XXXargsXXX
 	$cpanplus = do_replacements( $cpanplus );
+
+	# blow away the old cpanplus dir if it's there
+	if ( -d "$PATH/cpanp_conf/perl-$perlver-$perlopts" ) {
+		do_log( "[CPANPLUS] Removing old CPANPLUS conf directory in '$PATH/cpanp_conf/perl-$perlver-$perlopts'" );
+
+		# TODO use File::Path::Tiny
+		do_shellcommand( "rm -rf $PATH/cpanp_conf/perl-$perlver-$perlopts" );
+	}
 
 	# save it!
 	# TODO use File::Path::Tiny
@@ -924,6 +991,29 @@ sub analyze_cpanp_install {
 		} else {
 			return 0;
 		}
+	} elsif ( $action =~ /^u/ ) {
+#		root@blackhole:/home/apoc# cpanp u Term::Title --force
+#		Uninstalling 'Term::Title'
+#		[MSG] Unlinking '/usr/local/share/perl/5.10.0/Term/Title.pod'
+#		Running [/usr/bin/perl -eunlink+q[/usr/local/share/perl/5.10.0/Term/Title.pod]]...
+#		[MSG] Unlinking '/usr/local/share/perl/5.10.0/Term/Title.pm'
+#		Running [/usr/bin/perl -eunlink+q[/usr/local/share/perl/5.10.0/Term/Title.pm]]...
+#		[MSG] Unlinking '/usr/local/man/man3/Term::Title.3pm'
+#		Running [/usr/bin/perl -eunlink+q[/usr/local/man/man3/Term::Title.3pm]]...
+#		[MSG] Unlinking '/usr/local/lib/perl/5.10.0/auto/Term/Title/.packlist'
+#		Running [/usr/bin/perl -eunlink+q[/usr/local/lib/perl/5.10.0/auto/Term/Title/.packlist]]...
+#		Module 'Term::Title' uninstalled successfully
+#		All modules uninstalled successfully
+#
+#		root@blackhole:/home/apoc#
+		if ( $ret->[-1] =~ /All\s+modules\s+uninstalled\s+successfully/ ) {
+			return 1;
+		} else {
+			return 0;
+		}
+	} else {
+		# unknown action!
+		return 0;
 	}
 }
 
@@ -950,9 +1040,9 @@ sub do_installCPANTesters {
 sub do_shellcommand {
 	my $cmd = shift;
 
-	do_log( "[SHELLCMD] Executing $cmd" );
 	my $output;
 	if ( $DEBUG ) {
+		do_log( "[SHELLCMD] Executing $cmd" );
 		$output = tee_merged { system( $cmd ) };
 	} else {
 		$output = capture_merged { system( $cmd ) };
@@ -963,6 +1053,9 @@ sub do_shellcommand {
 }
 
 sub do_build {
+	# ignore the args for now, as we use globals :(
+	do_log( "[PERLBUILDER] Preparing to build perl-$perlver-$perlopts" );
+
 	# do prebuild stuff
 	do_prebuild();
 
@@ -1871,10 +1964,10 @@ sub do_replacefile {
 	do_log( "[PERLBUILDER] Replacing file '$file' with new data" );
 
 	# for starters, we delete the file
-	unlink( $file ) or die "Unable to unlink $file: $!";
-	open( my $f, '>', $file ) or die "Unable to open $file for writing: $!";
+	unlink( $file ) or die "Unable to unlink '$file': $!";
+	open( my $f, '>', $file ) or die "Unable to open '$file' for writing: $!";
 	print $f $data;
-	close( $f ) or die "Unable to close $file: $!";
+	close( $f ) or die "Unable to close '$file': $!";
 
 	return;
 }
