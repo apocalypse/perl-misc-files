@@ -1,9 +1,8 @@
 #!/usr/bin/perl
 use strict; use warnings;
 
-use Time::Duration qw( duration_exact );
 use POE;
-use POE::Component::SmokeBox;
+use POE::Component::SmokeBox;		# must be > 0.30 for the no_log param
 use POE::Component::SmokeBox::Smoker;
 use POE::Component::SmokeBox::Job;
 use POE::Component::IRC::State;
@@ -13,9 +12,11 @@ use POE::Component::IRC::Plugin::BotCommand;
 use base 'POE::Session::AttributeBased';
 
 use Data::Dumper;
+use Sys::Hostname qw( hostname );
+use Time::Duration qw( duration_exact );
 
 # set some handy variables
-my $ircnick = 'ubuntu-server-64';
+my $ircnick = hostname();
 
 # autoflush
 $|++;
@@ -44,14 +45,18 @@ sub create_smokebox : State {
 	# Configuration successfully saved to CPANPLUS::Config::User
 	#    (/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm)
 	my $perl = `which perl`; chomp $perl;
-	$_[HEAP]->{'SMOKEBOX'}->add_smoker( POE::Component::SmokeBox::Smoker->new(
+	my $smoker = POE::Component::SmokeBox::Smoker->new(
 		perl => $perl,
 		env => {
 			'APPDATA'		=> "$ENV{HOME}/",
 			'PERL5_YACSMOKE_BASE'	=> "$ENV{HOME}/",
 		},
-	) );
+	);
+	$_[HEAP]->{'SMOKEBOX'}->add_smoker( $smoker );
 	$_[HEAP]->{'PERLS'} = [];
+
+	# Store the system smoker so we can use it to update the CPANPLUS index
+	$_[HEAP]->{'SMOKER_SYSTEM'} = $smoker;
 
 	# Do the first pass over our perls
 	$_[KERNEL]->yield( 'check_perls' );
@@ -109,6 +114,7 @@ sub create_irc : State {
 			'index'		=> 'Updates the CPANPLUS source index. Takes no arguments.',
 			'status'	=> 'Enables/disables the smoker. Takes one optional argument: a boolean.',
 			'perls'		=> 'Lists the available perl versions to smoke. Takes no arguments.',
+			'uname'		=> 'Returns the uname of the machine the smokebot is running on. Takes no arguments.',
 		},
 		Addressed => 0,
 	) );
@@ -149,6 +155,19 @@ sub getPerlVersions {
 	closedir( PERLS ) or die "Unable to closedir: $@";
 
 	return \@perls;
+}
+
+sub irc_botcmd_uname : State {
+	my $nick = (split '!', $_[ARG0])[0];
+	my ($where, $arg) = @_[ARG1, ARG2];
+
+	# TODO lousy hack here
+	my $uname = `uname -a`;
+	chomp( $uname );
+
+	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "${nick}: uname -> $uname" );
+
+	return;
 }
 
 sub irc_botcmd_queue : State {
@@ -213,6 +232,7 @@ sub irc_botcmd_smoke : State {
 			command => 'smoke',
 			module => $arg,
 			type => 'CPANPLUS::YACSmoke',
+			no_log => 1,
 		),
 	);
 
@@ -222,8 +242,6 @@ sub irc_botcmd_smoke : State {
 }
 
 sub smokeresult : State {
-	print Dumper( $_[ARG0] );
-
 	# extract some useful data
 	my $starttime = 0;
 	my $endtime = 0;
@@ -252,8 +270,8 @@ sub smokeresult : State {
 	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module ($passes PASS, $fails FAIL) in ${duration}." );
 
 	# TODO remove all .cpanplus/build cruft if disk space is not enough
-	#cpan@ubuntu-server64:~$ rm -rf .cpanplus/authors/id/*
-	#cpan@ubuntu-server64:~$ rm -rf .cpanplus/5.10.0/build/*
+	#cpan@ubuntu-server64:~$ rm -rf /home/cpan/.cpanplus/authors/id/*				# downloaded tarballs
+	#cpan@ubuntu-server64:~$ rm -rf /home/cpan/cpanp_conf/perl-5.10.0-default/.cpanplus/build/*	# extracted builds
 
 	return;
 }
@@ -262,26 +280,36 @@ sub irc_botcmd_index : State {
 	my $nick = (split '!', $_[ARG0])[0];
 	my ($where, $arg) = @_[ARG1, ARG2];
 
+	# TODO we only need to update the index on the local CPANPLUS...
+	# We need the update to poco-smokebox so a job can only have 1 smoker - the system perl!
+
 	# Send off the job!
 	$_[HEAP]->{'SMOKEBOX'}->submit( event => 'indexresult',
 		job => POE::Component::SmokeBox::Job->new(
 			command => 'index',
+#			smokers => [ $_[HEAP]->{'SMOKER_SYSTEM'} ],	# wait for patch to be accepted
 			type => 'CPANPLUS::YACSmoke',
+			no_log => 1,
 		),
 	);
 
-	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "${nick}: Added index to the job queue." );
+	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "${nick}: Added CPAN index to the job queue." );
 
 	return;
 }
 
 sub indexresult : State {
-	print Dumper( $_[ARG0] );
-
 	# extract some useful data
 	my $starttime = 0;
 	my $endtime = 0;
-	foreach my $r ( @{ $_[ARG0]->{'result'}->results() } ) {
+	my $passes = 0;
+	my $fails = 0;
+	foreach my $r ( $_[ARG0]->{'result'}->results() ) {
+		if ( $r->{'status'} == 0 ) {
+			$passes++;
+		} else {
+			$fails++;
+		}
 
 		if ( $starttime == 0 or $r->{'start_time'} < $starttime ) {
 			$starttime = $r->{'start_time'};
@@ -292,7 +320,8 @@ sub indexresult : State {
 	}
 	my $duration = duration_exact( $endtime, $starttime );
 
-	$_[HEAP]->{'IRC'}->yield( privmsg => "#smoke", "Finished updating CPANPLUS source index in ${duration}." );
+	# report this to IRC
+	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Updated the CPANPLUS index - " . ( $passes ? 'SUCCESS' : 'FAILURE' ) . " in ${duration}." );
 
 	return;
 }

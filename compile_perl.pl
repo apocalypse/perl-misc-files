@@ -7,8 +7,14 @@ use strict; use warnings;
 # 5.10.0 5.10.1
 # 5.11.2
 
+# We have successfully compiled perl on those OSes:
+# x86_64/x64/amd64 (64bit) OSes:
+#	OpenSolaris 2009.6, FreeBSD 5.2-RELEASE, Ubuntu-server 9.10, NetBSD 5.0.1
+# x86 (32bit) OSes:
+#
+
 # This compiler builds each perl with a matrix of 49 possible combinations.
-# Compiling the entire perl suite as of 5.11.2 will result in: 686 perls!
+# Compiling the entire perl suite listed above will result in: 686 perls!
 # Each perl averages 45M with all the necessary modules to smoke CPAN preinstalled. ( 30.15GB total! )
 # All the perls share the same CPANPLUS sourcedir in $ENV{HOME}/.cpanplus but build in $ENV{HOME}/cpanp_conf/perl-$perlver/.cpanplus/build
 
@@ -28,6 +34,7 @@ use strict; use warnings;
 #	- create "hints" file that sets operating system, 64bit, etc
 #		- that way, we can know what perl versions to skip and etc
 #		- maybe we can autodetect it?
+#		- Sys::Info::Device::CPU::bitness() for a start...
 #	- auto-config the root/system CPANPLUS?
 #	- for the patch_hints thing, auto-detect the latest perl tarball and copy it from there instead of hardcoding it here...
 #	- use File::Spec for the directory stuff... ( I'm just too lazy )
@@ -63,7 +70,7 @@ exit;
 sub prompt_action {
 	my $res;
 	while ( ! defined $res ) {
-		$res = lc( prompt( "What action do you want to do today? [(b)uild/(d)ebug/(e)xit/(i)nstall/(s)elfupdate/(u)ninstall/inde(x)]", 'e', 120 ) );
+		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure cpanp/(d)ebug/(e)xit/(i)nstall/(s)elfupdate/(u)ninstall/inde(x)]", 'e', 120 ) );
 		if ( $res eq 'd' ) {
 			# flip the debug state
 			if ( $DEBUG ) {
@@ -90,6 +97,9 @@ sub prompt_action {
 					}
 				}
 			}
+		} elsif ( $res eq 'c' ) {
+			# configure the local user's CPANPLUS
+			do_config_localCPANPLUS();
 		} elsif ( $res eq 'x' ) {
 			# update the local user's CPANPLUS index ( the one we share with all perls )
 			do_log( "[CPANPLUS] Updating CPANPLUS index..." );
@@ -184,7 +194,7 @@ sub getReadyPerls {
 }
 
 sub prompt_perlmatrix {
-	my $res = lc( prompt( "Compile the perl matrix", 'y', 120 ) );
+	my $res = lc( prompt( "Compile the perl matrix", 'n', 120 ) );
 	if ( $res eq 'y' ) {
 		$domatrix = 1;
 	} else {
@@ -204,7 +214,7 @@ sub save_logs {
 
 	# Make sure we don't overwrite logs
 	if ( -e "$PATH/perls/perl-$perlver-$perlopts.$end" ) {
-		print "[LOGS] Skipping log save of '$PATH/perls/perl-$perlver-$perlopts.$end' as it already exists\n";
+#		print "[LOGS] Skipping log save of '$PATH/perls/perl-$perlver-$perlopts.$end' as it already exists\n";
 	} else {
 		print "[LOGS] Saving log to '$PATH/perls/perl-$perlver-$perlopts.$end'\n";
 		open( my $log, '>', "$PATH/perls/perl-$perlver-$perlopts.$end" ) or die "Unable to create log: $!";
@@ -226,9 +236,6 @@ sub do_log {
 }
 
 sub get_CPANPLUS_ver {
-	# is the "cpan" user's CPANPLUS configured?
-	do_config_localCPANPLUS();
-
 	# TODO disabled, because it consumed gobs of RAM unnecessarily...
 #	require CPANPLUS::Backend;
 #	my $cb = CPANPLUS::Backend->new;
@@ -363,10 +370,10 @@ END
 	if ( -d "$ENV{HOME}/.cpan" ) {
 		do_log( "[CPANPLUS] Sanitizing the '$ENV{HOME}/.cpan' directory..." );
 		do_shellcommand( "rm -rf $ENV{HOME}/.cpan" );
-		mkdir( "$ENV{HOME}/.cpan" );
 
 		# TODO annoying to do it every run...
 		# thanks to BinGOs for the idea to prevent rogue module installs via CPAN
+		#mkdir( "$ENV{HOME}/.cpan" );
 		#do_shellcommand( "sudo chown root $ENV{HOME}/.cpan" );
 	}
 
@@ -462,15 +469,7 @@ sub install_perl {
 	reset_logs();
 
 	# Skip problematic perls
-	# TODO make this configurable
-	if ( $perl eq '5.6.0' or $perl eq '5.8.0' ) {
-		# CPANPLUS won't work on 5.6.0, also some modules we want to install doesn't like 5.6.x :(
-		# <Apocalypse> Yeah wish me luck, last year I managed to get 5.6.0 built but couldn't get CPANPLUS to install on it
-		# <Apocalypse> Maybe the situation is better now - I'm working downwards so I'll hit 5.6.X sometime later tonite after I finish 5.8.5, 5.8.4, and so on :)
-		# <@kane> 5.6.1 is the minimum
-		# <Apocalypse> Ah, so CPANPLUS definitely won't work on 5.6.0? I should just drop it...
-
-		# 5.8.0 blows up horribly in it's tests everywhere I try to compile it...
+	if ( ! can_build_perl( $perl, undef ) ) {
 		do_log( "[PERLBUILDER] Skipping perl-$perl because of known problems..." );
 		return;
 	}
@@ -481,11 +480,10 @@ sub install_perl {
 	} else {
 #		save_logs( 'ok' );
 	}
+	reset_logs();
 
 	# Should we also compile the matrix?
 	if ( $domatrix ) {
-		reset_logs();
-
 		# loop over all the options we have
 		# TODO use hints to figure out if this is 64bit or 32bit OS
 		foreach my $thr ( qw( thr nothr ) ) {
@@ -510,6 +508,73 @@ sub install_perl {
 	return;
 }
 
+sub can_build_perl {
+	my( $p, $o ) = @_;
+	# okay, list the known failures here
+
+	# Skip problematic perls
+	if ( $p eq '5.6.0' or $p eq '5.8.0' ) {
+		# CPANPLUS won't work on 5.6.0, also some modules we want to install doesn't like 5.6.x :(
+		#
+		# <Apocalypse> Yeah wish me luck, last year I managed to get 5.6.0 built but couldn't get CPANPLUS to install on it
+		# <Apocalypse> Maybe the situation is better now - I'm working downwards so I'll hit 5.6.X sometime later tonite after I finish 5.8.5, 5.8.4, and so on :)
+		# <@kane> 5.6.1 is the minimum
+		# <Apocalypse> Ah, so CPANPLUS definitely won't work on 5.6.0? I should just drop it...
+		#
+		# 5.8.0 blows up horribly in it's tests everywhere I try to compile it...
+		return 0;
+	}
+
+	# FreeBSD 5.2-RELEASE doesn't like perl-5.6.1 :(
+	#
+	# cc -c -I../../.. -DHAS_FPSETMASK -DHAS_FLOATINGPOINT_H -fno-strict-aliasing -I/usr/local/include -O    -DVERSION=\"0.10\"  -DXS_VERSION=\"0.10\" -DPIC -fPIC -I../../.. -DSDBM -DDUFF sdbm.c
+	# sdbm.c:40: error: conflicting types for 'malloc'
+	# sdbm.c:41: error: conflicting types for 'free'
+	# /usr/include/stdlib.h:94: error: previous declaration of 'free' was here
+	# *** Error code 1
+	if ( $^O eq 'freebsd' and $p eq '5.6.1' ) {
+		return 0;
+	}
+
+	# Analyze the options
+	if ( defined $o ) {
+		# NetBSD 5.0.1 cannot build -Duselongdouble:
+		#
+		# *** You requested the use of long doubles but you do not seem to have
+		# *** the following mathematical functions needed for long double support:
+		# ***     sqrtl modfl frexpl
+		# *** Please rerun Configure without -Duselongdouble and/or -Dusemorebits.
+		# *** Cannot continue, aborting.
+		if ( $^O eq 'netbsd' and $o =~ /(?<!no)long/ ) {
+			return 0;
+		}
+
+		# For some reason OpenSolaris 2009.6 bombs out perl-5.8.7:
+		#
+		# *** You have chosen a maximally 64-bit build,
+		# *** but your pointers are only 4 bytes wide.
+		# *** Please rerun Configure without -Duse64bitall.
+		# *** Since you have quads, you could possibly try with -Duse64bitint.
+		# *** Cannot continue, aborting.
+		# [cpan@opensolaris64 ~/perls]$ ls -l *.fail
+		# -rw-r--r-- 1 cpan other 5389 2009-12-07 15:12 perl-5.8.7-nothr-multi-long-mymalloc-64a.fail
+		# -rw-r--r-- 1 cpan other 5405 2009-12-07 15:39 perl-5.8.7-nothr-multi-long-nomymalloc-64a.fail
+		# -rw-r--r-- 1 cpan other 5307 2009-12-07 22:48 perl-5.8.7-nothr-multi-nolong-mymalloc-64a.fail
+		# -rw-r--r-- 1 cpan other 5323 2009-12-07 23:16 perl-5.8.7-nothr-multi-nolong-nomymalloc-64a.fail
+		# -rw-r--r-- 1 cpan other 5311 2009-12-07 23:42 perl-5.8.7-nothr-nomulti-long-mymalloc-64a.fail
+		# -rw-r--r-- 1 cpan other 5552 2009-12-07 10:30 perl-5.8.7-thr-multi-long-mymalloc-64a.fail
+		# -rw-r--r-- 1 cpan other 5568 2009-12-07 10:59 perl-5.8.7-thr-multi-long-nomymalloc-64a.fail
+		# -rw-r--r-- 1 cpan other 5463 2009-12-07 11:28 perl-5.8.7-thr-multi-nolong-mymalloc-64a.fail
+		# -rw-r--r-- 1 cpan other 5479 2009-12-07 11:57 perl-5.8.7-thr-multi-nolong-nomymalloc-64a.fail
+		if ( $^O eq 'solaris' and $p eq '5.8.7' and $o =~ /64a/ ) {
+			return 0;
+		}
+	}
+
+	# We can build it!
+	return 1;
+}
+
 sub build_perl_opts {
 	# set the perl stuff
 	( $perlver, $perlopts ) = @_;
@@ -519,6 +584,12 @@ sub build_perl_opts {
 		# did the compile fail?
 		if ( -e "$PATH/perls/perl-$perlver-$perlopts.fail" ) {
 			do_log( "[PERLBUILDER] perl-$perlver-$perlopts already failed, skipping..." );
+			return 0;
+		}
+
+		# Can we even build this combination?
+		if ( ! can_build_perl( $perlver, $perlopts ) ) {
+			do_log( "[PERLBUILDER] Skipping build of perl-$perlver-$perlopts due to known problems..." );
 			return 0;
 		}
 
@@ -616,8 +687,18 @@ sub do_prebuild {
 	do_prebuild_patches();
 
 	# TODO this sucks, but lib/Benchmark.t usually takes forever and fails unnecessarily on my loaded box...
-	# TODO also do it for t/op/alarm.t and t/op/time.t ?
-	foreach my $t ( qw( lib/Benchmark.t ) ) {
+	my @fails = qw( lib/Benchmark.t );
+
+	# TODO netbsd/freebsd often bombs out on t/op/time.t when box is loaded...
+	if ( ( $^O eq 'netbsd' or $^O eq 'freebsd' ) and $perlver =~ /^5\.(?:8|6)\./ ) {
+		push( @fails, 't/op/time.t' );
+	}
+
+	# TODO freebsd often bombs out on HiRes, we always install the latest version anyway...
+	push( @fails, 'ext/Time/HiRes/t/HiRes.t' ) if $^O eq 'freebsd' and $perlver =~ /^5\.8\./;
+
+	# remove them!
+	foreach my $t ( @fails ) {
 		if ( -f "$PATH/build/perl-$perlver-$perlopts/$t" ) {
 			do_log( "[PERLBUILDER] Removing problematic '$t' test" );
 			unlink( "$PATH/build/perl-$perlver-$perlopts/$t" ) or die "Unable to unlink: $!";
@@ -1117,13 +1198,16 @@ sub do_build {
 	# actually compile!
 	my $output = do_shellcommand( "cd $PATH/build/perl-$perlver-$perlopts; make" );
 	if ( $output->[-1] !~ /to\s+run\s+test\s+suite/ ) {
-		do_log( "[PERLBUILDER] Unable to compile perl-$perlver-$perlopts!" );
-		return 0;
+		# Is it ok to proceed?
+		if ( ! check_perl_build( $output ) ) {
+			do_log( "[PERLBUILDER] Unable to compile perl-$perlver-$perlopts!" );
+			return 0;
+		}
 	}
 
 	# make sure we pass tests
 	$output = do_shellcommand( "cd $PATH/build/perl-$perlver-$perlopts; make test" );
-	if ( ! grep { /^All\s+tests\s+successful\.$/ } @$output ) {
+	if ( ! fgrep( '^All\s+tests\s+successful\.$', $output ) ) {
 		# Is it ok to proceed?
 		if ( ! check_perl_test( $output ) ) {
 			do_log( "[PERLBUILDER] Testsuite failed for perl-$perlver-$perlopts!" );
@@ -1139,25 +1223,98 @@ sub do_build {
 	return 1;
 }
 
-# checks for "allowed" test failures ( known problems )
-sub check_perl_test {
+# checks for "allowed" build failures ( known problems )
+sub check_perl_build {
 	my $output = shift;
 
-	# TODO argh, file::find often fails, need to track down why it happens
-	if ( grep { /^Failed\s+1\s+test/ } @$output and grep { m|^lib/File/Find/t/find\.+FAILED| } @$output ) {
-		do_log( "[PERLBUILDER] Detected File::Find test failure, ignoring it..." );
+	# freebsd is wack... throws errors for no idea ( I think, hah! )
+	#cp Errno.pm ../../lib/Errno.pm
+	#
+	#	Everything is up to date. Type 'make test' to run test suite.
+	#*** Error code 1 (ignored)
+	if ( $^O eq 'freebsd' and $perlver =~ /^5\.8\./ and $output->[-1] eq '*** Error code 1 (ignored)' ) {
+		do_log( "[PERLBUILDER] Detected freebsd ignored error code 1, ignoring it..." );
 		return 1;
 	}
 
-	# 5.8.8 has known problems with sprintf.t and sprintf2.t
-	#t/op/sprintf..............................FAILED--no leader found
-	#t/op/sprintf2.............................FAILED--expected 263 tests, saw 3
-	if ( $perlver eq '5.8.8' and grep { /^Failed\s+2\s+test/ } @$output and grep { m|^t/op/sprintf\.+FAILED| } @$output ) {
-		do_log( "[PERLBUILDER] Detected sprintf test failure on 5.8.8, ignoring it..." );
+	# TODO netbsd has a header problem, but I dunno how to fix it... it's harmless ( I think, hah! )
+	#Writing Makefile for Errno
+	#../../miniperl "-I../../lib" "-I../../lib" Errno_pm.PL Errno.pm
+	#/usr/include/sys/cdefs_elf.h:67:20: error: missing binary operator before token "("
+	#cp Errno.pm ../../lib/Errno.pm
+	#*** Error code 1
+	#        Everything is up to date. Type 'make test' to run test suite.
+	# (ignored)
+	if ( $^O eq 'netbsd' and $perlver =~ /^5\.8\./ and $output->[-1] eq ' (ignored)' ) {
+		do_log( "[PERLBUILDER] Detected netbsd ignored error code 1, ignoring it..." );
 		return 1;
 	}
 
 	# Unknown failure!
+	return 0;
+}
+
+# checks for "allowed" test failures ( known problems )
+sub check_perl_test {
+	my $output = shift;
+
+	# organize by number of failed tests
+	if ( fgrep( '^Failed\s+1\s+test', $output ) ) {
+		# TODO argh, file::find often fails, need to track down why it happens
+		if ( fgrep( '^lib/File/Find/t/find\.+(?!ok)', $output ) ) {
+			do_log( "[PERLBUILDER] Detected File::Find test failure, ignoring it..." );
+			return 1;
+		}
+
+		# 5.6.x on netbsd has locale problems...
+		#t/pragma/locale........# The following locales
+		#
+		#       C C ISO8859-0 ISO8859-1 ISO8859-10 ISO8859-11 ISO8859-12
+		#...
+		#
+		# tested okay.
+		#
+		# The following locales
+		#
+		#       zh_CN.GB18030
+		#
+		# had problems.
+		#
+		#FAILED at test 116
+		if ( $^O eq 'netbsd' and $perlver =~ /^5\.6\./ and fgrep( 'pragma/locale\.+(?!ok)', $output ) ) {
+			do_log( "[PERLBUILDER] Detected locale test failure on netbsd for perl-5.6.x, ignoring it..." );
+			return 1;
+		}
+
+		# TODO 5.8.x < 5.8.9 on freebsd has hostname problems... dunno why
+		#lib/Net/t/hostname........................FAILED at test 1
+		if ( $perlver =~ /^5\.8\./ and $^O eq 'freebsd' and fgrep( '^lib/Net/t/hostname\.+(?!ok)', $output ) ) {
+			do_log( "[PERLBUILDER] Detected hostname test failure on freebsd for perl-5.8.x, ignoring it..." );
+			return 1;
+		}
+	} elsif ( fgrep( '^Failed\s+2\s+test', $output ) ) {
+		# 5.8.8 has known problems with sprintf.t and sprintf2.t
+		#t/op/sprintf..............................FAILED--no leader found
+		#t/op/sprintf2.............................FAILED--expected 263 tests, saw 3
+		if ( $perlver eq '5.8.8' and fgrep( '^t/op/sprintf\.+(?!ok)', $output ) ) {
+			do_log( "[PERLBUILDER] Detected sprintf test failure for perl-5.8.8, ignoring it..." );
+			return 1;
+		}
+	}
+
+	# Unknown failure!
+	return 0;
+}
+
+# 'fast' grep that returns as soon as a match is found
+sub fgrep {
+	my( $str, $output ) = @_;
+	$str = qr/$str/;
+	foreach my $s ( @$output ) {
+		if ( $s =~ $str ) {
+			return 1;
+		}
+	}
 	return 0;
 }
 

@@ -50,8 +50,6 @@
 			5. /usr/local/bin/nano /etc/resolv.conf # setup smoker-master as dns server
 			6. pw useradd cpan -m -s /usr/local/bin/bash
 			7. passwd cpan
-			8. customize PS1
-				PS1='[\u@\h \w]\$ '; export PS1
 			8. setup root/system CPANPLUS
 				7.1 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
 				7.2 cpanp x --update_source
@@ -97,6 +95,9 @@
 				nano ~/.profile
 					PS1='[\u@\h \w]\$ '
 					export PS1
+			14. Remove annoying root crontab(s)
+				sudo crontab -e
+				comment out /etc/daily, /etc/weekly, etc jobs
 			15. setup root/system CPANPLUS
 				15.1 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
 				15.2 cpanp x --update_source
