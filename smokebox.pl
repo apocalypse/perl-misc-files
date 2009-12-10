@@ -287,7 +287,7 @@ sub irc_botcmd_index : State {
 	$_[HEAP]->{'SMOKEBOX'}->submit( event => 'indexresult',
 		job => POE::Component::SmokeBox::Job->new(
 			command => 'index',
-#			smokers => [ $_[HEAP]->{'SMOKER_SYSTEM'} ],	# wait for patch to be accepted
+			smokers => [ $_[HEAP]->{'SMOKER_SYSTEM'} ],	# TODO wait for patch to be accepted
 			type => 'CPANPLUS::YACSmoke',
 			no_log => 1,
 		),
