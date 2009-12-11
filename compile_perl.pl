@@ -53,10 +53,13 @@ my $perlopts;		# the perl options we're using for this run
 my $CPANPLUS_ver;	# the CPANPLUS version we'll use for cpanp-boxed
 my $DEBUG = 0;		# spews stuff on console or just top-level data
 my @LOGS = ();		# holds stored logs for a run
-my $domatrix = 1;	# compile the matrix of perl options or not?
+my $domatrix = 0;	# compile the matrix of perl options or not?
 
 # Set a nice term title
 set_titlebar( "Perl-Compiler@" . hostname() );
+
+# Do some basic sanity checks
+do_sanity_checks();
 
 # What option do we want to do?
 prompt_action();
@@ -67,10 +70,21 @@ prompt_action();
 # all done!
 exit;
 
+sub do_sanity_checks {
+	# First of all, we check to see if our "essential" binaries are present
+	foreach my $bin ( qw( perl cpanp wget tar sudo chown rm mkdir touch mv which make sh patch ) ) {
+		my $path = get_binary_path( $bin );
+		if ( ! length $path ) {
+			warn "ERROR: $bin binary was not found, please rectify this and re-run this script!";
+			exit;
+		}
+	}
+}
+
 sub prompt_action {
 	my $res;
 	while ( ! defined $res ) {
-		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure cpanp/(d)ebug/(e)xit/(i)nstall/(s)elfupdate/(u)ninstall/inde(x)]", 'e', 120 ) );
+		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/(d)ebug/(e)xit/(i)nstall/perl(m)atrix/unchow(n)/(r)econfig cpanp/(s)elfupdate/(u)ninstall/cho(w)n/inde(x)]", 'e', 120 ) );
 		if ( $res eq 'd' ) {
 			# flip the debug state
 			if ( $DEBUG ) {
@@ -81,9 +95,6 @@ sub prompt_action {
 				$DEBUG = 1;
 			}
 		} elsif ( $res eq 'b' ) {
-			# Should we compile the matrix of options?
-			prompt_perlmatrix();
-
 			# prompt user for perl version to compile
 			$res = prompt_perlver();
 			if ( defined $res ) {
@@ -97,6 +108,9 @@ sub prompt_action {
 					}
 				}
 			}
+		} elsif ( $res eq 'm' ) {
+			# Should we compile/configure/use/etc the perlmatrix?
+			prompt_perlmatrix();
 		} elsif ( $res eq 'c' ) {
 			# configure the local user's CPANPLUS
 			do_config_localCPANPLUS();
@@ -147,12 +161,38 @@ sub prompt_action {
 			}
 		} elsif ( $res eq 'e' ) {
 			return;
+		} elsif ( $res eq 'w' ) {
+			# thanks to BinGOs for the idea to chown the perl installs to prevent rogue modules!
+			do_log( "[COMPILER] Executing chown -R root on all perl installs..." );
+			foreach my $p ( @{ getReadyPerls() } ) {
+				# some OSes don't have root as a group, so we just set the user
+				do_shellcommand( "sudo chown -R root $PATH/perls/$p" );
+			}
+		} elsif ( $res eq 'n' ) {
+			# Unchown the perl installs so we can do stuff to them :)
+			do_log( "[COMPILER] Executing chown -R $< on all perl installs..." );
+			foreach my $p ( @{ getReadyPerls() } ) {
+				do_shellcommand( "sudo chown -R $< $PATH/perls/$p" );
+			}
+		} elsif ( $res eq 'r' ) {
+			# reconfig all perls' CPANPLUS settings
+			do_log( "[CPANPLUS] Reconfiguring all CPANPLUS instances..." );
+			foreach my $p ( @{ getReadyPerls() } ) {
+				# get the perlver/perlopts
+				if ( $p =~ /^perl-([\d\.]+)-(.+)$/ ) {
+					( $perlver, $perlopts ) = ( $1, $2 );
+					do_installCPANPLUS_config();
+					do_cpanp_action( "perl-$perlver-$perlopts", "x --update_source" );
+				}
+			}
 		} else {
 			do_log( "[COMPILER] Unknown action, please try again." );
 		}
 
 		# allow the user to run another loop
 		$res = undef;
+		$perlver = undef;
+		$perlopts = undef;
 		reset_logs();
 	}
 
@@ -171,8 +211,14 @@ sub getReadyPerls {
 		foreach my $p ( @list ) {
 			if ( $p =~ /^perl\-/ and -d "$PATH/perls/$p" and -e "$PATH/perls/$p/ready.smoke" ) {
 				# rip out the version
-				if ( $p =~ /^perl\-([\d\.]+)\-/ ) {
-					push( @{ $ready{ $1 } }, $p );
+				if ( $domatrix ) {
+					if ( $p =~ /^perl\-([\d\.]+)\-/ ) {
+						push( @{ $ready{ $1 } }, $p );
+					}
+				} else {
+					if ( $p =~ /^perl\-([\d\.]+)\-default/ ) {
+						push( @{ $ready{ $1 } }, $p );
+					}
 				}
 			}
 		}
@@ -194,7 +240,7 @@ sub getReadyPerls {
 }
 
 sub prompt_perlmatrix {
-	my $res = lc( prompt( "Compile the perl matrix", 'n', 120 ) );
+	my $res = lc( prompt( "Compile/use the perl matrix", 'n', 120 ) );
 	if ( $res eq 'y' ) {
 		$domatrix = 1;
 	} else {
@@ -236,7 +282,19 @@ sub do_log {
 }
 
 sub get_CPANPLUS_ver {
-	# TODO disabled, because it consumed gobs of RAM unnecessarily...
+	# Spawn a shell to find the answer
+	my $output = do_shellcommand( 'perl -MCPANPLUS::Backend -e \'$cb=CPANPLUS::Backend->new;$mod=$cb->module_tree("CPANPLUS");$ver=defined $mod ? $mod->package_version : undef; print "VER: " . ( defined $ver ? $ver : "UNDEF" ) . "\n";\'' );
+	if ( $output->[-1] =~ /^VER\:\s+(.+)$/ ) {
+		my $ver = $1;
+		if ( $ver eq 'UNDEF' ) {
+			# argh, return what we know...
+			return '0.88';
+		} else {
+			return $ver;
+		}
+	}
+
+	# Not a good idea, because it consumed gobs of RAM unnecessarily...
 #	require CPANPLUS::Backend;
 #	my $cb = CPANPLUS::Backend->new;
 #	my $mod = $cb->module_tree( "CPANPLUS" );
@@ -244,8 +302,8 @@ sub get_CPANPLUS_ver {
 #	if ( defined $ver ) {
 #		return $ver;
 #	} else {
-		# the default
-		return "0.88";
+#		# the default
+#		return "0.88";
 #	}
 }
 
@@ -347,35 +405,32 @@ END
 		do_shellcommand( "rm -rf $ENV{HOME}/.cpanplus" );
 	}
 
-	# okay, look at the default CPANPLUS config location
-	if ( ! -e "$ENV{HOME}/.cpanplus/lib/CPANPLUS/Config/User.pm" ) {
-		do_log( "[CPANPLUS] Configuring the local user's CPANPLUS config..." );
+	# overwrite any old config, just in case...
+	do_log( "[CPANPLUS] Configuring the local user's CPANPLUS config..." );
 
-		# transform the XXXargsXXX
-		$uconfig = do_replacements( $uconfig );
+	# transform the XXXargsXXX
+	$uconfig = do_replacements( $uconfig );
 
-		# save it!
-		# TODO use File::Path::Tiny
-		do_shellcommand( "mkdir -p $ENV{HOME}/.cpanplus/lib/CPANPLUS/Config" );
-		open( my $config, '>', "$ENV{HOME}/.cpanplus/lib/CPANPLUS/Config/User.pm" ) or die "unable to create config: $!";
-		print $config $uconfig;
-		close( $config );
+	# save it!
+	# TODO use File::Path::Tiny
+	do_shellcommand( "mkdir -p $ENV{HOME}/.cpanplus/lib/CPANPLUS/Config" );
+	open( my $config, '>', "$ENV{HOME}/.cpanplus/lib/CPANPLUS/Config/User.pm" ) or die "Unable to create config: $!";
+	print $config $uconfig;
+	close( $config ) or die "Unable to close config: $!";
 
-		# force an update
-		# we don't use do_cpanp_action() here because we need to use the local user's CPANPLUS config not the perl's one...
-		do_shellcommand( "APPDATA=$ENV{HOME}/ cpanp x --update_source" );
-	}
+	# force an update
+	# we don't use do_cpanp_action() here because we need to use the local user's CPANPLUS config not the perl's one...
+	do_shellcommand( "APPDATA=$ENV{HOME}/ cpanp x --update_source" );
 
 	# blow away any annoying .cpan directories that remain
 	if ( -d "$ENV{HOME}/.cpan" ) {
 		do_log( "[CPANPLUS] Sanitizing the '$ENV{HOME}/.cpan' directory..." );
 		do_shellcommand( "rm -rf $ENV{HOME}/.cpan" );
-
-		# TODO annoying to do it every run...
-		# thanks to BinGOs for the idea to prevent rogue module installs via CPAN
-		#mkdir( "$ENV{HOME}/.cpan" );
-		#do_shellcommand( "sudo chown root $ENV{HOME}/.cpan" );
 	}
+
+	# thanks to BinGOs for the idea to prevent rogue module installs via CPAN
+	mkdir( "$ENV{HOME}/.cpan" );
+	do_shellcommand( "sudo chown root $ENV{HOME}/.cpan" );
 
 	return;
 }
@@ -549,7 +604,18 @@ sub can_build_perl {
 			return 0;
 		}
 
-		# For some reason OpenSolaris 2009.6 bombs out perl-5.8.7:
+		# FreeBSD 5.2-RELEASE cannot build -Duselongdouble:
+		#
+		# *** You requested the use of long doubles but you do not seem to have
+		# *** the following mathematical functions needed for long double support:
+		# ***     sqrtl
+		# *** Please rerun Configure without -Duselongdouble and/or -Dusemorebits.
+		# *** Cannot continue, aborting.
+		if ( $^O eq 'freebsd' and $o =~ /(?<!no)long/ ) {
+			return 0;
+		}
+
+		# For some reason OpenSolaris 2009.6 bombs out perl-5.8.7 with -Duse64bitall:
 		#
 		# *** You have chosen a maximally 64-bit build,
 		# *** but your pointers are only 4 bytes wide.
@@ -652,10 +718,6 @@ sub finalize_perl {
 	if ( -d "$PATH/perls/perl-$perlver-$perlopts/lib/$perlver/pod" ) {
 		do_shellcommand( "rm -rf $PATH/perls/perl-$perlver-$perlopts/lib/$perlver/pod" );
 	}
-
-	# thanks to BiNGOs for the idea!
-	# TODO annoying to do it for each run...
-	#do_shellcommand( "sudo chown -R root:root $PATH/perls/perl-$perlver-$perlopts" );
 
 	# we're really done!
 	do_shellcommand( "touch $PATH/perls/perl-$perlver-$perlopts/ready.smoke" );
@@ -891,7 +953,7 @@ sub do_installCPANPLUS {
 	# Module::Build -> ExtUtils::CBuilder, ExtUtils::ParseXS
 	# LWP on perl-5.8.2 bombs on Encode ( unable to install Encode on 5.6.x! )
 	# Test::Reporter::HTTPGateway -> LWP::UserAgent ( missing prereq, wow! )
-	my $mod_list = "ExtUtils::MakeMaker ExtUtils::CBuilder ExtUtils::ParseXS Test::More File::Temp Time::HiRes";
+	my $mod_list = "ExtUtils::MakeMaker ExtUtils::CBuilder ExtUtils::ParseXS Test::More File::Temp Time::HiRes LWP::UserAgent";
 	if ( $perlver !~ /^5\.6/ ) {
 		$mod_list .= " Encode";
 	}
@@ -908,8 +970,7 @@ sub do_installCPANPLUS {
 	do_installCPANPLUS_config();
 
 	# force an update
-	# no longer needed, as we use the HOME cpanplus source
-	#do_cpanp_action( "perl-$perlver-$perlopts", "x --update_source" );
+	do_cpanp_action( "perl-$perlver-$perlopts", "x --update_source" );
 
 	return 1;
 }
@@ -948,7 +1009,7 @@ sub setup {
 
 	### conf section
 	$conf->set_conf( allow_build_interactivity => 0 );
-	$conf->set_conf( base => 'XXXHOMEXXX/.cpanplus' );
+	$conf->set_conf( base => 'XXXPATHXXX/cpanp_conf/perl-XXXPERLVERXXX/.cpanplus/' );
 	$conf->set_conf( buildflags => '' );
 	$conf->set_conf( cpantest => 1 );
 	$conf->set_conf( cpantest_mx => '' );
@@ -960,8 +1021,8 @@ sub setup {
 	$conf->set_conf( dist_type => '' );
 	$conf->set_conf( email => 'perl@0ne.us' );
 	$conf->set_conf( enable_custom_sources => 0 );
-	$conf->set_conf( extractdir => 'XXXPATHXXX/cpanp_conf/perl-XXXPERLVERXXX/.cpanplus/build' );
-	$conf->set_conf( fetchdir => '' );
+	$conf->set_conf( extractdir => '' );
+	$conf->set_conf( fetchdir => 'XXXHOMEXXX/.cpanplus/authors' );
 	$conf->set_conf( flush => 1 );
 	$conf->set_conf( force => 0 );
 	$conf->set_conf( hosts => [
@@ -1021,6 +1082,8 @@ END
 	open( my $config, '>', "$PATH/cpanp_conf/perl-$perlver-$perlopts/.cpanplus/lib/CPANPLUS/Config/User.pm" ) or die "Unable to create config: $!";
 	print $config $cpanplus;
 	close( $config ) or die "Unable to close config: $!";
+
+	# TODO figure out a way to symlink the $ENV{HOME}/.cpanplus/sourcefiles.s2.21.c0.88.stored and 01mailrc.txt.gz and 02packages and 03modlist files to this dist...
 
 	return;
 }

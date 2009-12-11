@@ -1,8 +1,8 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 use strict; use warnings;
 
 use POE;
-use POE::Component::SmokeBox;		# must be > 0.30 for the no_log param
+use POE::Component::SmokeBox 0.30;		# must be > 0.30 for the no_log param
 use POE::Component::SmokeBox::Smoker;
 use POE::Component::SmokeBox::Job;
 use POE::Component::IRC::State;
@@ -17,9 +17,6 @@ use Time::Duration qw( duration_exact );
 
 # set some handy variables
 my $ircnick = hostname();
-
-# autoflush
-$|++;
 
 POE::Session->create(
 	__PACKAGE__->inline_states(),
@@ -53,7 +50,7 @@ sub create_smokebox : State {
 		},
 	);
 	$_[HEAP]->{'SMOKEBOX'}->add_smoker( $smoker );
-	$_[HEAP]->{'PERLS'} = [];
+	$_[HEAP]->{'PERLS'} = {};
 
 	# Store the system smoker so we can use it to update the CPANPLUS index
 	$_[HEAP]->{'SMOKER_SYSTEM'} = $smoker;
@@ -150,9 +147,12 @@ sub _stop : State {
 # gets the perls
 sub getPerlVersions {
 	my @perls;
-	opendir( PERLS, "$ENV{HOME}/perls" ) or die "Unable to opendir: $@";
-	@perls = grep { /^perl\-/ && -d "$ENV{HOME}/perls/$_" && -e "$ENV{HOME}/perls/$_/ready.smoke" } readdir( PERLS );
-	closedir( PERLS ) or die "Unable to closedir: $@";
+	opendir( PERLS, "$ENV{HOME}/perls" ) or die "Unable to opendir: $!";
+
+	# TODO for now, we just find the default perls
+#	@perls = grep { /^perl\-/ && -d "$ENV{HOME}/perls/$_" && -e "$ENV{HOME}/perls/$_/ready.smoke" } readdir( PERLS );
+	@perls = grep { /^perl\-[\d\.]+\-default/ && -d "$ENV{HOME}/perls/$_" && -e "$ENV{HOME}/perls/$_/ready.smoke" } readdir( PERLS );
+	closedir( PERLS ) or die "Unable to closedir: $!";
 
 	return \@perls;
 }
@@ -165,7 +165,7 @@ sub irc_botcmd_uname : State {
 	my $uname = `uname -a`;
 	chomp( $uname );
 
-	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "${nick}: uname -> $uname" );
+	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Uname: $uname" );
 
 	return;
 }
@@ -186,7 +186,7 @@ sub irc_botcmd_queue : State {
 		$currjob = $current;
 	}
 
-	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "${nick}: Number of jobs in the queue: ${numjobs}." . ( defined $currjob ? " Current job: $currjob" : '' ) );
+	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Number of jobs in the queue: ${numjobs}." . ( defined $currjob ? " Current job: $currjob" : '' ) );
 
 	return;
 }
@@ -200,23 +200,23 @@ sub irc_botcmd_status : State {
 	if ( defined $arg ) {
 		if ( $arg ) {
 			if ( ! $queue->queue_paused ) {
-				$_[HEAP]->{'IRC'}->yield( privmsg => $where, "${nick}: Job queue was already running!" );
+				$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Job queue was already running!" );
 			} else {
 				$queue->resume_queue();
 
-				$_[HEAP]->{'IRC'}->yield( privmsg => $where, "${nick}: Resumed the job queue." );
+				$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Resumed the job queue." );
 			}
 		} else {
 			if ( $queue->queue_paused ) {
-				$_[HEAP]->{'IRC'}->yield( privmsg => $where, "${nick}: Job queue was already paused!" );
+				$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Job queue was already paused!" );
 			} else {
 				$queue->pause_queue();
 
-				$_[HEAP]->{'IRC'}->yield( privmsg => $where, "${nick}: Paused the job queue." );
+				$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Paused the job queue." );
 			}
 		}
 	} else {
-		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "${nick}: Status of job queue: " . ( $queue->queue_paused() ? "PAUSED" : "RUNNING" ) );
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Status of job queue: " . ( $queue->queue_paused() ? "PAUSED" : "RUNNING" ) );
 	}
 
 	return;
@@ -236,7 +236,10 @@ sub irc_botcmd_smoke : State {
 		),
 	);
 
-	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "${nick}: Added $arg to the job queue." );
+	# hack: ignore the CPAN bot!
+	if ( $nick ne 'CPAN' ) {
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Added $arg to the job queue." );
+	}
 
 	return;
 }
@@ -258,13 +261,13 @@ sub smokeresult : State {
 		if ( $starttime == 0 or $r->{'start_time'} < $starttime ) {
 			$starttime = $r->{'start_time'};
 		}
-		if ( $endtime == 0 or $r->{'end_time'} < $endtime ) {
+		if ( $endtime == 0 or $r->{'end_time'} > $endtime ) {
 			$endtime = $r->{'end_time'};
 		}
 
 		$module = $r->{'module'};
 	}
-	my $duration = duration_exact( $endtime, $starttime );
+	my $duration = duration_exact( $endtime - $starttime );
 
 	# report this to IRC
 	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module ($passes PASS, $fails FAIL) in ${duration}." );
@@ -280,20 +283,21 @@ sub irc_botcmd_index : State {
 	my $nick = (split '!', $_[ARG0])[0];
 	my ($where, $arg) = @_[ARG1, ARG2];
 
-	# TODO we only need to update the index on the local CPANPLUS...
-	# We need the update to poco-smokebox so a job can only have 1 smoker - the system perl!
+	# TODO we should just update the system CPANPLUS, and the symlinks will handle the rest of the perls...
 
 	# Send off the job!
 	$_[HEAP]->{'SMOKEBOX'}->submit( event => 'indexresult',
 		job => POE::Component::SmokeBox::Job->new(
 			command => 'index',
-			smokers => [ $_[HEAP]->{'SMOKER_SYSTEM'} ],	# TODO wait for patch to be accepted
 			type => 'CPANPLUS::YACSmoke',
 			no_log => 1,
 		),
 	);
 
-	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "${nick}: Added CPAN index to the job queue." );
+	# hack: ignore the CPAN bot!
+	if ( $nick ne 'CPAN' ) {
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Added CPAN index to the job queue." );
+	}
 
 	return;
 }
@@ -314,14 +318,14 @@ sub indexresult : State {
 		if ( $starttime == 0 or $r->{'start_time'} < $starttime ) {
 			$starttime = $r->{'start_time'};
 		}
-		if ( $endtime == 0 or $r->{'end_time'} < $endtime ) {
+		if ( $endtime == 0 or $r->{'end_time'} > $endtime ) {
 			$endtime = $r->{'end_time'};
 		}
 	}
-	my $duration = duration_exact( $endtime, $starttime );
+	my $duration = duration_exact( $endtime - $starttime );
 
 	# report this to IRC
-	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Updated the CPANPLUS index - " . ( $passes ? 'SUCCESS' : 'FAILURE' ) . " in ${duration}." );
+	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Updated the CPANPLUS index ($passes PASS, $fails FAIL) in ${duration}." );
 
 	return;
 }
@@ -334,167 +338,9 @@ sub irc_botcmd_perls : State {
 	my $perls = keys %{ $_[HEAP]->{'PERLS'} };
 
 	# don't forget to +1 for the SYSTEM perl!
-	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "${nick}: Available Perls(" . ( $perls + 1 ) . ")" );
+	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Available Perls: " . ( $perls + 1 ) );
 
 	return;
 }
 
 __END__
-
-cpan@ubuntu-server64:~$ ./smokebox.pl
-$VAR1 = {
-          'submitted' => 1259537221,
-          'result' => bless( [
-                               {
-                                 'PID' => 9322,
-                                 'env' => {
-                                            'APPDATA' => '/home/cpan/cpanp_conf/perl-5.10.1-default/'
-                                          },
-                                 'status' => '0',
-                                 'start_time' => 1259537221,
-                                 'perl' => '/home/cpan/perls/perl-5.10.1-default/bin/perl',
-                                 'end_time' => 1259537230,
-                                 'log' => [
-                                            '[MSG] Trying to get \'ftp://192.168.0.200/CPAN/authors/id/C/CW/CWEST/Acme-Drunk-0.03.tar.gz\'',
-                                            '[MSG] Trying to get \'ftp://192.168.0.200/CPAN/authors/id/C/CW/CWEST/CHECKSUMS\'',
-                                            '[MSG] Checksum matches for \'Acme-Drunk-0.03.tar.gz\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/Changes\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/lib/\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/lib/Acme/\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/lib/Acme/Drunk.pm\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/Makefile.PL\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/MANIFEST\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/MANIFEST.SKIP\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/META.yml\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/README\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/t/\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/t/01_test.t\'',
-                                            '[MSG] Extracted \'Acme::Drunk\' to \'/home/cpan/cpanp_conf/perl-5.10.1-default/.cpanplus/5.10.1/build/Acme-Drunk-0.03\'',
-                                            '[MSG] CPANPLUS is prefering Build.PL',
-                                            '[MSG] Loading YACSmoke database "/home/cpan/cpanp_conf/perl-5.10.1-default/.cpanplus/cpansmoke.dat"',
-                                            'Running [/home/cpan/perls/perl-5.10.1-default/bin/perl /home/cpan/perls/perl-5.10.1-default/bin/cpanp-run-perl /home/cpan/cpanp_conf/perl-5.10.1-default/.cpanplus/5.10.1/build/Acme-Drunk-0.03/Makefile.PL]...',
-                                            'Checking if your kit is complete...',
-                                            'Looks good',
-                                            'Writing Makefile for Acme::Drunk',
-                                            '[MSG] Checking for previous PASS result for "Acme-Drunk-0.03"',
-                                            '[MSG] Module \'Acme::Drunk\' depends on \'Test::More\', may need to build a \'CPANPLUS::Dist::YACSmoke\' package for it as well',
-                                            'Running [/usr/bin/make]...',
-                                            'cp lib/Acme/Drunk.pm blib/lib/Acme/Drunk.pm',
-                                            'Manifying blib/man3/Acme::Drunk.3',
-                                            'Running [/usr/bin/make test]...',
-                                            'PERL_DL_NONLAZY=1 /home/cpan/perls/perl-5.10.1-default/bin/perl "-MExtUtils::Command::MM" "-e" "test_harness(0, \'blib/lib\', \'blib/arch\')" t/*.t',
-                                            't/01_test.t .. ok',
-                                            'All tests successful.',
-                                            'Files=1, Tests=2,  0 wallclock secs ( 0.00 usr  0.01 sys +  0.02 cusr  0.01 csys =  0.04 CPU)',
-                                            'Result: PASS',
-                                            '[MSG] MAKE TEST passed: PERL_DL_NONLAZY=1 /home/cpan/perls/perl-5.10.1-default/bin/perl "-MExtUtils::Command::MM" "-e" "test_harness(0, \'blib/lib\', \'blib/arch\')" t/*.t',
-                                            't/01_test.t .. ok',
-                                            'All tests successful.',
-                                            'Files=1, Tests=2,  0 wallclock secs ( 0.00 usr  0.01 sys +  0.02 cusr  0.01 csys =  0.04 CPU)',
-                                            'Result: PASS',
-                                            '',
-                                            '[MSG] Sending test report for \'Acme-Drunk-0.03\'',
-                                            '[ERROR] CPANPLUS::Internals::Source::SQLite has not implemented writing state to disk',
-                                            '',
-                                            'CHLD 9322 0'
-                                          ],
-                                 'type' => 'CPANPLUS::YACSmoke',
-                                 'module' => 'Acme::Drunk',
-                                 'command' => 'smoke'
-                               },
-                               {
-                                 'PID' => 9757,
-                                 'env' => {
-                                            'APPDATA' => '/home/cpan/',
-                                            'SMOKEHOST' => 'ubuntu-server 64'
-                                          },
-                                 'status' => '0',
-                                 'start_time' => 1259537230,
-                                 'perl' => '/usr/bin/perl',
-                                 'end_time' => 1259537308,
-                                 'log' => [
-                                            '[MSG] Rebuilding author tree, this might take a while',
-                                            '[MSG] Rebuilding module tree, this might take a while',
-                                            '[MSG] Trying to get \'ftp://192.168.0.200/CPAN/authors/id/C/CW/CWEST/Acme-Drunk-0.03.tar.gz\'',
-                                            '[MSG] Trying to get \'ftp://192.168.0.200/CPAN/authors/id/C/CW/CWEST/CHECKSUMS\'',
-                                            '[MSG] Checksum matches for \'Acme-Drunk-0.03.tar.gz\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/Changes\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/lib/\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/lib/Acme/\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/lib/Acme/Drunk.pm\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/Makefile.PL\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/MANIFEST\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/MANIFEST.SKIP\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/META.yml\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/README\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/t/\'',
-                                            '[MSG] Extracted \'Acme-Drunk-0.03/t/01_test.t\'',
-                                            '[MSG] Extracted \'Acme::Drunk\' to \'/home/cpan/.cpanplus/5.10.0/build/Acme-Drunk-0.03\'',
-                                            '[MSG] CPANPLUS is prefering Build.PL',
-                                            '[MSG] Loading YACSmoke database "/home/cpan/.cpanplus/cpansmoke.dat"',
-                                            'Running [/usr/bin/perl /usr/local/bin/cpanp-run-perl /home/cpan/.cpanplus/5.10.0/build/Acme-Drunk-0.03/Makefile.PL]...',
-                                            'Checking if your kit is complete...',
-                                            'Looks good',
-                                            'Writing Makefile for Acme::Drunk',
-                                            '[MSG] Checking for previous PASS result for "Acme-Drunk-0.03"',
-                                            '[MSG] Module \'Acme::Drunk\' depends on \'Test::More\', may need to build a \'CPANPLUS::Dist::YACSmoke\' package for it as well',
-                                            'Running [/usr/bin/make]...',
-                                            'cp lib/Acme/Drunk.pm blib/lib/Acme/Drunk.pm',
-                                            'Manifying blib/man3/Acme::Drunk.3pm',
-                                            'Running [/usr/bin/make test]...',
-                                            'PERL_DL_NONLAZY=1 /usr/bin/perl "-MExtUtils::Command::MM" "-e" "test_harness(0, \'blib/lib\', \'blib/arch\')" t/*.t',
-                                            't/01_test.t .. ok',
-                                            'All tests successful.',
-                                            'Files=1, Tests=2,  0 wallclock secs ( 0.00 usr  0.01 sys +  0.00 cusr  0.01 csys =  0.02 CPU)',
-                                            'Result: PASS',
-                                            '[MSG] MAKE TEST passed: PERL_DL_NONLAZY=1 /usr/bin/perl "-MExtUtils::Command::MM" "-e" "test_harness(0, \'blib/lib\', \'blib/arch\')" t/*.t',
-                                            't/01_test.t .. ok',
-                                            'All tests successful.',
-                                            'Files=1, Tests=2,  0 wallclock secs ( 0.00 usr  0.01 sys +  0.00 cusr  0.01 csys =  0.02 CPU)',
-                                            'Result: PASS',
-                                            '',
-                                            '[MSG] Sending test report for \'Acme-Drunk-0.03\'',
-                                            '[MSG] Successfully sent \'pass\' report for \'Acme-Drunk-0.03\'',
-                                            '[ERROR] CPANPLUS::Internals::Source::SQLite has not implemented writing state to disk',
-                                            '',
-                                            'CHLD 9757 0'
-                                          ],
-                                 'type' => 'CPANPLUS::YACSmoke',
-                                 'module' => 'Acme::Drunk',
-                                 'command' => 'smoke'
-                               }
-                             ], 'POE::Component::SmokeBox::Result' ),
-          'job' => bless( {
-                            'timeout' => [
-                                           3600,
-                                           qr/(?-xism:^\d+$)/
-                                         ],
-                            'type' => [
-                                        'CPANPLUS::YACSmoke',
-                                        sub { "DUMMY" }
-                                      ],
-                            'id' => [
-                                      undef,
-                                      sub { "DUMMY" }
-                                    ],
-                            'idle' => [
-                                        600,
-                                        qr/(?-xism:^\d+$)/
-                                      ],
-                            'command' => [
-                                           'smoke',
-                                           [
-                                             'check',
-                                             'index',
-                                             'smoke'
-                                           ]
-                                         ],
-                            'module' => [
-                                          'Acme::Drunk',
-                                          sub { "DUMMY" }
-                                        ]
-                          }, 'POE::Component::SmokeBox::Job' )
-        };
-cpan@ubuntu-server64:~$
