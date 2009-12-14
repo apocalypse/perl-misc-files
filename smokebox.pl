@@ -117,7 +117,7 @@ sub create_irc : State {
 	$_[HEAP]->{'IRC'}->plugin_add( 'AutoJoin', POE::Component::IRC::Plugin::AutoJoin->new( Channels => { '#smoke' => '' } ) );
 	$_[HEAP]->{'IRC'}->plugin_add( 'Connector', POE::Component::IRC::Plugin::Connector->new() );
 	$_[HEAP]->{'IRC'}->plugin_add( 'BotCommand', POE::Component::IRC::Plugin::BotCommand->new(
-		Commands => {
+		Commands 	=> {
 			'queue'		=> 'Returns information about the smoker job queue. Takes no arguments.',
 			'smoke'		=> 'Adds the specified module to the smoke queue. Takes one argument: the module name.',
 			'index'		=> 'Updates the CPANPLUS source index. Takes no arguments.',
@@ -125,7 +125,12 @@ sub create_irc : State {
 			'perls'		=> 'Lists the available perl versions to smoke. Takes no arguments.',
 			'uname'		=> 'Returns the uname of the machine the smokebot is running on. Takes no arguments.',
 		},
-		Addressed => 0,
+		Addressed 	=> 0,
+		Ignore_unknown	=> 1,
+		Prefix		=> '!',
+		In_channels	=> 1,
+		In_private	=> 1,
+		Eat		=> 1,
 	) );
 
 	$_[HEAP]->{'IRC'}->yield( 'connect' => {} );
@@ -137,6 +142,9 @@ sub irc_msg : State {
 	# Sent whenever you receive a PRIVMSG command that was addressed to you privately. ARG0 is the nick!hostmask of the sender. ARG1 is an array
 	# reference containing the nick(s) of the recipients. ARG2 is the text of the message.
 	my( $nickhost, $recipients, $msg ) = @_[ARG0 .. ARG2];
+
+	warn "Got '$msg' from $nickhost";
+
 	return;
 }
 
@@ -194,11 +202,30 @@ sub irc_botcmd_queue : State {
 	my $numjobs = $queue->pending_jobs();
 	my $currjob = $queue->current_job();
 	if ( defined $currjob ) {
-		$currjob = $currjob->{'job'};
-		my $current = $currjob->command;
+		my $current = $currjob->{'job'}->command;
 		if ( $current eq 'smoke' ) {
-			$current .= " " . $currjob->module;
+			$current .= " " . $currjob->{'job'}->module;
 		}
+
+		# get the starttime
+		my $starttime = 0;
+		if ( scalar @{ $currjob->{'result'} } ) {
+			foreach my $r ( $currjob->{'result'}->results() ) {
+				if ( $starttime == 0 or $r->{'start_time'} < $starttime ) {
+					$starttime = $r->{'start_time'};
+				}
+			}
+		} else {
+			# take it from the current backend
+			$starttime = $currjob->{'backend'}->{'start_time'};
+		}
+
+		# Add time info
+		$current .= ", still working after " . duration_exact( time - $starttime );
+
+		# Add smokers info
+		$current .= ", with " . scalar @{ $currjob->{'result'} } . "/" . ( scalar @{ $currjob->{'smokers'} } + scalar @{ $currjob->{'result'} } ) . " perls done.";
+
 		$currjob = $current;
 	}
 
@@ -242,6 +269,9 @@ sub irc_botcmd_smoke : State {
 	my $nick = (split '!', $_[ARG0])[0];
 	my ($where, $arg) = @_[ARG1, ARG2];
 
+	# Cleanse any whitespace ( damn irc clients! )
+	$arg =~ s/\s+\z//;
+
 	# Send off the job!
 	$_[HEAP]->{'SMOKEBOX'}->submit( event => 'smokeresult',
 		job => POE::Component::SmokeBox::Job->new(
@@ -263,10 +293,10 @@ sub irc_botcmd_smoke : State {
 sub smokeresult : State {
 	# extract some useful data
 	my $starttime = 0;
-	my $endtime = 0;
+	my $endtime = time;
 	my $passes = 0;
 	my $fails = 0;
-	my $module;
+	my $module = $_[ARG0]->{'job'}->module;
 
 	foreach my $r ( $_[ARG0]->{'result'}->results() ) {
 		if ( $r->{'status'} == 0 ) {
@@ -278,11 +308,6 @@ sub smokeresult : State {
 		if ( $starttime == 0 or $r->{'start_time'} < $starttime ) {
 			$starttime = $r->{'start_time'};
 		}
-		if ( $endtime == 0 or $r->{'end_time'} > $endtime ) {
-			$endtime = $r->{'end_time'};
-		}
-
-		$module = $r->{'module'};
 	}
 	my $duration = duration_exact( $endtime - $starttime );
 
@@ -316,7 +341,7 @@ sub irc_botcmd_index : State {
 sub indexresult : State {
 	# extract some useful data
 	my $starttime = 0;
-	my $endtime = 0;
+	my $endtime = time;
 	my $passes = 0;
 	my $fails = 0;
 
@@ -329,9 +354,6 @@ sub indexresult : State {
 
 		if ( $starttime == 0 or $r->{'start_time'} < $starttime ) {
 			$starttime = $r->{'start_time'};
-		}
-		if ( $endtime == 0 or $r->{'end_time'} > $endtime ) {
-			$endtime = $r->{'end_time'};
 		}
 	}
 	my $duration = duration_exact( $endtime - $starttime );

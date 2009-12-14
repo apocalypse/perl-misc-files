@@ -79,11 +79,16 @@ sub create_irc : State {
 	$_[HEAP]->{'IRC'}->plugin_add( 'AutoJoin', POE::Component::IRC::Plugin::AutoJoin->new( Channels => { '#smoke' => '', '#cpantesters' => '', } ) );
 	$_[HEAP]->{'IRC'}->plugin_add( 'Connector', POE::Component::IRC::Plugin::Connector->new() );
 	$_[HEAP]->{'IRC'}->plugin_add( 'BotCommand', POE::Component::IRC::Plugin::BotCommand->new(
-		Commands => {
+		Commands	=> {
 			'queue'		=> 'Returns information about the email queue. Takes no arguments.',
 			'uname'		=> 'Returns the uname of the machine the emailer is running on. Takes no arguments.',
 		},
-		Addressed => 0,
+		Addressed	=> 0,
+		Ignore_unknown	=> 1,
+		Prefix		=> '!',
+		In_channels	=> 1,
+		In_private	=> 1,
+		Eat		=> 1,
 	) );
 
 	$_[HEAP]->{'IRC'}->yield( 'connect' => {} );
