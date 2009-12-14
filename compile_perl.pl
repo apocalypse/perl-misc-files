@@ -351,7 +351,7 @@ sub setup {
 	} );
 	$conf->set_conf( debug => 0 );
 	$conf->set_conf( dist_type => '' );
-	$conf->set_conf( email => 'perl@0ne.us' );
+	$conf->set_conf( email => 'apocal@cpan.org' );
 	$conf->set_conf( enable_custom_sources => 0 );
 	$conf->set_conf( extractdir => '' );
 	$conf->set_conf( fetchdir => '' );
@@ -857,7 +857,7 @@ sub setup {
 	$conf->set_conf( cpantest_reporter_args => {} );
 	$conf->set_conf( debug => 0 );
 	$conf->set_conf( dist_type => '' );
-	$conf->set_conf( email => 'perl@0ne.us' );
+	$conf->set_conf( email => 'apocal@cpan.org' );
 	$conf->set_conf( enable_custom_sources => 0 );
 	$conf->set_conf( extractdir => '' );
 	$conf->set_conf( fetchdir => '' );
@@ -923,8 +923,14 @@ sub do_replacements {
 	$str =~ s/XXXHOMEXXX/$ENV{HOME}/g;
 	$str =~ s/XXXUSERXXX/$ENV{USER}/g;
 	$str =~ s/XXXPATHXXX/$PATH/g;
-	$str =~ s/XXXCPANPLUSXXX/$CPANPLUS_ver/g;
-	$str =~ s/XXXPERLVERXXX/$perlver-$perlopts/g;
+
+	# I'm sick of seeing Use of uninitialized value in concatenation (.) or string at ./compile.pl line 928.
+	if ( defined $perlver ) {
+		$str =~ s/XXXPERLVERXXX/$perlver-$perlopts/g;
+	}
+	if ( defined $CPANPLUS_ver ) {
+		$str =~ s/XXXCPANPLUSXXX/$CPANPLUS_ver/g;
+	}
 
 	# find binary locations
 	$str =~ s/XXXWHICH-([\w\-]+)XXX/get_binary_path( $1 )/ge;
@@ -1019,7 +1025,7 @@ sub setup {
 	} );
 	$conf->set_conf( debug => 0 );
 	$conf->set_conf( dist_type => '' );
-	$conf->set_conf( email => 'perl@0ne.us' );
+	$conf->set_conf( email => 'apocal@cpan.org' );
 	$conf->set_conf( enable_custom_sources => 0 );
 	$conf->set_conf( extractdir => '' );
 	$conf->set_conf( fetchdir => 'XXXHOMEXXX/.cpanplus/authors' );

@@ -34,7 +34,7 @@
 				7.0 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm
 				7.1 cpanp x --update_source
 				7.1 cpanp s selfupdate all
-				7.2 cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased
+				7.2 cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased
 
 	- freebsd
 		- install steps:
@@ -57,7 +57,7 @@
 				7.1 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
 				7.2 cpanp x --update_source
 				7.3 cpanp s selfupdate all
-				7.4 cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased
+				7.4 cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased
 
 	- netbsd
 		- install steps:
@@ -107,7 +107,7 @@
 				15.1 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
 				15.2 cpanp x --update_source
 				15.3 cpanp s selfupdate all
-				15.4 cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased
+				15.4 cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased
 
 	- opensolaris
 		- install steps:
@@ -153,7 +153,7 @@
 				13.1 copy CPANP-root.config to /export/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
 				13.1 pfexec cpanp x --update_source
 				13.2 pfexec cpanp s selfupdate all
-				13.3 pfexec cpanp i Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased
+				13.3 pfexec cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased
 
 
 	- windows XP
@@ -184,7 +184,7 @@
 2. install N perls on OS
 	- for OSes with compile capabilities:
 		- use system perl to "bootstrap"
-		- use Perl::Repository::APC
+		- use Perl::Repository::APC ( doesn't work for me - just use compile_perl.pl hah )
 			- use the local APC mirror
 			- compile/install as many perl versions as possible
 			- perl -MModule::CoreList -e 'print join " ", @{ $Module::CoreList::patchlevel{5.008008} };'
@@ -201,30 +201,11 @@
 		- use ActiveState for windows # http://www.perlmonks.org/index.pl/jacques?node_id=216842
 		- try to figure out a way to have multiple perls installed on windows?
 
-	- possible perl configuration tweaks:
-		- 64bit/32bit		( -Duse64bitint or -Duse64bitall )
-		- threads/nothreads	( -Dusethreads or -Uusethreads )
-		- and so on... ( any other major modes I should consider? )
-	- need to come up with code to have a "matrix" of all possible configurations and compile them
-
-3. Configure CPANPLUS per Perl version
-	- install all needed dependencies
-		- Bundle::CPANPLUS CPANPLUS::YACSmoke POE::Component::SmokeBox
-	- setup CPANPLUS configuration ( copy from template files )
-	- setup for cpantesters
-	- use local minicpan mirror
-
-4. Configure SmokeBox
-	- auto-detect the available perl versions
-	- setup the SmokeBox <-> irc code
-	- add smokebox to init.d equivalent
-	- let 'er rip!
-
 10. setup local CPAN mirror
 	- this is on the "ftp/web/etc server"
 	- mirror the CPAN
 	- configure ftp access to it
-	- install POE::Component::SmokeBox::Uploads::RSS and pipe output to #cpan on local ircd
+	- install POE::Component::SmokeBox::Uploads::Rsync and pipe output to #cpan on local ircd
 	- http://search.cpan.org/~andk/File-Rsync-Mirror-Recent/ # to setup rsync system to mirror from cpan.cpantesters.org::cpan
 	- run the CPAN::Mini::Webserver module to provide web access to it
 
@@ -436,3 +417,147 @@ sub do_installCPAN {
 
 	return 1;
 }
+
+
+
+
+
+
+TO SETUP POSTFIX ON SMOKER-MASTER ( ubuntu ) - http://jonsview.com/2009/03/26/how-to-setup-email-services-on-ubuntu-using-postfix-tlssasl-and-dovecot
+
+apt-get install postfix sasl2-bin
+	mail config: Internet site
+	mail name: smoker-master.0ne.us
+
+dpkg-reconfigure postfix
+	mail config: Internet site
+	mail name: smoker-master.0ne.us
+	root/postmaster recipient: blank
+	other destinations: smoker-master.0ne.us, 0ne.us, localhost
+	synchronous updates: no
+	local networks: leave default
+	mailbox size limit: 51200000
+	local address character: leave default (+)
+	internet protocols: ipv4
+
+mkdir /etc/postfix/ssl
+cd /etc/postfix/ssl/
+openssl genrsa -des3 -rand /etc/hosts -out smtpd.key 1024
+chmod 600 smtpd.key
+openssl req -new -key smtpd.key -out smtpd.csr
+openssl x509 -req -days 3650 -in smtpd.csr -signkey smtpd.key -out smtpd.crt
+openssl rsa -in smtpd.key -out smtpd.key.unencrypted
+mv -f smtpd.key.unencrypted smtpd.key
+openssl req -new -x509 -extensions v3_ca -keyout cakey.pem -out cacert.pem -days 3650
+
+postconf -e 'smtpd_sasl_local_domain ='
+postconf -e 'smtpd_sasl_auth_enable = yes'
+postconf -e 'smtpd_sasl_security_options = noanonymous'
+postconf -e 'broken_sasl_auth_clients = yes'
+postconf -e 'smtpd_recipient_restrictions = permit_sasl_authenticated,permit_mynetworks,reject_unauth_destination'
+postconf -e 'inet_interfaces = all'
+echo 'pwcheck_method: saslauthd' >> /etc/postfix/sasl/smtpd.conf
+echo 'mech_list: plain login' >> /etc/postfix/sasl/smtpd.conf
+postconf -e 'smtpd_tls_auth_only = no'
+postconf -e 'smtp_use_tls = yes'
+postconf -e 'smtpd_use_tls = yes'
+postconf -e 'smtp_tls_note_starttls_offer = yes'
+postconf -e 'smtpd_tls_key_file = /etc/postfix/ssl/smtpd.key'
+postconf -e 'smtpd_tls_cert_file = /etc/postfix/ssl/smtpd.crt'
+postconf -e 'smtpd_tls_CAfile = /etc/postfix/ssl/cacert.pem'
+postconf -e 'smtpd_tls_loglevel = 1'
+postconf -e 'smtpd_tls_received_header = yes'
+postconf -e 'smtpd_tls_session_cache_timeout = 3600s'
+postconf -e 'tls_random_source = dev:/dev/urandom'
+postconf -e 'myhostname = smoker-master.0ne.us'
+postconf -e 'home_mailbox = Maildir/'
+postconf -e 'mailbox_command ='
+
+nano /etc/default/saslauthd
+	START=yes
+	OPTIONS="-c -m /var/spool/postfix/var/run/saslauthd"
+
+mkdir -p /var/spool/postfix/var/run/saslauthd
+dpkg-statoverride --add root sasl 710 /var/spool/postfix/var/run/saslauthd
+adduser postfix sasl
+/etc/init.d/saslauthd start
+
+nano /etc/postfix/master.cf
+	# comment out smtp line
+	# uncomment smtps line and the -o options below it
+		smtps     inet  n       -       -       -       -       smtpd
+		  -o smtpd_tls_wrappermode=yes
+		  -o smtpd_sasl_auth_enable=yes
+		  -o smtpd_client_restrictions=permit_sasl_authenticated,reject
+
+nano /etc/postfix/main.cf
+	root@wc3:/etc/postfix# cat main.cf
+	# See /usr/share/postfix/main.cf.dist for a commented, more complete version
+
+
+	# Debian specific:  Specifying a file name will cause the first
+	# line of that file to be used as the name.  The Debian default
+	# is /etc/mailname.
+	#myorigin = /etc/mailname
+
+	smtpd_banner = $myhostname ESMTP $mail_name
+	biff = no
+
+	# appending .domain is the MUA's job.
+	append_dot_mydomain = no
+
+	# Uncomment the next line to generate "delayed mail" warnings
+	#delay_warning_time = 4h
+
+	readme_directory = no
+
+	# TLS parameters
+	smtpd_tls_cert_file = /etc/postfix/ssl/smtpd.crt
+	smtpd_tls_key_file = /etc/postfix/ssl/smtpd.key
+	smtpd_use_tls = yes
+	smtpd_tls_session_cache_database = btree:${data_directory}/smtpd_scache
+	smtp_tls_session_cache_database = btree:${data_directory}/smtp_scache
+
+	# See /usr/share/doc/postfix/TLS_README.gz in the postfix-doc package for
+	# information on enabling SSL in the smtp client.
+
+	myhostname = smoker-master.0ne.us
+	alias_maps = hash:/etc/aliases
+	alias_database = hash:/etc/aliases
+	myorigin = /etc/mailname
+	mydestination = smoker-master.0ne.us, 0ne.us, localhost
+	relayhost =
+	mynetworks = 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128
+	mailbox_size_limit = 51200000
+	recipient_delimiter = +
+	inet_interfaces = all
+	inet_protocols = ipv4
+	smtpd_sasl_local_domain =
+	smtpd_sasl_auth_enable = yes
+	smtpd_sasl_security_options = noanonymous
+	broken_sasl_auth_clients = yes
+	smtpd_recipient_restrictions = permit_sasl_authenticated,permit_mynetworks,reject_unauth_destination
+	smtpd_tls_auth_only = no
+	smtp_use_tls = yes
+	smtp_tls_note_starttls_offer = yes
+	smtpd_tls_CAfile = /etc/postfix/ssl/cacert.pem
+	smtpd_tls_loglevel = 1
+	smtpd_tls_received_header = yes
+	smtpd_tls_session_cache_timeout = 3600s
+	tls_random_source = dev:/dev/urandom
+	home_mailbox = Maildir/
+	mailbox_command =
+	smtpd_helo_required = yes
+	strict_rfc821_envelopes = yes
+	smtpd_reject_unlisted_sender = yes
+	smtpd_helo_restrictions = reject_unknown_helo_hostname
+	smtpd_sender_restrictions = reject_unknown_sender_domain, reject_non_fqdn_sender, check_sender_access regexp:/etc/postfix/access
+	smtpd_data_restrictions = reject_unauth_pipelining
+
+nano /etc/postfix/access
+	root@wc3:/etc/postfix# cat access
+	/^perl\@/	OK
+	/.*/		REJECT
+postmap /etc/postfix/access
+
+/etc/init.d/postfix restart

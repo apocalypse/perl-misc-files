@@ -1,6 +1,18 @@
 #!/usr/bin/env perl
 use strict; use warnings;
 
+# This script should be used after you've compiled all the perls
+# Please run compile_perl.pl first!
+
+# TODO
+#	- I saw this in a report: http://www.nntp.perl.org/group/perl.cpan.testers/2009/12/msg6450349.html
+#		TMPDIR = /export/home/bob/cpantesting/tmp/
+#	- remove all .cpanplus/build cruft if disk space is not enough
+#		http://search.cpan.org/~iguthrie/Filesys-DfPortable-0.85/DfPortable.pm
+#		cpan@ubuntu-server64:~$ rm -rf /home/cpan/.cpanplus/authors/id/*				# downloaded tarballs
+#		cpan@ubuntu-server64:~$ rm -rf /home/cpan/cpanp_conf/perl-5.10.0-default/.cpanplus/build/*	# extracted builds
+#	- we should just update the system CPANPLUS, and the symlinks will handle the rest of the perls...
+
 use POE;
 use POE::Component::SmokeBox 0.30;		# must be > 0.30 for the no_log param
 use POE::Component::SmokeBox::Smoker;
@@ -22,7 +34,7 @@ POE::Session->create(
 	__PACKAGE__->inline_states(),
 );
 
-$poe_kernel->run();
+POE::Kernel->run();
 exit 0;
 
 sub _start : State {
@@ -99,7 +111,7 @@ sub create_irc : State {
 		nick	=> $ircnick,
 		ircname	=> $ircnick,
 		server	=> '192.168.0.200',
-		Flood	=> 1,
+#		Flood	=> 1,
 	) or die "Unable to spawn irc: $!";
 
 	$_[HEAP]->{'IRC'}->plugin_add( 'AutoJoin', POE::Component::IRC::Plugin::AutoJoin->new( Channels => { '#smoke' => '' } ) );
@@ -141,6 +153,10 @@ sub _child : State {
 
 sub _stop : State {
 	$_[HEAP]->{'SMOKEBOX'}->shutdown();
+	undef $_[HEAP]->{'SMOKEBOX'};
+	$_[HEAP]->{'IRC'}->shutdown();
+	undef $_[HEAP]->{'IRC'};
+
 	return;
 }
 
@@ -251,6 +267,7 @@ sub smokeresult : State {
 	my $passes = 0;
 	my $fails = 0;
 	my $module;
+
 	foreach my $r ( $_[ARG0]->{'result'}->results() ) {
 		if ( $r->{'status'} == 0 ) {
 			$passes++;
@@ -272,18 +289,12 @@ sub smokeresult : State {
 	# report this to IRC
 	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module ($passes PASS, $fails FAIL) in ${duration}." );
 
-	# TODO remove all .cpanplus/build cruft if disk space is not enough
-	#cpan@ubuntu-server64:~$ rm -rf /home/cpan/.cpanplus/authors/id/*				# downloaded tarballs
-	#cpan@ubuntu-server64:~$ rm -rf /home/cpan/cpanp_conf/perl-5.10.0-default/.cpanplus/build/*	# extracted builds
-
 	return;
 }
 
 sub irc_botcmd_index : State {
 	my $nick = (split '!', $_[ARG0])[0];
 	my ($where, $arg) = @_[ARG1, ARG2];
-
-	# TODO we should just update the system CPANPLUS, and the symlinks will handle the rest of the perls...
 
 	# Send off the job!
 	$_[HEAP]->{'SMOKEBOX'}->submit( event => 'indexresult',
@@ -308,6 +319,7 @@ sub indexresult : State {
 	my $endtime = 0;
 	my $passes = 0;
 	my $fails = 0;
+
 	foreach my $r ( $_[ARG0]->{'result'}->results() ) {
 		if ( $r->{'status'} == 0 ) {
 			$passes++;
