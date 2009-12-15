@@ -39,7 +39,10 @@
 	- freebsd
 		- install steps:
 			1. install base system ( also adding apoc as user + added to wheel group )
-			2. pkg_add -rv nano perl wget bash
+			2. cd /usr/ports/editors/nano && make install
+			3. cd /usr/ports/shells/bash && make install
+			4. cd /usr/ports/ftp/wget && make install
+			5. cd /usr/ports/lang/perl5.10 && make install
 			3. chsh -s /usr/local/bin/bash apoc
 			3. chsh -s /usr/local/bin/bash root
 			4. /usr/local/bin/nano /etc/rc.conf
@@ -48,6 +51,10 @@
 				hostname="freebsd64.0ne.us"
 				defaultrouter="192.168.0.1"
 				sendmail_enable="NONE"
+				ntpd_enable="YES"
+				ntpd_sync_on_start="YES"
+			5. nano /boot/loader.conf
+				kern.hz = 100 # reduce timing problems in VirtualBox
 			5. /usr/local/bin/nano /etc/resolv.conf # setup smoker-master as dns server
 			6. pw useradd cpan -m -s /usr/local/bin/bash
 			7. passwd cpan
@@ -75,6 +82,7 @@
 				quota=NO
 				cgd=NO
 				postfix=NO
+				ntpd=YES
 			3. vi /etc/ifconfig.pcn0
 				inet 192.168.0.205 netmask 255.255.255.0
 			4. vi /etc/myname # set netbsd-64bit or whatever
@@ -226,6 +234,8 @@
 	- mirror "rsync -avz rsync://ftp.linux.activestate.com/all-of-the-APC-for-mirrors-only/ APC"
 	- setup ftp/http/rsync/nfs access to it
 	- setup cronjob to update it every 24h
+
+14. setup local ntpd and have all VMs sync off it
 
 
 <xdg> Apocalypse, too much scrollback for me to read, but two things:  (1) http://cpan.dagolden.com/ is a "fast mirror" updating from PAUSE every 30 seconds (also http://cpan.cpantesters.org/ and http://cpan.hexten.net/)
