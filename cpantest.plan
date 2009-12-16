@@ -1,3 +1,113 @@
+To setup ubuntu 9.10 as smoking host:
+
+	1. install the base OS ( and try to make a 4G swap partition )
+	2. Install any video drivers if needed # BEWARE, sometimes it locks up my laptop!
+	3. apt-get update && apt-get upgrade
+	4. disable ipv6!
+		4.1 sudo nano /etc/default/grub # set  GRUB_CMDLINE_LINUX="ipv6.disable=1"
+		4.2 sudo update-grub
+	5. setup apoc user
+		5.1 sudo nano /etc/pam.d/su # and let wheel SU
+		5.2 sudo groupadd wheel
+		5.3 sudo usermod -G wheel apoc
+		5.4 sudo nano /etc/sudoers # and add '%wheel ALL=NOPASSWD: ALL'
+	6. Setup keybinds
+		6.1 system/preferences/keyboard shortcuts -> set f12 for "run terminal"
+	7. sudo nano /etc/network/interfaces # to set static IP
+		iface eth0 inet static
+			address 192.168.0.198
+			netmask 255.255.255.0
+			network 192.168.0.0
+			broadcast 192.168.0.255
+			gateway 192.168.0.1
+	8. sudo nano /etc/resolv.conf # to set smoker-master as dns server
+		domain 0ne.us
+		search 0ne.us
+		nameserver 192.168.0.200
+	9. Install VirtualBox
+		# http://www.virtualbox.org/wiki/Linux_Downloads
+		9.1 wget -q http://download.virtualbox.org/virtualbox/debian/sun_vbox.asc -O- | sudo apt-key add -
+		9.2 nano /etc/apt/sources.list # and add 'deb http://download.virtualbox.org/virtualbox/debian karmic non-free'
+		9.3 apt-get update
+		9.4 apt-get install build-essential	# needed to compile virtualbox kernel modules
+		9.5 apt-get install virtualbox-3.0
+	10. Install VMs and start smoking!
+		10.1 Ubuntu VM Settings
+			Name: Ubuntu Server 9.10 64bit
+			OS Type: Ubuntu (64bit)
+			Memory: 384mb
+			Processors: 1
+			ACPI: Enabled
+			IO-APIC: Enabled
+			VTx/AMD-V: Enabled
+			Nested Paging: Enabled
+			Video Memory: 12mb
+			video accel: disabled
+			ide primary master: 50gb vdi image
+			audio: pulseaudio
+			audio controller: ich ac97
+			network: intel pro/1000 mt desktop ( bridged )
+		10.2 FreeBSD VM Settings
+			Name: FreeBSD 7.2-RELEASE 64bit
+			OS Type: FreeBSD (64bit)
+			Memory: 384mb
+			Processors: 1
+			ACPI: Enabled
+			IO-APIC: Enabled
+			VTx/AMD-V: Enabled
+			Nested Paging: Enabled
+			Video memory: 9mb
+			video accel: disabled
+			ide primary master: 50gb vdi image
+			audio: pulseaudio
+			audio controller: ich ac97
+			network: intel pro/1000 mt desktop ( bridged )
+		10.3 NetBSD VM Settings
+			Name: NetBSD 5.0.1 64bit
+			OS Type: NetBSD (64bit)
+			Memory: 384mb
+			Processors: 1
+			ACPI: Enabled
+			IO-APIC: Enabled
+			VTx/AMD-V: Enabled
+			Nested Paging: Enabled
+			Video memory: 9mb
+			video accel: disabled
+			ide primary master: 50gb vdi image
+			audio: pulseaudio
+			audio controller: ich ac97
+			network: PCnet-PCI II ( bridged )
+		10.4 OpenSolaris VM Settings
+			Name: OpenSolaris 2009.6 64bit
+			OS Type: OpenSolaris (64bit)
+			Memory: 768mb		# Setting it any lower will ALWAYS result in resource problems... damn solaris!
+			Processors: 1
+			ACPI: Enabled
+			IO-APIC: Enabled
+			VTx/AMD-V: Enabled
+			Nested Paging: Enabled
+			Video Memory: 12mb
+			video accel: disabled
+			ide primary master: 50gb vdi image
+			audio: pulseaudio
+			audio controller: ich ac97
+			network: intel pro/1000 mt desktop ( bridged )
+		10.5 Windows XP VM Settings
+			Name: Windows XP 32bit
+			OS Type: Windows XP
+			Memory: 384mb
+			Processors: 1
+			ACPI: Enabled
+			IO-APIC: Enabled
+			VTx/AMD-V: Enabled
+			Nested Paging: Disabled
+			Video Memory: 12mb
+			video accel: disabled
+			ide primary master: 50gb vdi image
+			audio: pulseaudio
+			audio controller: ich ac97
+			network: PCnet-FAST III ( bridged )
+
 1. Create a VM per OS
 	- debian
 
@@ -25,6 +135,7 @@
 				nameserver 192.168.0.200
 			6. disable ipv6!
 				6.1 sudo nano /etc/default/grub # set  GRUB_CMDLINE_LINUX="ipv6.disable=1"
+				6.2 sudo update-grub
 			6. sudo useradd -m cpan && sudo passwd cpan && sudo usermod -s /bin/bash cpan # passwd is cpan
 			6. customize PS1
 				nano ~/.bashrc
