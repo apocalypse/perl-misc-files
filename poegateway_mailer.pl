@@ -12,9 +12,12 @@ use base 'POE::Session::AttributeBased';
 
 use Test::Reporter::POEGateway::Mailer 0.03;	# needed for the delay stuff
 use String::IRC;
+use Number::Bytes::Human qw( format_bytes );
+use Filesys::DfPortable;
 
 # set some handy variables
 my $ircnick = 'poegateway_mailer';
+my $ircserver = '192.168.0.200';
 
 POE::Session->create(
 	__PACKAGE__->inline_states(),
@@ -71,7 +74,7 @@ sub create_irc : State {
 	$_[HEAP]->{'IRC'} = POE::Component::IRC::State->spawn(
 		nick	=> $ircnick,
 		ircname	=> $ircnick,
-		server	=> '192.168.0.200',
+		server	=> $ircserver,
 #		Flood	=> 1,
 	) or die "Unable to spawn irc: $!";
 
@@ -82,6 +85,7 @@ sub create_irc : State {
 			'queue'		=> 'Returns information about the email queue. Takes no arguments.',
 			'uname'		=> 'Returns the uname of the machine the emailer is running on. Takes no arguments.',
 			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
+			'df'		=> 'Returns the free space of the machine. Takes no arguments.',
 		},
 		Addressed	=> 0,
 		Ignore_unknown	=> 1,
@@ -157,6 +161,21 @@ sub irc_botcmd_time : State {
 	my $time = time;
 
 	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Time: $time" );
+
+	return;
+}
+
+sub irc_botcmd_df : State {
+	my $nick = (split '!', $_[ARG0])[0];
+	my ($where, $arg) = @_[ARG1, ARG2];
+
+	my $df = dfportable( $ENV{HOME} );
+	if ( defined $df ) {
+		my $free = format_bytes( $df->{'bavail'}, si => 1 );
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Df: $free" );
+	} else {
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Df: Error in getting df!" );
+	}
 
 	return;
 }

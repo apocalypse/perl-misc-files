@@ -45,6 +45,8 @@ use Prompt::Timeout;
 use Sort::Versions;
 use Term::Title qw( set_titlebar );
 use Sys::Hostname qw( hostname );
+use File::Spec;
+use File::Path::Tiny;
 
 # static var...
 my $PATH = $ENV{HOME};	# the home path where we do our stuff
@@ -75,7 +77,33 @@ sub do_sanity_checks {
 	foreach my $bin ( qw( perl cpanp wget tar sudo chown rm mkdir touch mv which make sh patch ) ) {
 		my $path = get_binary_path( $bin );
 		if ( ! length $path ) {
-			warn "ERROR: $bin binary was not found, please rectify this and re-run this script!";
+			die "ERROR: The binary '$bin' was not found, please rectify this and re-run this script!";
+		}
+	}
+
+	# Create some directories we need
+	foreach my $dir ( qw( build tmp perls cpanp_conf ) ) {
+		$dir = File::Spec->catdir( $PATH, $dir );
+		if ( ! -d $dir ) {
+			do_log( "[SANITYCHECK] Executing mkdir($dir)" );
+			mkdir( $dir ) or die "Unable to mkdir ($dir): $!";
+		}
+	}
+
+	# Get the perl tarballs?
+	my $path = File::Spec->catdir( $PATH, 'build' );
+	opendir( DIR, $path ) or die "Unable to opendir ($path): $!";
+	my @entries = readdir( DIR );
+	closedir( DIR ) or die "Unable to closedir ($path): $!";
+
+	# less than 3 entries means only the '.' and '..' entries present..
+	if ( @entries < 3 ) {
+		my $res = lc( prompt( "Do you want me to automatically get the perl tarballs", 'y', 120 ) );
+		if ( $res eq 'y' ) {
+			# Download all the tarballs we see
+			do_shellcommand( "wget ftp://192.168.0.200/perl_dists/src/* -P $path" );
+		} else {
+			do_log( "[SANITYCHECK] No perl tarballs available..." );
 			exit;
 		}
 	}
@@ -117,7 +145,7 @@ sub prompt_action {
 		} elsif ( $res eq 'x' ) {
 			# update the local user's CPANPLUS index ( the one we share with all perls )
 			do_log( "[CPANPLUS] Updating CPANPLUS index..." );
-			do_shellcommand( "APPDATA=$ENV{HOME}/ cpanp x --update_source" );
+			do_shellcommand( "APPDATA=$ENV{HOME} cpanp x --update_source" );
 		} elsif ( $res eq 'i' ) {
 			# install a specific module
 			my $module = prompt( "What module should we install?", '', 120 );
@@ -166,13 +194,13 @@ sub prompt_action {
 			do_log( "[COMPILER] Executing chown -R root on all perl installs..." );
 			foreach my $p ( @{ getReadyPerls() } ) {
 				# some OSes don't have root as a group, so we just set the user
-				do_shellcommand( "sudo chown -R root $PATH/perls/$p" );
+				do_shellcommand( "sudo chown -R root " . File::Spec->catdir( $PATH, 'perls', $p ) );
 			}
 		} elsif ( $res eq 'n' ) {
 			# Unchown the perl installs so we can do stuff to them :)
 			do_log( "[COMPILER] Executing chown -R $< on all perl installs..." );
 			foreach my $p ( @{ getReadyPerls() } ) {
-				do_shellcommand( "sudo chown -R $< $PATH/perls/$p" );
+				do_shellcommand( "sudo chown -R $< " . File::Spec->catdir( $PATH, 'perls', $p ) );
 			}
 		} elsif ( $res eq 'r' ) {
 			# reconfig all perls' CPANPLUS settings
@@ -201,15 +229,16 @@ sub prompt_action {
 
 # finds all installed perls that have smoke.ready file in them
 sub getReadyPerls {
-	if ( -d "$PATH/perls" ) {
-		opendir( PERLS, "$PATH/perls" ) or die "Unable to opendir: $!";
+	my $path = File::Spec->catdir( $PATH, 'perls' );
+	if ( -d $path ) {
+		opendir( PERLS, $path ) or die "Unable to opendir ($path): $!";
 		my @list = readdir( PERLS );
-		closedir( PERLS ) or die "Unable to closedir: $!";
+		closedir( PERLS ) or die "Unable to closedir ($path): $!";
 
 		# find the ready ones
 		my %ready = ();
 		foreach my $p ( @list ) {
-			if ( $p =~ /^perl\-/ and -d "$PATH/perls/$p" and -e "$PATH/perls/$p/ready.smoke" ) {
+			if ( $p =~ /^perl\-/ and -d File::Spec->catdir( $path, $p ) and -e File::Spec->catfile( $path, $p, 'ready.smoke' ) ) {
 				# rip out the version
 				if ( $domatrix ) {
 					if ( $p =~ /^perl\-([\d\.]+)\-/ ) {
@@ -259,15 +288,16 @@ sub save_logs {
 	my $end = shift;
 
 	# Make sure we don't overwrite logs
-	if ( -e "$PATH/perls/perl-$perlver-$perlopts.$end" ) {
-#		print "[LOGS] Skipping log save of '$PATH/perls/perl-$perlver-$perlopts.$end' as it already exists\n";
+	my $file = File::Spec->catfile( $PATH, 'perls', "perl-$perlver-$perlopts.$end" );
+	if ( -e $file ) {
+#		print "[LOGS] Skipping log save of '$file' as it already exists\n";
 	} else {
-		print "[LOGS] Saving log to '$PATH/perls/perl-$perlver-$perlopts.$end'\n";
-		open( my $log, '>', "$PATH/perls/perl-$perlver-$perlopts.$end" ) or die "Unable to create log: $!";
+		print "[LOGS] Saving log to '$file'\n";
+		open( my $log, '>', $file ) or die "Unable to create log ($file): $!";
 		foreach my $l ( @LOGS ) {
 			print $log "$l\n";
 		}
-		close( $log ) or die "Unable to close log: $!";
+		close( $log ) or die "Unable to close log ($file): $!";
 	}
 
 	return;
@@ -283,7 +313,7 @@ sub do_log {
 
 sub get_CPANPLUS_ver {
 	# Spawn a shell to find the answer
-	my $output = do_shellcommand( 'perl -MCPANPLUS::Backend -e \'$cb=CPANPLUS::Backend->new;$mod=$cb->module_tree("CPANPLUS");$ver=defined $mod ? $mod->package_version : undef; print "VER: " . ( defined $ver ? $ver : "UNDEF" ) . "\n";\'' );
+	my $output = do_shellcommand( $^X . ' -MCPANPLUS::Backend -e \'$cb=CPANPLUS::Backend->new;$mod=$cb->module_tree("CPANPLUS");$ver=defined $mod ? $mod->package_version : undef; print "VER: " . ( defined $ver ? $ver : "UNDEF" ) . "\n";\'' );
 	if ( $output->[-1] =~ /^VER\:\s+(.+)$/ ) {
 		my $ver = $1;
 		if ( $ver eq 'UNDEF' ) {
@@ -341,7 +371,7 @@ sub setup {
 
 	### conf section
 	$conf->set_conf( allow_build_interactivity => 0 );
-	$conf->set_conf( base => 'XXXHOMEXXX/.cpanplus' );
+	$conf->set_conf( base => 'XXXHOMEXXX/.cpanplus' );	# TODO use File::Spec somehow
 	$conf->set_conf( buildflags => '' );
 	$conf->set_conf( cpantest => 1 );
 	$conf->set_conf( cpantest_mx => '' );
@@ -398,11 +428,10 @@ sub setup {
 END
 
 	# blow away the old cpanplus dir if it's there
-	if ( -d "$ENV{HOME}/.cpanplus" ) {
-		do_log( "[CPANPLUS] Removing old CPANPLUS conf directory in '$ENV{HOME}/.cpanplus'" );
-
-		# TODO use File::Path::Tiny
-		do_shellcommand( "rm -rf $ENV{HOME}/.cpanplus" );
+	my $cpanplus = File::Spec->catdir( $ENV{HOME}, '.cpanplus' );
+	if ( -d $cpanplus ) {
+		do_log( "[CPANPLUS] Removing old CPANPLUS conf directory in '$cpanplus'" );
+		File::Path::Tiny::rm( $cpanplus ) or die "Unable to rm ($cpanplus): $!";
 	}
 
 	# overwrite any old config, just in case...
@@ -412,25 +441,27 @@ END
 	$uconfig = do_replacements( $uconfig );
 
 	# save it!
-	# TODO use File::Path::Tiny
-	do_shellcommand( "mkdir -p $ENV{HOME}/.cpanplus/lib/CPANPLUS/Config" );
-	open( my $config, '>', "$ENV{HOME}/.cpanplus/lib/CPANPLUS/Config/User.pm" ) or die "Unable to create config: $!";
+	my $path = File::Spec->catdir( $cpanplus, 'lib', 'CPANPLUS', 'Config' );
+	File::Path::Tiny::mk( $path ) or die "Unable to mk ($path): $!";
+	$path = File::Spec->catfile( $path, 'User.pm' );
+	open( my $config, '>', $path ) or die "Unable to create config ($path): $!";
 	print $config $uconfig;
-	close( $config ) or die "Unable to close config: $!";
+	close( $config ) or die "Unable to close config ($path): $!";
 
 	# force an update
 	# we don't use do_cpanp_action() here because we need to use the local user's CPANPLUS config not the perl's one...
-	do_shellcommand( "APPDATA=$ENV{HOME}/ cpanp x --update_source" );
+	do_shellcommand( "APPDATA=$ENV{HOME} cpanp x --update_source" );
 
 	# blow away any annoying .cpan directories that remain
-	if ( -d "$ENV{HOME}/.cpan" ) {
-		do_log( "[CPANPLUS] Sanitizing the '$ENV{HOME}/.cpan' directory..." );
-		do_shellcommand( "rm -rf $ENV{HOME}/.cpan" );
+	my $cpan = File::Spec->catdir( $ENV{HOME}, '.cpan' );
+	if ( -d $cpan ) {
+		do_log( "[CPANPLUS] Sanitizing the '$cpan' directory..." );
+		File::Path::Tiny::rm( $cpan ) or die "Unable to rm ($cpan): $!";
 	}
 
 	# thanks to BinGOs for the idea to prevent rogue module installs via CPAN
-	mkdir( "$ENV{HOME}/.cpan" );
-	do_shellcommand( "sudo chown root $ENV{HOME}/.cpan" );
+	mkdir( $cpan );
+	do_shellcommand( "sudo chown root $cpan" );
 
 	return;
 }
@@ -482,40 +513,13 @@ sub prompt_perlver {
 	sub getPerlVersions {
 		return $perls if defined $perls;
 
-		# do we even have a build dir?
-		get_perl_tarballs();
-
-		opendir( PERLS, $PATH . '/build' ) or die "Unable to opendir: $@";
-		$perls = [ sort versioncmp map { $_ =~ /^perl\-([\d\.]+)\./; $_ = $1; } grep { /^perl\-[\d\.]+\.tar\.gz$/ && -f "$PATH/build/$_"  } readdir( PERLS ) ];
-		closedir( PERLS ) or die "Unable to closedir: $@";
+		my $path = File::Spec->catdir( $PATH, 'build' );
+		opendir( PERLS, $path ) or die "Unable to opendir ($path): $!";
+		$perls = [ sort versioncmp map { $_ =~ /^perl\-([\d\.]+)\./; $_ = $1; } grep { /^perl\-[\d\.]+\.tar\.gz$/ && -f File::Spec->catfile( $path, $_ ) } readdir( PERLS ) ];
+		closedir( PERLS ) or die "Unable to closedir ($path): $!";
 
 		return $perls;
 	}
-}
-
-sub get_perl_tarballs {
-	if ( ! -d "$PATH/build" ) {
-		# automatically get the perl tarballs?
-		my $res = lc( prompt( "Do you want me to automatically get the perl tarballs", 'y', 120 ) );
-		if ( $res eq 'y' ) {
-			do_log( "[GETPERLS] mkdir '$PATH/build'" ) if $DEBUG;
-			mkdir( "$PATH/build" ) or die "Unable to mkdir: $!";
-
-			# Download all the tarballs we see
-			do_shellcommand( "wget ftp://192.168.0.200/perl_dists/src/* -P $PATH/build" );
-
-			# make the perls directory
-			if ( ! -d "$PATH/perls" ) {
-				do_log( "[GETPERLS] mkdir '$PATH/perls'" ) if $DEBUG;
-				mkdir( "$PATH/perls" ) or die "Unable to mkdir: $!";
-			}
-		} else {
-			do_log( "[COMPILER] No perl tarballs available..." );
-			exit;
-		}
-	}
-
-	return;
 }
 
 sub install_perl {
@@ -646,9 +650,10 @@ sub build_perl_opts {
 	( $perlver, $perlopts ) = @_;
 
 	# have we already compiled+installed this version?
-	if ( ! -d "$PATH/perls/perl-$perlver-$perlopts" ) {
+	my $path = File::Spec->catdir( $PATH, 'perls', "perl-$perlver-$perlopts" );
+	if ( ! -d $path ) {
 		# did the compile fail?
-		if ( -e "$PATH/perls/perl-$perlver-$perlopts.fail" ) {
+		if ( -e File::Spec->catfile( $PATH, 'perls', "perl-$perlver-$perlopts.fail" ) ) {
 			do_log( "[PERLBUILDER] perl-$perlver-$perlopts already failed, skipping..." );
 			return 0;
 		}
@@ -663,8 +668,9 @@ sub build_perl_opts {
 		my $ret = do_build();
 
 		# cleanup the build dir ( lots of space! )
-		# TODO use File::Path::Tiny
-		do_shellcommand( "rm -rf $PATH/build/perl-$perlver-$perlopts" );
+		$path = File::Spec->catdir( $PATH, 'build', "perl-$perlver-$perlopts" );
+		do_log( "[PERLBUILDER] Executing rmdir($path)" );
+		File::Path::Tiny::rm( $path ) or die "Unable to rm ($path): $!";
 
 		if ( ! $ret ) {
 			# failed something during compiling, move on!
@@ -672,7 +678,7 @@ sub build_perl_opts {
 		}
 	} else {
 		# all done with configuring?
-		if ( -e "$PATH/perls/perl-$perlver-$perlopts/ready.smoke" ) {
+		if ( -e File::Spec->catfile( $path, 'ready.smoke' ) ) {
 			do_log( "[PERLBUILDER] perl-$perlver-$perlopts is ready to smoke..." );
 			return 1;
 		} else {
@@ -706,8 +712,11 @@ sub build_perl_opts {
 
 sub finalize_perl {
 	# Get rid of the man directory!
-	if ( -d "$PATH/perls/perl-$perlver-$perlopts/man" ) {
-		do_shellcommand( "rm -rf $PATH/perls/perl-$perlver-$perlopts/man" );
+	my $path = File::Spec->catdir( $PATH, 'perls', "perl-$perlver-$perlopts" );
+	my $mandir = File::Spec->catdir( $path, 'man' );
+	if ( -d $mandir ) {
+		do_log( "[FINALIZER] Executing rmdir($mandir)" );
+		File::Path::Tiny::rm( $mandir ) or die "Unable to rm ($mandir): $!";
 	}
 
 	# get rid of the default pod...
@@ -715,32 +724,30 @@ sub finalize_perl {
 #	/home/cpan/perls/perl-5.10.1-default/lib/5.10.1/pod/perlxs.pod
 #	/home/cpan/perls/perl-5.10.1-default/lib/5.10.1/pod/perlxstut.pod
 #	/home/cpan/perls/perl-5.10.1-default/lib/5.10.1/pod/a2p.pod
-	if ( -d "$PATH/perls/perl-$perlver-$perlopts/lib/$perlver/pod" ) {
-		do_shellcommand( "rm -rf $PATH/perls/perl-$perlver-$perlopts/lib/$perlver/pod" );
+	my $poddir = File::Spec->catdir( $path, 'lib', $perlver, 'pod' );
+	if ( -d $poddir ) {
+		do_log( "[FINALIZER] Executing rmdir($poddir)" );
+		File::Path::Tiny::rm( $poddir ) or die "Unable to rm ($poddir): $!";
 	}
 
 	# we're really done!
-	do_shellcommand( "touch $PATH/perls/perl-$perlver-$perlopts/ready.smoke" );
+	# TODO use File::Touch
+	do_shellcommand( 'touch ' . File::Spec->catfile( $path, 'ready.smoke' ) );
 
 	return 1;
 }
 
 sub do_prebuild {
-	if ( -d "$PATH/build/perl-$perlver-$perlopts" ) {
-		# remove it so we have a consistent build process
-		# TODO use File::Path::Tiny
-		do_shellcommand( "rm -rf $PATH/build/perl-$perlver-$perlopts" );
-	}
-
-	# make sure we have the output dir ready
-	if ( ! -d "$PATH/perls" ) {
-		do_log( "[PERLBUILDER] mkdir '$PATH/perls'" ) if $DEBUG;
-		mkdir( "$PATH/perls" ) or die "Unable to mkdir: $!";
+	# remove the old dir so we have a consistent build process
+	my $path = File::Spec->catdir( $PATH, 'build', "perl-$perlver-$perlopts" );
+	if ( -d $path ) {
+		do_log( "[PERLBUILDER] Executing rmdir($path)" );
+		File::Path::Tiny::rm( $path ) or die "Unable to rm ($path): $!";
 	}
 
 	# extract the tarball!
-	do_shellcommand( "tar -C $PATH/build -zxf $PATH/build/perl-$perlver.tar.gz" );
-	do_shellcommand( "mv $PATH/build/perl-$perlver $PATH/build/perl-$perlver-$perlopts" );
+	do_shellcommand( "tar -C " . File::Spec->catdir( $PATH, 'build' ) . " -zxf " . File::Spec->catfile( $PATH, 'build', "perl-$perlver.tar.gz" ) );
+	do_shellcommand( "mv " . File::Spec->catdir( $PATH, 'build', "perl-$perlver" ) . " " . File::Spec->catdir( $PATH, 'build', "perl-$perlver-$perlopts" ) );
 
 	# reset the patch counter
 	do_patch_reset();
@@ -750,6 +757,8 @@ sub do_prebuild {
 
 	# TODO this sucks, but lib/Benchmark.t usually takes forever and fails unnecessarily on my loaded box...
 	my @fails = qw( lib/Benchmark.t );
+
+# TODO File::Path::Tiny/File::Spec conversion stopped here
 
 	# TODO netbsd/freebsd often bombs out on t/op/time.t when box is loaded...
 	if ( ( $^O eq 'netbsd' or $^O eq 'freebsd' ) and $perlver =~ /^5\.(?:8|6)\./ ) {

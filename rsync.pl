@@ -10,6 +10,13 @@ use POE::Component::IRC::Plugin::BotCommand;
 use base 'POE::Session::AttributeBased';
 
 use Time::Duration qw( duration_exact );
+use Number::Bytes::Human qw( format_bytes );
+use Filesys::DfPortable;
+
+# Set some handy variables
+my $ircnick = 'CPAN';
+my $ircserver = '192.168.0.200';
+my $rsyncserver = 'cpan.dagolden.com::CPAN';
 
 POE::Session->create(
 	__PACKAGE__->inline_states(),
@@ -31,7 +38,7 @@ sub _start : State {
 sub create_rsync : State {
 	# Tell the poco to start it's stuff!
 	POE::Component::SmokeBox::Uploads::Rsync->spawn(
-		'rsync_src'	=> 'cpan.dagolden.com::CPAN',
+		'rsync_src'	=> $rsyncserver,
 		'rsyncdone'	=> 'rsyncdone',
 		'interval'	=> 3600,
 	) or die "Unable to spawn the poco-rsync!";
@@ -42,9 +49,9 @@ sub create_rsync : State {
 sub create_irc : State {
 	# create the IRC bot
 	$_[HEAP]->{'IRC'} = POE::Component::IRC::State->spawn(
-		nick	=> 'CPAN',
-		ircname	=> 'CPAN',
-		server	=> '192.168.0.200',
+		nick	=> $ircnick,
+		ircname	=> $ircnick,
+		server	=> $ircserver,
 #		Flood	=> 1,
 	) or die "Unable to spawn irc: $!";
 
@@ -55,6 +62,7 @@ sub create_irc : State {
 			'queue'		=> 'Returns information about the rsync queue. Takes no arguments.',
 			'uname'		=> 'Returns the uname of the machine the rsyncer is running on. Takes no arguments.',
 			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
+			'df'		=> 'Returns the free space of the machine. Takes no arguments.',
 		},
 		Addressed	=> 0,
 		Ignore_unknown	=> 1,
@@ -124,6 +132,21 @@ sub irc_botcmd_time : State {
 	my $time = time;
 
 	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Time: $time" );
+
+	return;
+}
+
+sub irc_botcmd_df : State {
+	my $nick = (split '!', $_[ARG0])[0];
+	my ($where, $arg) = @_[ARG1, ARG2];
+
+	my $df = dfportable( $ENV{HOME} );
+	if ( defined $df ) {
+		my $free = format_bytes( $df->{'bavail'}, si => 1 );
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Df: $free" );
+	} else {
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Df: Error in getting df!" );
+	}
 
 	return;
 }

@@ -5,12 +5,6 @@ use strict; use warnings;
 # Please run compile_perl.pl first!
 
 # TODO
-#	- I saw this in a report: http://www.nntp.perl.org/group/perl.cpan.testers/2009/12/msg6450349.html
-#		TMPDIR = /export/home/bob/cpantesting/tmp/
-#	- remove all .cpanplus/build cruft if disk space is not enough
-#		http://search.cpan.org/~iguthrie/Filesys-DfPortable-0.85/DfPortable.pm
-#		cpan@ubuntu-server64:~$ rm -rf /home/cpan/.cpanplus/authors/id/*				# downloaded tarballs
-#		cpan@ubuntu-server64:~$ rm -rf /home/cpan/cpanp_conf/perl-5.10.0-default/.cpanplus/build/*	# extracted builds
 #	- we should just update the system CPANPLUS, and the symlinks will handle the rest of the perls...
 
 use POE;
@@ -23,13 +17,18 @@ use POE::Component::IRC::Plugin::Connector;
 use POE::Component::IRC::Plugin::BotCommand;
 use base 'POE::Session::AttributeBased';
 
-use Data::Dumper;
 use Sys::Hostname qw( hostname );
 use Time::Duration qw( duration_exact );
+use Filesys::DfPortable;
+use File::Spec;
+use File::Path::Tiny;
+use Number::Bytes::Human qw( format_bytes );
 
 # set some handy variables
 my $ircnick = hostname();
-my $delay = 60;	# set delay between jobs/smokers to "throttle"
+my $ircserver = '192.168.0.200';
+my $freespace = 1024 * 1024 * 1024 * 5;	# set it to 5GB - in bytes before we auto-purge CPAN files
+my $delay = 60;				# set delay in seconds between jobs/smokers to "throttle"
 
 POE::Session->create(
 	__PACKAGE__->inline_states(),
@@ -60,8 +59,9 @@ sub create_smokebox : State {
 	my $smoker = POE::Component::SmokeBox::Smoker->new(
 		perl => $perl,
 		env => {
-			'APPDATA'		=> "$ENV{HOME}/",
-			'PERL5_YACSMOKE_BASE'	=> "$ENV{HOME}/",
+			'APPDATA'		=> $ENV{HOME},
+			'PERL5_YACSMOKE_BASE'	=> $ENV{HOME},
+			'TMPDIR'		=> File::Spec->catdir( $ENV{HOME}, 'tmp' ),
 		},
 	);
 	$_[HEAP]->{'SMOKEBOX'}->add_smoker( $smoker );
@@ -72,6 +72,9 @@ sub create_smokebox : State {
 
 	# Do the first pass over our perls
 	$_[KERNEL]->yield( 'check_perls' );
+
+	# Do cleanup of cruft
+	$_[KERNEL]->yield( 'check_free_space' );
 
 	return;
 }
@@ -91,10 +94,11 @@ sub check_perls : State {
 	# add them!
 	foreach my $p ( @newones ) {
 		$_[HEAP]->{'SMOKEBOX'}->add_smoker( POE::Component::SmokeBox::Smoker->new(
-			perl => "$ENV{HOME}/perls/$p/bin/perl",
+			perl => File::Spec->catfile( $ENV{HOME}, 'perls', $p, 'bin', 'perl' ),
 			env => {
-				'APPDATA'		=> "$ENV{HOME}/cpanp_conf/$p/",
-				'PERL5_YACSMOKE_BASE'	=> "$ENV{HOME}/cpanp_conf/$p/",
+				'APPDATA'		=> File::Spec->catdir( $ENV{HOME}, 'cpanp_conf', $p ),
+				'PERL5_YACSMOKE_BASE'	=> File::Spec->catdir( $ENV{HOME}, 'cpanp_conf', $p ),
+				'TMPDIR'		=> File::Spec->catdir( $ENV{HOME}, 'tmp' ),
 			},
 		) );
 
@@ -113,7 +117,7 @@ sub create_irc : State {
 	$_[HEAP]->{'IRC'} = POE::Component::IRC::State->spawn(
 		nick	=> $ircnick,
 		ircname	=> $ircnick,
-		server	=> '192.168.0.200',
+		server	=> $ircserver,
 #		Flood	=> 1,
 	) or die "Unable to spawn irc: $!";
 
@@ -128,6 +132,7 @@ sub create_irc : State {
 			'perls'		=> 'Lists the available perl versions to smoke. Takes no arguments.',
 			'uname'		=> 'Returns the uname of the machine the smokebot is running on. Takes no arguments.',
 			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
+			'df'		=> 'Returns the free space of the machine. Takes no arguments.',
 		},
 		Addressed 	=> 0,
 		Ignore_unknown	=> 1,
@@ -161,6 +166,7 @@ sub _child : State {
 }
 
 sub _stop : State {
+	# TODO add real shutdown method to handle ctrl-c
 	$_[HEAP]->{'SMOKEBOX'}->shutdown();
 	undef $_[HEAP]->{'SMOKEBOX'};
 	$_[HEAP]->{'IRC'}->shutdown();
@@ -172,11 +178,10 @@ sub _stop : State {
 # gets the perls
 sub getPerlVersions {
 	my @perls;
-	opendir( PERLS, "$ENV{HOME}/perls" ) or die "Unable to opendir: $!";
+	opendir( PERLS, File::Spec->catdir( $ENV{HOME}, 'perls' ) ) or die "Unable to opendir: $!";
 
-	# TODO for now, we just find the default perls
-#	@perls = grep { /^perl\-/ && -d "$ENV{HOME}/perls/$_" && -e "$ENV{HOME}/perls/$_/ready.smoke" } readdir( PERLS );
-	@perls = grep { /^perl\-[\d\.]+\-default/ && -d "$ENV{HOME}/perls/$_" && -e "$ENV{HOME}/perls/$_/ready.smoke" } readdir( PERLS );
+	# look for ready perls only
+	@perls = grep { /^perl\-[\d\.]/ && -d File::Spec->catdir( $ENV{HOME}, 'perls', $_ ) && -e File::Spec->catfile( $ENV{HOME}, 'perls', $_, 'ready.smoke' ) } readdir( PERLS );
 	closedir( PERLS ) or die "Unable to closedir: $!";
 
 	return \@perls;
@@ -189,6 +194,21 @@ sub irc_botcmd_time : State {
 	my $time = time;
 
 	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Time: $time" );
+
+	return;
+}
+
+sub irc_botcmd_df : State {
+	my $nick = (split '!', $_[ARG0])[0];
+	my ($where, $arg) = @_[ARG1, ARG2];
+
+	my $df = dfportable( $ENV{HOME} );
+	if ( defined $df ) {
+		my $free = format_bytes( $df->{'bavail'}, si => 1 );
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Df: $free" );
+	} else {
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Df: Error in getting df!" );
+	}
 
 	return;
 }
@@ -234,9 +254,20 @@ sub irc_botcmd_queue : State {
 
 		# Add time info
 		$current .= ", still working after " . duration_exact( time - $starttime );
+		if ( defined $currjob->{'backend'} ) {
+			$current .= ", running(" . $currjob->{'backend'}->{'perl'} . ")";
+		}
 
 		# Add smokers info
-		$current .= ", with " . scalar @{ $currjob->{'result'} } . "/" . ( scalar @{ $currjob->{'smokers'} } + scalar @{ $currjob->{'result'} } ) . " perls done.";
+		my $smokedone = scalar @{ $currjob->{'result'} };
+		my $smokeleft = scalar @{ $currjob->{'smokers'} };
+		if ( $smokeleft == 0 ) {
+			$smokeleft = 1;
+		}
+		if ( defined $currjob->{'backend'} ) {
+			$smokeleft++;
+		}
+		$current .= ", with " . $smokedone . "/" . ( $smokeleft + $smokedone ) . " perls done.";
 
 		$currjob = $current;
 	}
@@ -307,15 +338,12 @@ sub smokeresult : State {
 	# extract some useful data
 	my $starttime = 0;
 	my $endtime = time;
-	my $passes = 0;
-	my $fails = 0;
+	my @fails;
 	my $module = $_[ARG0]->{'job'}->module;
 
 	foreach my $r ( $_[ARG0]->{'result'}->results() ) {
-		if ( $r->{'status'} == 0 ) {
-			$passes++;
-		} else {
-			$fails++;
+		if ( $r->{'status'} != 0 ) {
+			push( @fails, $r->{'perl'} );
 		}
 
 		if ( $starttime == 0 or $r->{'start_time'} < $starttime ) {
@@ -325,7 +353,61 @@ sub smokeresult : State {
 	my $duration = duration_exact( $endtime - $starttime );
 
 	# report this to IRC
-	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module " . ( $fails > 0 ? "($fails FAILS) " : '' ) . " in ${duration}." );
+	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module " . ( scalar @fails ? '(FAIL: ' . join( ' ', @fails ) . ' ) ' : '' ) . "in ${duration}." );
+
+	$_[KERNEL]->yield( 'check_free_space' );
+
+	return;
+}
+
+sub check_free_space : State {
+	# TODO this is a ugly hack, until we get proper callbacks from SmokeBox
+	# it will work now, because of the 60s delay we set...
+
+	my $df = dfportable( $ENV{HOME} );
+	if ( defined $df ) {
+		# Do we need to wipe?
+		if ( $df->{'bavail'} < $freespace ) {
+			# cpan@ubuntu-server64:~$ rm -rf /home/cpan/.cpanplus/authors/*						# downloaded tarballs
+			my $dir = File::Spec->catdir( $ENV{HOME}, '.cpanplus', 'authors' );
+			if ( -d $dir ) {
+				File::Path::Tiny::rm( $dir ) or die "Unable to rmdir ($dir): $!";
+			}
+
+			# cpan@ubuntu-server64:~$ rm -rf /home/cpan/.cpanplus/5.8.9/build/*					# extracted builds
+			$dir = File::Spec->catdir( $ENV{HOME}, '.cpanplus' );
+			opendir( DIR, $dir ) or die "Unable to opendir ($dir): $!";
+			foreach my $d ( readdir( DIR ) ) {
+				if ( $d =~ /^[\d\.]+$/ ) {
+					$d = File::Spec->catdir( $dir, $d );
+					if ( -d $d ) {
+						File::Path::Tiny::rm( $d ) or die "Unable to rmdir ($d): $!";
+					}
+				}
+			}
+			closedir( DIR ) or die "Unable to closedir ($dir): $!";
+
+			# cpan@ubuntu-server64:~$ rm -rf /home/cpan/cpanp_conf/perl-5.10.0-default/.cpanplus/5.10.0/build/*	# extracted builds
+			$dir = File::Spec->catdir( $ENV{HOME}, 'cpanp_conf' );
+			opendir( DIR, $dir ) or die "Unable to opendir ($dir): $!";
+			foreach my $d ( readdir( DIR ) ) {
+				if ( $d =~ /^perl\-([\d\.]+)\-/ ) {
+					$d = File::Spec->catdir( $dir, $d, '.cpanplus', $1 );
+					if ( -d $d ) {
+						File::Path::Tiny::rm( $d ) or die "Unable to rmdir ($d): $!";
+					}
+				}
+			}
+			closedir( DIR ) or die "Unable to closedir ($dir): $!";
+
+			# cpan@ubuntu-server64:~$ rm -rf /home/cpan/tmp/*							# temporary space for builds
+			$dir = File::Spec->catdir( $ENV{HOME}, 'tmp' );
+			File::Path::Tiny::rm( $dir ) or die "Unable to rmdir ($dir): $!";
+			mkdir( $dir ) or die "Unable to mkdir ($dir): $!";
+		}
+	} else {
+		warn "Unable to get DF from filesystem!";
+	}
 
 	return;
 }
@@ -356,14 +438,11 @@ sub indexresult : State {
 	# extract some useful data
 	my $starttime = 0;
 	my $endtime = time;
-	my $passes = 0;
-	my $fails = 0;
+	my @fails;
 
 	foreach my $r ( $_[ARG0]->{'result'}->results() ) {
-		if ( $r->{'status'} == 0 ) {
-			$passes++;
-		} else {
-			$fails++;
+		if ( $r->{'status'} != 0 ) {
+			push( @fails, $r->{'perl'} );
 		}
 
 		if ( $starttime == 0 or $r->{'start_time'} < $starttime ) {
@@ -373,7 +452,7 @@ sub indexresult : State {
 	my $duration = duration_exact( $endtime - $starttime );
 
 	# report this to IRC
-	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Updated the CPANPLUS index " . ( $fails > 0 ? "($fails FAILS) " : '' ) . " in ${duration}." );
+	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Updated the CPANPLUS index " . ( scalar @fails ? '(FAIL: ' . join( ' ', @fails ) . ' ) ' : '' ) . "in ${duration}." );
 
 	return;
 }
