@@ -10,7 +10,7 @@ use POE::Component::IRC::Plugin::Connector;
 use POE::Component::IRC::Plugin::BotCommand;
 use base 'POE::Session::AttributeBased';
 
-use Test::Reporter::POEGateway::Mailer 0.02;
+use Test::Reporter::POEGateway::Mailer 0.03;	# needed for the delay stuff
 use String::IRC;
 
 # set some handy variables
@@ -47,7 +47,7 @@ sub create_mailer : State {
 			'192.168.0.208' => 'OpenSolaris 2009.06 x86',
 		},
 
-		'dirwatch_interval'	=> 10,
+		'delay'			=> 60,
 		'maildone'		=> 'maildone',
 		'mailer'		=> 'SMTP',
 		'mailer_conf'		=> {
@@ -55,7 +55,6 @@ sub create_mailer : State {
 			'smtp_opts'	=> {
 				'Port'	=> '465',
 				'Hello'	=> '0ne.us',
-#				'Debug'	=> 1,
 			},
 			'ssl'		=> 1,
 			'auth_user'	=> 'XXXXXXXXXXX',
@@ -82,6 +81,7 @@ sub create_irc : State {
 		Commands	=> {
 			'queue'		=> 'Returns information about the email queue. Takes no arguments.',
 			'uname'		=> 'Returns the uname of the machine the emailer is running on. Takes no arguments.',
+			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
 		},
 		Addressed	=> 0,
 		Ignore_unknown	=> 1,
@@ -146,6 +146,17 @@ sub maildone : State {
 	} else {
 		$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Failed to send report( $data->{'DATA'}->{'subject'} ) From( $fromstr ) Error( $data->{'ERROR'} )" );
 	}
+
+	return;
+}
+
+sub irc_botcmd_time : State {
+	my $nick = (split '!', $_[ARG0])[0];
+	my ($where, $arg) = @_[ARG1, ARG2];
+
+	my $time = time;
+
+	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Time: $time" );
 
 	return;
 }

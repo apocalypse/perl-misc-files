@@ -38,7 +38,7 @@ To setup ubuntu 9.10 as smoking host:
 			Memory: 384mb
 			Processors: 1
 			ACPI: Enabled
-			IO-APIC: Enabled
+			IO-APIC: Disabled
 			VTx/AMD-V: Enabled
 			Nested Paging: Enabled
 			Video Memory: 12mb
@@ -53,7 +53,7 @@ To setup ubuntu 9.10 as smoking host:
 			Memory: 384mb
 			Processors: 1
 			ACPI: Enabled
-			IO-APIC: Enabled
+			IO-APIC: Disabled
 			VTx/AMD-V: Enabled
 			Nested Paging: Enabled
 			Video memory: 9mb
@@ -68,7 +68,7 @@ To setup ubuntu 9.10 as smoking host:
 			Memory: 384mb
 			Processors: 1
 			ACPI: Enabled
-			IO-APIC: Enabled
+			IO-APIC: Disabled
 			VTx/AMD-V: Enabled
 			Nested Paging: Enabled
 			Video memory: 9mb
@@ -83,7 +83,7 @@ To setup ubuntu 9.10 as smoking host:
 			Memory: 768mb		# Setting it any lower will ALWAYS result in resource problems... damn solaris!
 			Processors: 1
 			ACPI: Enabled
-			IO-APIC: Enabled
+			IO-APIC: Disabled
 			VTx/AMD-V: Enabled
 			Nested Paging: Enabled
 			Video Memory: 12mb
@@ -98,7 +98,7 @@ To setup ubuntu 9.10 as smoking host:
 			Memory: 384mb
 			Processors: 1
 			ACPI: Enabled
-			IO-APIC: Enabled
+			IO-APIC: Disabled
 			VTx/AMD-V: Enabled
 			Nested Paging: Disabled
 			Video Memory: 12mb
@@ -121,7 +121,7 @@ To setup ubuntu 9.10 as smoking host:
 			2. sudo passwd # to set root passwd
 			3. sudo vi /etc/pam.d/su && sudo groupadd wheel && sudo usermod -a -G wheel apoc
 			3. sudo apt-get update && sudo apt-get upgrade
-			3. sudo apt-get install build-essential ssh nano wget ftp
+			3. sudo apt-get install build-essential ssh nano wget ftp ntp
 			4. sudo nano /etc/network/interfaces # to set static IP
 				iface eth0 inet static
 					address 192.168.0.200
@@ -140,7 +140,20 @@ To setup ubuntu 9.10 as smoking host:
 			6. customize PS1
 				nano ~/.bashrc
 					PS1='[\u@\h \w]\$ '
-			7. nano /etc/sudoers # and add "cpan ALL=/bin/chown"
+			7. sudo nano /etc/sudoers # and add "cpan ALL=/bin/chown"
+			8. sudo dpkg-reconfigure tzdata
+			9. sudo nano /etc/ntp.conf
+				root@blackhole:/home/apoc# cat /etc/ntp.conf
+				# /etc/ntp.conf, configuration for ntpd; see ntp.conf(5) for help
+				driftfile /var/lib/ntp/ntp.drift
+
+				server 192.168.0.200 burst iburst
+				restrict 192.168.0.200 mask 255.255.255.255 nomodify notrap noquery
+				restrict default ignore
+
+				# Local users may interrogate the ntp server more closely.
+				restrict 127.0.0.1
+			10. sudo /etc/init.d/ntp restart
 			7. setup root/system CPANPLUS
 				7.0 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm
 				7.1 cpanp x --update_source
@@ -164,13 +177,27 @@ To setup ubuntu 9.10 as smoking host:
 				sendmail_enable="NONE"
 				ntpd_enable="YES"
 				ntpd_sync_on_start="YES"
+				ntpdate_enable="NO"
 			5. nano /boot/loader.conf
-				kern.hz = 100 # reduce timing problems in VirtualBox
+				kern.hz = 10 # reduce timing problems in VirtualBox
 			5. /usr/local/bin/nano /etc/resolv.conf # setup smoker-master as dns server
 			6. pw useradd cpan -m -s /usr/local/bin/bash
 			7. passwd cpan
 			8. cd /usr/ports/security/sudo && make install
 			9. nano /usr/local/etc/sudoers # and add "cpan ALL=/usr/sbin/chown"
+			10. nano /etc/ntp.conf
+				# ntp.conf
+				pidfile         /var/run/ntpd.pid
+
+				server 192.168.0.200 burst iburst
+				restrict 192.168.0.200 mask 255.255.255.255 nomodify notrap noquery
+				restrict default ignore
+
+				# Local users may interrogate the ntp server more closely.
+				restrict 127.0.0.1
+			11. crontab -e # as root!
+				# Run ntpdate every 5m, because we're in a vm! ( thanks BinGOs )
+				*/5 * * * * ntpdate -b -u -s 192.168.0.200
 			8. setup root/system CPANPLUS
 				7.1 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
 				7.2 cpanp x --update_source
@@ -202,6 +229,17 @@ To setup ubuntu 9.10 as smoking host:
 			7. vi /etc/resolv.conf # setup smoker-master as dns server
 			8. useradd -m -G wheel apoc
 			9. passwd apoc
+			10. sudo vi /etc/ntp.conf
+				# $NetBSD: ntp.conf,v 1.9 2007/02/10 19:36:56 reed Exp $
+				pidfile         /var/run/ntpd.pid
+				driftfile       /var/db/ntp.drift
+
+				server 192.168.0.200 burst iburst
+				restrict 192.168.0.200 mask 255.255.255.255 nomodify notrap noquery
+				restrict default ignore
+
+				# Local users may interrogate the ntp server more closely.
+				restrict 127.0.0.1
 			10. reboot
 			10. setup pkgsrc # http://www.netbsd.org/docs/pkgsrc/getting.html#getting-first
 				10.0 ftp ftp://ftp.netbsd.org/pub/pkgsrc/pkgsrc-2009Q3/pkgsrc-2009Q3.tar.gz
@@ -266,7 +304,20 @@ To setup ubuntu 9.10 as smoking host:
 				nano ~/.profile
 					PS1='[\u@\h \w]\$ '
 			13. setup sudoers
-				nano /etc/sudoers # and add "cpan ALL=/usr/gnu/bin/chown"
+				pfexec nano /etc/sudoers # and add "cpan ALL=/usr/gnu/bin/chown"
+			14. pfexec nano /etc/inet/ntp.conf
+				apoc@opensolaris64:~# cat /etc/inet/ntp.conf
+				# /etc/inet/ntp.server
+				driftfile /var/ntp/ntp.drift
+
+				# unable to use burst/iburst!
+				server 192.168.0.200
+				restrict 192.168.0.200 mask 255.255.255.255 nomodify notrap noquery
+				restrict default ignore
+
+				# Local users may interrogate the ntp server more closely.
+				restrict 127.0.0.1
+			15. pfexec svcadm restart ntp
 			13. setup root/system CPANPLUS
 				13.0 configure CPAN, tell it to install CPANPLUS # opensolaris doesn't install CPANPLUS by default...
 				13.1 copy CPANP-root.config to /export/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
@@ -278,7 +329,9 @@ To setup ubuntu 9.10 as smoking host:
 	- windows XP
 		- install steps:
 			1. install base system
-			2.
+			2. uninstall any extraneous programs
+			3. disable some unnecessary services ( remote registry, wireless zero conf, etc )
+			4. setup time sync to smoker-master
 
 		<@obra> Is there a reasonable sshd for windows so that I don't need to type into my VM?
 		<@mst> a friend of mine got openssh under cygwin to use cmd.exe
@@ -289,6 +342,12 @@ To setup ubuntu 9.10 as smoking host:
 		<@obra> thanks, bingos
 
 	...
+		<@BinGOs> 5 minutes from cron seems to nail the time reasonably accurately
+		<Apocalypse> Alright BinGOs Let me do that, and say "fuck you" to fbsd ;)
+		<@BinGOs> Midnight BSD has a similar problem with ntpd failure.
+		<@BinGOs> Dragonfly BSD works fine with just ntpd running.
+		<@BinGOs> ( them being fbsd variants ).
+		<Apocalypse> Ah, thanks for the tips :)
 
 	Once OS is installed:
 		- copy compile_perl.pl
@@ -347,7 +406,25 @@ To setup ubuntu 9.10 as smoking host:
 	- setup cronjob to update it every 24h
 
 14. setup local ntpd and have all VMs sync off it
+	root@smoker-master:~# cat /etc/ntp.conf
+	# /etc/ntp.conf, configuration for ntpd; see ntp.conf(5) for help
 
+	driftfile /var/lib/ntp/ntp.drift
+
+	# You do need to talk to an NTP server or two (or three).
+	server 0.us.pool.ntp.org
+	server 1.us.pool.ntp.org
+	server 2.us.pool.ntp.org
+	server 3.us.pool.ntp.org
+
+	# By default, exchange time with everybody, but don't allow configuration.
+	restrict -4 default kod notrap nomodify nopeer noquery
+
+	# Serve our local network
+	restrict 192.168.0.0 mask 255.255.255.0 nomodify notrap
+
+	# Local users may interrogate the ntp server more closely.
+	restrict 127.0.0.1
 
 <xdg> Apocalypse, too much scrollback for me to read, but two things:  (1) http://cpan.dagolden.com/ is a "fast mirror" updating from PAUSE every 30 seconds (also http://cpan.cpantesters.org/ and http://cpan.hexten.net/)
 

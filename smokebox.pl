@@ -29,6 +29,7 @@ use Time::Duration qw( duration_exact );
 
 # set some handy variables
 my $ircnick = hostname();
+my $delay = 60;	# set delay between jobs/smokers to "throttle"
 
 POE::Session->create(
 	__PACKAGE__->inline_states(),
@@ -48,7 +49,9 @@ sub _start : State {
 }
 
 sub create_smokebox : State {
-	$_[HEAP]->{'SMOKEBOX'} = POE::Component::SmokeBox->spawn();
+	$_[HEAP]->{'SMOKEBOX'} = POE::Component::SmokeBox->spawn(
+		'delay'	=> $delay,
+	);
 
 	# Add system perl...
 	# Configuration successfully saved to CPANPLUS::Config::User
@@ -124,6 +127,7 @@ sub create_irc : State {
 			'status'	=> 'Enables/disables the smoker. Takes one optional argument: a boolean.',
 			'perls'		=> 'Lists the available perl versions to smoke. Takes no arguments.',
 			'uname'		=> 'Returns the uname of the machine the smokebot is running on. Takes no arguments.',
+			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
 		},
 		Addressed 	=> 0,
 		Ignore_unknown	=> 1,
@@ -142,9 +146,6 @@ sub irc_msg : State {
 	# Sent whenever you receive a PRIVMSG command that was addressed to you privately. ARG0 is the nick!hostmask of the sender. ARG1 is an array
 	# reference containing the nick(s) of the recipients. ARG2 is the text of the message.
 	my( $nickhost, $recipients, $msg ) = @_[ARG0 .. ARG2];
-
-	warn "Got '$msg' from $nickhost";
-
 	return;
 }
 
@@ -179,6 +180,17 @@ sub getPerlVersions {
 	closedir( PERLS ) or die "Unable to closedir: $!";
 
 	return \@perls;
+}
+
+sub irc_botcmd_time : State {
+	my $nick = (split '!', $_[ARG0])[0];
+	my ($where, $arg) = @_[ARG1, ARG2];
+
+	my $time = time;
+
+	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Time: $time" );
+
+	return;
 }
 
 sub irc_botcmd_uname : State {
@@ -279,6 +291,7 @@ sub irc_botcmd_smoke : State {
 			module => $arg,
 			type => 'CPANPLUS::YACSmoke',
 			no_log => 1,
+			delay => $delay,
 		),
 	);
 
@@ -312,7 +325,7 @@ sub smokeresult : State {
 	my $duration = duration_exact( $endtime - $starttime );
 
 	# report this to IRC
-	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module ($passes PASS, $fails FAIL) in ${duration}." );
+	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module " . ( $fails > 0 ? "($fails FAILS) " : '' ) . " in ${duration}." );
 
 	return;
 }
@@ -327,6 +340,7 @@ sub irc_botcmd_index : State {
 			command => 'index',
 			type => 'CPANPLUS::YACSmoke',
 			no_log => 1,
+			delay => $delay,
 		),
 	);
 
@@ -359,7 +373,7 @@ sub indexresult : State {
 	my $duration = duration_exact( $endtime - $starttime );
 
 	# report this to IRC
-	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Updated the CPANPLUS index ($passes PASS, $fails FAIL) in ${duration}." );
+	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Updated the CPANPLUS index " . ( $fails > 0 ? "($fails FAILS) " : '' ) . " in ${duration}." );
 
 	return;
 }

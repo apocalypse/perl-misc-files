@@ -288,7 +288,7 @@ sub get_CPANPLUS_ver {
 		my $ver = $1;
 		if ( $ver eq 'UNDEF' ) {
 			# argh, return what we know...
-			return '0.88';
+			return '0.90';
 		} else {
 			return $ver;
 		}

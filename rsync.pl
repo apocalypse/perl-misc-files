@@ -54,6 +54,7 @@ sub create_irc : State {
 		Commands	=> {
 			'queue'		=> 'Returns information about the rsync queue. Takes no arguments.',
 			'uname'		=> 'Returns the uname of the machine the rsyncer is running on. Takes no arguments.',
+			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
 		},
 		Addressed	=> 0,
 		Ignore_unknown	=> 1,
@@ -113,6 +114,17 @@ sub rsyncdone : State {
 
 sub upload : State {
 	$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "!smoke $_[ARG0]" );
+	return;
+}
+
+sub irc_botcmd_time : State {
+	my $nick = (split '!', $_[ARG0])[0];
+	my ($where, $arg) = @_[ARG1, ARG2];
+
+	my $time = time;
+
+	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Time: $time" );
+
 	return;
 }
 
