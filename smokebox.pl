@@ -8,7 +8,7 @@ use strict; use warnings;
 #	- we should just update the system CPANPLUS, and the symlinks will handle the rest of the perls...
 
 use POE;
-use POE::Component::SmokeBox 0.30;		# must be > 0.30 for the no_log param
+use POE::Component::SmokeBox 0.32;		# must be > 0.32 for the delay stuff
 use POE::Component::SmokeBox::Smoker;
 use POE::Component::SmokeBox::Job;
 use POE::Component::IRC::State;

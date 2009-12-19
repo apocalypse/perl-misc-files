@@ -337,6 +337,20 @@ sub get_CPANPLUS_ver {
 #	}
 }
 
+sub get_CPANPLUS_tarball {
+	# Spawn a shell to find the answer
+	my $output = do_shellcommand( $^X . ' -MCPANPLUS::Backend -e \'$cb=CPANPLUS::Backend->new;$mod=$cb->module_tree("CPANPLUS");$ver=defined $mod ? $mod->path . "/" . $mod->package : undef; print "TARBALL: " . ( defined $ver ? $ver : "UNDEF" ) . "\n";\'' );
+	if ( $output->[-1] =~ /^TARBALL\:\s+(.+)$/ ) {
+		my $ver = $1;
+		if ( $ver eq 'UNDEF' ) {
+			# argh, return what we know ( needs to match up with get_CPANPLUS_ver() !!! )...
+			return 'authors/id/B/BI/BINGOS/CPANPLUS-0.90.tar.gz';
+		} else {
+			return $ver;
+		}
+	}
+}
+
 sub do_config_localCPANPLUS {
 	# configure the local user Config settings
 	my $uconfig = <<'END';
@@ -806,8 +820,7 @@ sub do_initCPANP_BOXED {
 		# do we have the tarball?
 		if ( ! -f "$PATH/CPANPLUS-$CPANPLUS_ver.tar.gz" ) {
 			# get it!
-			# TODO the author might change... waht's a portable way?
-			do_shellcommand( "wget ftp://192.168.0.200/CPAN/authors/id/K/KA/KANE/CPANPLUS-$CPANPLUS_ver.tar.gz" );
+			do_shellcommand( "wget ftp://192.168.0.200/CPAN/" . get_CPANPLUS_tarball() );
 		}
 
 		# extract it!
