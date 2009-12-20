@@ -1027,7 +1027,7 @@ sub do_replacements {
 	my $str = shift;
 
 	# Smart file::spec->catdir support
-	$str =~ s/XXXCATDIR\-(.+)XXX/quotemeta( do_replacements_catdir( $1 ) )/ge;
+	$str =~ s/XXXCATDIR\-(.+)XXX/do_replacements_slash( do_replacements_catdir( $1 ) )/ge;
 
 	# basic stuff
 	if ( $^O eq 'MSWin32' ) {
@@ -1046,7 +1046,7 @@ sub do_replacements {
 	}
 
 	# find binary locations
-	$str =~ s/XXXWHICH-([\w\-]+)XXX/quotemeta( get_binary_path( $1 ) )/ge;
+	$str =~ s/XXXWHICH-([\w\-]+)XXX/do_replacements_slash( get_binary_path( $1 ) )/ge;
 
 	return $str;
 }
@@ -1065,6 +1065,14 @@ sub do_replacements_catdir {
 	return File::Spec->catdir( @newpath );
 }
 
+# implemented this because quotemeta isn't what we wanted...
+sub do_replacements_slash {
+	my $str = shift;
+
+	$str =~ s|(?<!\\)\\(?!\\)|\\\\|g;
+	return $str;
+}
+
 sub get_binary_path {
 	my $binary = shift;
 
@@ -1078,9 +1086,6 @@ sub get_binary_path {
 		}
 		if ( $binary eq 'bash' ) {
 			$binary = 'cmd';
-		}
-		if ( $binary eq 'nano' ) {
-			$binary = 'notepad';
 		}
 	}
 
