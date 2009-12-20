@@ -67,7 +67,7 @@ my $CPANPLUS_ver;	# the CPANPLUS version we'll use for cpanp-boxed
 my $DEBUG = 0;		# spews stuff on console or just top-level data
 my @LOGS = ();		# holds stored logs for a run
 my $domatrix = 0;	# compile the matrix of perl options or not?
-my $PATH;		# the home path where we do our stuff
+my $PATH;		# the home path where we do our stuff ( also used for local CPANPLUS config! )
 if ( $^O eq 'MSWin32' ) {
 	$PATH = 'C:\\cpansmoke';
 } else {
@@ -97,6 +97,8 @@ sub do_sanity_checks {
 	my @binaries = qw( perl cpanp lwp-mirror lwp-request );
 	if ( $^O ne 'MSWin32' ) {
 		push( @binaries, qw( tar sudo chown rm mkdir touch mv make sh patch ) );
+	} else {
+		push( @binaries, qw( cacls more cmd dmake ) );
 	}
 
 	foreach my $bin ( @binaries ) {
@@ -107,10 +109,10 @@ sub do_sanity_checks {
 
 	# Create some directories we need
 	foreach my $dir ( qw( build tmp perls cpanp_conf ) ) {
-		$dir = File::Spec->catdir( $PATH, $dir );
-		if ( ! -d $dir ) {
-			do_log( "[SANITYCHECK] Executing mkdir($dir)" );
-			mkdir( $dir ) or die "Unable to mkdir ($dir): $!";
+		my $localdir = File::Spec->catdir( $PATH, $dir );
+		if ( ! -d $localdir ) {
+			do_log( "[SANITYCHECK] Executing mkdir($localdir)" );
+			mkdir( $localdir ) or die "Unable to mkdir ($localdir): $!";
 		}
 	}
 
@@ -134,8 +136,8 @@ sub do_sanity_checks {
 				$ftpdir = 'ftp://192.168.0.200/perl_dists/src';
 			}
 
-			my @files = get_directory_contents( $ftpdir );
-			foreach my $f ( @files ) {
+			my $files = get_directory_contents( $ftpdir );
+			foreach my $f ( @$files ) {
 				my $localpath = File::Spec->catfile( $path, $f );
 				do_shellcommand( "lwp-mirror $ftpdir/$f $localpath" );
 			}
@@ -160,7 +162,7 @@ sub get_directory_contents {
 #	-rw-r--r--    1 1001     1002     34893520 Jan 29  2009 strawberry-perl-5.8.8.4.zip
 #	-rw-r--r--    1 1001     1002     40478661 Oct 17 21:44 strawberry-perl-5.8.9.3.zip
 	foreach my $l ( @$output ) {
-		if ( $l =~ /^\-.+([^\s]+)$/ ) {
+		if ( $l =~ /^\-.+\s+([^\s]+)$/ ) {
 			push( @files, $1 );
 		}
 	}
@@ -169,10 +171,6 @@ sub get_directory_contents {
 }
 
 sub prompt_action {
-	if ( $^O eq 'MSWin32' ) {
-		return;
-	}
-
 	my $res;
 	while ( ! defined $res ) {
 		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/(d)ebug/(e)xit/(i)nstall/perl(m)atrix/unchow(n)/(r)econfig cpanp/(s)elfupdate/(u)ninstall/cho(w)n/inde(x)]", 'e', 120 ) );
@@ -186,16 +184,21 @@ sub prompt_action {
 				$DEBUG = 1;
 			}
 		} elsif ( $res eq 'b' ) {
-			# prompt user for perl version to compile
-			$res = prompt_perlver();
-			if ( defined $res ) {
-				if ( $res ne 'a' ) {
-					# do the stuff!
-					install_perl( $res );
-				} else {
-					# loop through all versions, starting from newest to oldest
-					foreach my $p ( reverse @{ getPerlVersions() } ) {
-						install_perl( $p );
+			# We don't actually "compile" perls on MSWin32...
+			if ( $^O eq 'MSWin32' ) {
+				install_perls_win32();
+			} else {
+				# prompt user for perl version to compile
+				$res = prompt_perlver();
+				if ( defined $res ) {
+					if ( $res ne 'a' ) {
+						# do the stuff!
+						install_perl( $res );
+					} else {
+						# loop through all versions, starting from newest to oldest
+						foreach my $p ( reverse @{ getPerlVersions() } ) {
+							install_perl( $p );
+						}
 					}
 				}
 			}
@@ -208,7 +211,7 @@ sub prompt_action {
 		} elsif ( $res eq 'x' ) {
 			# update the local user's CPANPLUS index ( the one we share with all perls )
 			do_log( "[CPANPLUS] Updating CPANPLUS index..." );
-			do_shellcommand( "APPDATA=$ENV{HOME} cpanp x --update_source" );
+			do_shellcommand( "APPDATA=$PATH cpanp x --update_source" );
 		} elsif ( $res eq 'i' ) {
 			# install a specific module
 			my $module = prompt( "What module should we install?", '', 120 );
@@ -253,17 +256,27 @@ sub prompt_action {
 		} elsif ( $res eq 'e' ) {
 			return;
 		} elsif ( $res eq 'w' ) {
-			# thanks to BinGOs for the idea to chown the perl installs to prevent rogue modules!
-			do_log( "[COMPILER] Executing chown -R root on all perl installs..." );
-			foreach my $p ( @{ getReadyPerls() } ) {
-				# some OSes don't have root as a group, so we just set the user
-				do_shellcommand( "sudo chown -R root " . File::Spec->catdir( $PATH, 'perls', $p ) );
+			if ( $^O eq 'MSWin32' ) {
+				# TODO use cacls.exe or something else?
+				do_log( "[COMPILER] Unable to chown on $^O" );
+			} else {
+				# thanks to BinGOs for the idea to chown the perl installs to prevent rogue modules!
+				do_log( "[COMPILER] Executing chown -R root on all perl installs..." );
+				foreach my $p ( @{ getReadyPerls() } ) {
+					# some OSes don't have root as a group, so we just set the user
+					do_shellcommand( "sudo chown -R root " . File::Spec->catdir( $PATH, 'perls', $p ) );
+				}
 			}
 		} elsif ( $res eq 'n' ) {
-			# Unchown the perl installs so we can do stuff to them :)
-			do_log( "[COMPILER] Executing chown -R $< on all perl installs..." );
-			foreach my $p ( @{ getReadyPerls() } ) {
-				do_shellcommand( "sudo chown -R $< " . File::Spec->catdir( $PATH, 'perls', $p ) );
+			if ( $^O eq 'MSWin32' ) {
+				# TODO use cacls.exe or something else?
+				do_log( "[COMPILER] Unable to chown on $^O" );
+			} else {
+				# Unchown the perl installs so we can do stuff to them :)
+				do_log( "[COMPILER] Executing chown -R $< on all perl installs..." );
+				foreach my $p ( @{ getReadyPerls() } ) {
+					do_shellcommand( "sudo chown -R $< " . File::Spec->catdir( $PATH, 'perls', $p ) );
+				}
 			}
 		} elsif ( $res eq 'r' ) {
 			# reconfig all perls' CPANPLUS settings
@@ -448,7 +461,7 @@ sub setup {
 
 	### conf section
 	$conf->set_conf( allow_build_interactivity => 0 );
-	$conf->set_conf( base => 'XXXHOMEXXX/.cpanplus' );	# TODO use File::Spec somehow
+	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/.cpanplusXXX' );
 	$conf->set_conf( buildflags => '' );
 	$conf->set_conf( cpantest => 1 );
 	$conf->set_conf( cpantest_mx => '' );
@@ -505,7 +518,7 @@ sub setup {
 END
 
 	# blow away the old cpanplus dir if it's there
-	my $cpanplus = File::Spec->catdir( $ENV{HOME}, '.cpanplus' );
+	my $cpanplus = File::Spec->catdir( $PATH, '.cpanplus' );
 	if ( -d $cpanplus ) {
 		do_log( "[CPANPLUS] Removing old CPANPLUS conf directory in '$cpanplus'" );
 		File::Path::Tiny::rm( $cpanplus ) or die "Unable to rm ($cpanplus): $!";
@@ -527,18 +540,25 @@ END
 
 	# force an update
 	# we don't use do_cpanp_action() here because we need to use the local user's CPANPLUS config not the perl's one...
-	do_shellcommand( "APPDATA=$ENV{HOME} cpanp x --update_source" );
+	do_shellcommand( "APPDATA=$PATH cpanp x --update_source" );
 
 	# blow away any annoying .cpan directories that remain
-	my $cpan = File::Spec->catdir( $ENV{HOME}, '.cpan' );
+	my $cpan = File::Spec->catdir( $PATH, '.cpan' );
+	if ( $^O eq 'MSWin32' ) {
+		# commit: wrote 'C:\Documents and Settings\cpan\Local Settings\Application Data\.cpan\CPAN\MyConfig.pm'
+		$cpan = 'C:\\Documents and Settings\\' . $ENV{USERNAME} . '\\Local Settings\\Application Data\\.cpan';
 	if ( -d $cpan ) {
 		do_log( "[CPANPLUS] Sanitizing the '$cpan' directory..." );
 		File::Path::Tiny::rm( $cpan ) or die "Unable to rm ($cpan): $!";
 	}
 
 	# thanks to BinGOs for the idea to prevent rogue module installs via CPAN
-	mkdir( $cpan );
-	do_shellcommand( "sudo chown root $cpan" );
+	mkdir( $cpan ) or die "Unable to mkdir ($cpan): $!";
+	if ( $^O eq 'MSWin32' ) {
+		# TODO use cacls.exe or something?
+	} else {
+		do_shellcommand( "sudo chown root $cpan" );
+	}
 
 	return;
 }
@@ -935,7 +955,7 @@ sub setup {
 
 	### conf section
 	$conf->set_conf( allow_build_interactivity => 0 );
-	$conf->set_conf( base => 'XXXPATHXXX/CPANPLUS-XXXCPANPLUSXXX/.cpanplus/XXXUSERXXX' );
+	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/CPANPLUS-XXXCPANPLUSXXX/.cpanplus/XXXUSERXXXXXX' );
 	$conf->set_conf( buildflags => '' );
 	$conf->set_conf( cpantest => 0 );
 	$conf->set_conf( cpantest_mx => '' );
@@ -1004,13 +1024,13 @@ END
 sub do_replacements {
 	my $str = shift;
 
+	# Smart file::spec->catdir support
+	$str =~ s/XXXCATDIR\-(.+)XXX/do_replacements_catdir( $1 )/ge;
+
 	# basic stuff
 	if ( $^O eq 'MSWin32' ) {
-		# XXXHOMEXXX really is used for CPANPLUS APPDATA path so we use that
-		$str =~ s/XXXHOMEXXX/$ENV{APPDATA}/g;
 		$str =~ s/XXXUSERXXX/$ENV{USERNAME}/g;
 	} else {
-		$str =~ s/XXXHOMEXXX/$ENV{HOME}/g;
 		$str =~ s/XXXUSERXXX/$ENV{USER}/g;
 	}
 	$str =~ s/XXXPATHXXX/$PATH/g;
@@ -1029,8 +1049,35 @@ sub do_replacements {
 	return $str;
 }
 
+sub do_replacements_catdir {
+	my $str = shift;
+
+	# split the paths
+	my @path = split( '/', $str );
+	my @newpath;
+	foreach my $p ( @path ) {
+		push( @newpath, do_replacements( $p ) );
+	}
+
+	# Okay, file::spec it!
+	return File::Spec->catdir( @newpath );
+}
+
 sub get_binary_path {
 	my $binary = shift;
+
+	# do some munging, especially for the CPANPLUS config file
+	if ( $^O eq 'MSWin32' ) {
+		if ( $binary eq 'make' ) {
+			$binary = 'dmake';
+		}
+		if ( $binary eq 'less' ) {
+			$binary = 'more';
+		}
+		if ( $binary eq 'bash' ) {
+			$binary = 'cmd';
+		}
+	}
 
 	my $path = which( $binary );
 	if ( defined $path ) {
@@ -1105,7 +1152,7 @@ sub setup {
 
 	### conf section
 	$conf->set_conf( allow_build_interactivity => 0 );
-	$conf->set_conf( base => 'XXXPATHXXX/cpanp_conf/perl-XXXPERLVERXXX/.cpanplus/' );
+	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/cpanp_conf/perl-XXXPERLVERXXX/.cpanplusXXX' );
 	$conf->set_conf( buildflags => '' );
 	$conf->set_conf( cpantest => 1 );
 	$conf->set_conf( cpantest_mx => '' );
@@ -1118,7 +1165,7 @@ sub setup {
 	$conf->set_conf( email => 'apocal@cpan.org' );
 	$conf->set_conf( enable_custom_sources => 0 );
 	$conf->set_conf( extractdir => '' );
-	$conf->set_conf( fetchdir => 'XXXHOMEXXX/.cpanplus/authors' );
+	$conf->set_conf( fetchdir => 'XXXCATDIR-XXXPATHXXX/.cpanplus/authorsXXX' );
 	$conf->set_conf( flush => 1 );
 	$conf->set_conf( force => 0 );
 	$conf->set_conf( hosts => [
@@ -1151,7 +1198,7 @@ sub setup {
 	$conf->set_program( editor => 'XXXWHICH-nanoXXX' );
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
 	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
-	$conf->set_program( perlwrapper => 'XXXPATHXXX/perls/perl-XXXPERLVERXXX/bin/cpanp-run-perl' );
+	$conf->set_program( perlwrapper => 'XXXCATDIR-XXXPATHXXX/perls/perl-XXXPERLVERXXX/bin/cpanp-run-perlXXX' );
 	$conf->set_program( shell => 'XXXWHICH-bashXXX' );
 	$conf->set_program( sudo => undef );
 
