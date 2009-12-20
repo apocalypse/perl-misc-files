@@ -38,6 +38,7 @@ use strict; use warnings;
 #	- auto-config the root/system CPANPLUS?
 #	- for the patch_hints thing, auto-detect the latest perl tarball and copy it from there instead of hardcoding it here...
 #	- use File::Spec for the directory stuff... ( I'm just too lazy )
+#	- use ExtUtils::Command for some commands? ( useful on win32 I suspect )
 
 # load our dependencies
 use Capture::Tiny qw( capture_merged tee_merged );
@@ -101,6 +102,7 @@ sub do_sanity_checks {
 		my $res = lc( prompt( "Do you want me to automatically get the perl tarballs", 'y', 120 ) );
 		if ( $res eq 'y' ) {
 			# Download all the tarballs we see
+			do_log( "[SANITYCHECK] Downloading the perl tarballs..." );
 			do_shellcommand( "wget ftp://192.168.0.200/perl_dists/src/* -P $path" );
 		} else {
 			do_log( "[SANITYCHECK] No perl tarballs available..." );

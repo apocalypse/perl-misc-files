@@ -331,7 +331,25 @@ To setup ubuntu 9.10 as smoking host:
 			1. install base system
 			2. uninstall any extraneous programs
 			3. disable some unnecessary services ( remote registry, wireless zero conf, etc )
-			4. setup time sync to smoker-master
+			4. setup time sync to smoker-master ( and make sure timezone is right! )
+			5. control panel, system, computer name - set to winxp ( also update network ID stuff to winxp )
+			6. make sure windows update shows no more updates :)
+			7. install bootperl - ftp://anonymous@192.168.0.200/perl_dists/strawberry/bootstrap/bootstrap-perl-5.10.1.0.msi
+			8. install CPANPLUS ( via CPAN.pm )
+			9. configure CPANPLUS
+				use CPANPLUS-win32-bootperl.config
+				# Configuration successfully saved to CPANPLUS::Config::User
+				# 	(C:\Documents and Settings\Owner\Application Data\.cpanplus\lib\CPANPLUS\Config\User.pm)
+			10. cpanp x --update_source
+			11. cpanp s selfupdate all
+			12. cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased Filesys::DfPortable File::Path::Tiny Number::Bytes::Human
+			13. install freeSSHd - www.freesshd.com
+			14. add "cpan" user via User Accounts + set it's password to "cpan"
+			15. add "cpan" user with sha1 auth to freesshd
+			16. test a ssh login ( it should work and check "set" to see if PATH env var works for perl )
+			17. perl -v # it should properly find the bootperl
+			18. control panel, system, advanced, performance settings, advanced, set paging size to 2048mb
+
 
 		<@obra> Is there a reasonable sshd for windows so that I don't need to type into my VM?
 		<@mst> a friend of mine got openssh under cygwin to use cmd.exe

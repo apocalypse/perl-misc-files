@@ -133,6 +133,8 @@ sub create_irc : State {
 			'uname'		=> 'Returns the uname of the machine the smokebot is running on. Takes no arguments.',
 			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
 			'df'		=> 'Returns the free space of the machine. Takes no arguments.',
+			'delay'		=> 'Sets the delay for PoCo-SmokeBox. Takes one optional argument: number of seconds.',
+			'purge'		=> 'Purges the CPAN cruft we accumulate during smoking. !Use with caution! Takes no arguments.',
 		},
 		Addressed 	=> 0,
 		Ignore_unknown	=> 1,
@@ -185,6 +187,25 @@ sub getPerlVersions {
 	closedir( PERLS ) or die "Unable to closedir: $!";
 
 	return \@perls;
+}
+
+sub irc_botcmd_delay : State {
+	my $nick = (split '!', $_[ARG0])[0];
+	my ($where, $arg) = @_[ARG1, ARG2];
+
+	if ( defined $arg ) {
+		if ( $arg =~ /^\d+$/ ) {
+			$delay = $arg;
+			$_[HEAP]->{'SMOKEBOX'}->delay( $arg );
+			$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Set delay to: $arg seconds." );
+		} else {
+			$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Delay($arg) is not a number!" );
+		}
+	} else {
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "The current delay is: $delay seconds." );
+	}
+
+	return;
 }
 
 sub irc_botcmd_time : State {
@@ -355,7 +376,20 @@ sub smokeresult : State {
 	# report this to IRC
 	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module " . ( scalar @fails ? '(FAIL: ' . join( ' ', @fails ) . ' ) ' : '' ) . "in ${duration}." );
 
-	$_[KERNEL]->yield( 'check_free_space' );
+	return;
+}
+
+sub irc_botcmd_purge : State {
+	my $nick = (split '!', $_[ARG0])[0];
+	my ($where, $arg) = @_[ARG1, ARG2];
+
+	# Set the purge flag
+	if ( exists $_[HEAP]->{'NEEDPURGE'} ) {
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Purge is already enabled!" );
+	} else {
+		$_[HEAP]->{'NEEDPURGE'} = 1;
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Set the purge flag, we will purge after the next smoke completes." );
+	}
 
 	return;
 }
@@ -367,7 +401,7 @@ sub check_free_space : State {
 	my $df = dfportable( $ENV{HOME} );
 	if ( defined $df ) {
 		# Do we need to wipe?
-		if ( $df->{'bavail'} < $freespace ) {
+		if ( $df->{'bavail'} < $freespace or defined $_[ARG0] ) {
 			# cpan@ubuntu-server64:~$ rm -rf /home/cpan/.cpanplus/authors/*						# downloaded tarballs
 			my $dir = File::Spec->catdir( $ENV{HOME}, '.cpanplus', 'authors' );
 			if ( -d $dir ) {
@@ -453,6 +487,12 @@ sub indexresult : State {
 
 	# report this to IRC
 	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Updated the CPANPLUS index " . ( scalar @fails ? '(FAIL: ' . join( ' ', @fails ) . ' ) ' : '' ) . "in ${duration}." );
+
+	if ( exists $_[HEAP]->{'NEEDPURGE'} ) {
+		$_[KERNEL]->yield( 'check_free_space', delete $_[HEAP]->{'NEEDPURGE'} );
+	} else {
+		$_[KERNEL]->yield( 'check_free_space' );
+	}
 
 	return;
 }
