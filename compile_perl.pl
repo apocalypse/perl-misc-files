@@ -1027,7 +1027,7 @@ sub do_replacements {
 	my $str = shift;
 
 	# Smart file::spec->catdir support
-	$str =~ s/XXXCATDIR\-(.+)XXX/do_replacements_catdir( $1 )/ge;
+	$str =~ s/XXXCATDIR\-(.+)XXX/quotemeta( do_replacements_catdir( $1 ) )/ge;
 
 	# basic stuff
 	if ( $^O eq 'MSWin32' ) {
@@ -1035,7 +1035,7 @@ sub do_replacements {
 	} else {
 		$str =~ s/XXXUSERXXX/$ENV{USER}/g;
 	}
-	$str =~ s/XXXPATHXXX/$PATH/g;
+	$str =~ s/XXXPATHXXX/quotemeta( $PATH )/ge;
 
 	# I'm sick of seeing Use of uninitialized value in concatenation (.) or string at ./compile.pl line 928.
 	if ( defined $perlver ) {
@@ -1046,7 +1046,7 @@ sub do_replacements {
 	}
 
 	# find binary locations
-	$str =~ s/XXXWHICH-([\w\-]+)XXX/get_binary_path( $1 )/ge;
+	$str =~ s/XXXWHICH-([\w\-]+)XXX/quotemeta( get_binary_path( $1 ) )/ge;
 
 	return $str;
 }
@@ -1078,6 +1078,9 @@ sub get_binary_path {
 		}
 		if ( $binary eq 'bash' ) {
 			$binary = 'cmd';
+		}
+		if ( $binary eq 'nano' ) {
+			$binary = 'notepad';
 		}
 	}
 
