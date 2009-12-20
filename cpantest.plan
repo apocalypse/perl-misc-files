@@ -158,7 +158,7 @@ To setup ubuntu 9.10 as smoking host:
 				7.0 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm
 				7.1 cpanp x --update_source
 				7.1 cpanp s selfupdate all
-				7.2 cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased Filesys::DfPortable File::Path::Tiny Number::Bytes::Human
+				7.2 cpanp i *MODULES_TO_INSTALL*
 
 	- freebsd
 		- install steps:
@@ -202,7 +202,7 @@ To setup ubuntu 9.10 as smoking host:
 				7.1 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
 				7.2 cpanp x --update_source
 				7.3 cpanp s selfupdate all
-				7.4 cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased Filesys::DfPortable File::Path::Tiny Number::Bytes::Human
+				7.4 cpanp i *MODULES_TO_INSTALL*
 
 	- netbsd
 		- install steps:
@@ -264,7 +264,7 @@ To setup ubuntu 9.10 as smoking host:
 				15.1 copy CPANP-root.config to /root/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
 				15.2 cpanp x --update_source
 				15.3 cpanp s selfupdate all
-				15.4 cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased Filesys::DfPortable File::Path::Tiny Number::Bytes::Human
+				15.4 cpanp i *MODULES_TO_INSTALL*
 
 	- opensolaris
 		- install steps:
@@ -323,7 +323,7 @@ To setup ubuntu 9.10 as smoking host:
 				13.1 copy CPANP-root.config to /export/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm # and double-check the binary paths!
 				13.1 pfexec cpanp x --update_source
 				13.2 pfexec cpanp s selfupdate all
-				13.3 pfexec cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased Filesys::DfPortable File::Path::Tiny Number::Bytes::Human
+				13.3 pfexec cpanp i *MODULES_TO_INSTALL*
 
 
 	- windows XP
@@ -342,13 +342,12 @@ To setup ubuntu 9.10 as smoking host:
 				# 	(C:\Documents and Settings\Owner\Application Data\.cpanplus\lib\CPANPLUS\Config\User.pm)
 			10. cpanp x --update_source
 			11. cpanp s selfupdate all
-			12. cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased Filesys::DfPortable File::Path::Tiny Number::Bytes::Human
-			13. install freeSSHd - www.freesshd.com
-			14. add "cpan" user via User Accounts + set it's password to "cpan"
-			15. add "cpan" user with sha1 auth to freesshd
-			16. test a ssh login ( it should work and check "set" to see if PATH env var works for perl )
-			17. perl -v # it should properly find the bootperl
-			18. control panel, system, advanced, performance settings, advanced, set paging size to 2048mb
+			12. cpanp i *MODULES_TO_INSTALL*
+			13. add "cpan" user via User Accounts + set it's password to "cpan"
+			14. control panel, system, advanced, performance settings, advanced, set paging size to 2048mb
+			15. login as "cpan" user
+			16. open "cmd.exe" and change it's defaults to a bigger console size :)
+			16. create the C:\cpansmoke directory
 
 
 		<@obra> Is there a reasonable sshd for windows so that I don't need to type into my VM?
@@ -368,7 +367,8 @@ To setup ubuntu 9.10 as smoking host:
 		<Apocalypse> Ah, thanks for the tips :)
 
 	Once OS is installed:
-		- copy compile_perl.pl
+		- "sudo" cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased Filesys::DfPortable File::Path::Tiny Number::Bytes::Human File::Which Term::Title
+		- copy compile_perl.pl # into the $PATH - $ENV{HOME} for unixy systems, C:\cpansmoke for mswin32
 		- chmod +x compile_perl.pl && perl -c compile_perl.pl
 		- start compiling perls!
 

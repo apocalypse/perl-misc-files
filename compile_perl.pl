@@ -30,6 +30,16 @@ use strict; use warnings;
 # /home/cpan/cpanp_conf/perl-5.6.2-thr-32	<-- CPANPLUS config location for a specific perl
 # /home/cpan/compile_perl.pl			<-- where this script should be
 
+# this script does everything, but we need some layout to be specified ( this is the win32 variant )
+# c:\cpansmoke						<-- the main directory
+# c:\cpansmoke\build					<-- where we store our perl builds + zips
+# c:\cpansmoke\build\strawberry-perl-5.8.9.3.zip	<-- one perl zip
+# c:\cpansmoke\perls					<-- the perl installation directory
+# c:\cpansmoke\perls\strawberry-perl-5.8.9		<-- finalized perl install
+# c:\cpansmoke\cpanp_conf				<-- where we store the CPANPLUS configs
+# c:\cpansmoke\cpanp_conf\strawberry-perl-5.8.9		<-- CPANPLUS config location for a specific perl
+# c:\cpansmoke\compile_perl_win32.pl			<-- where this script should be
+
 # TODO LIST
 #	- create "hints" file that sets operating system, 64bit, etc
 #		- that way, we can know what perl versions to skip and etc
@@ -44,19 +54,25 @@ use strict; use warnings;
 use Capture::Tiny qw( capture_merged tee_merged );
 use Prompt::Timeout;
 use Sort::Versions;
-use Term::Title qw( set_titlebar );
 use Sys::Hostname qw( hostname );
 use File::Spec;
 use File::Path::Tiny;
+use File::Which qw( which );
+use Term::Title qw( set_titlebar );
 
 # static var...
-my $PATH = $ENV{HOME};	# the home path where we do our stuff
 my $perlver;		# the perl version we're processing now
 my $perlopts;		# the perl options we're using for this run
 my $CPANPLUS_ver;	# the CPANPLUS version we'll use for cpanp-boxed
 my $DEBUG = 0;		# spews stuff on console or just top-level data
 my @LOGS = ();		# holds stored logs for a run
 my $domatrix = 0;	# compile the matrix of perl options or not?
+my $PATH;		# the home path where we do our stuff
+if ( $^O eq 'MSWin32' ) {
+	$PATH = 'C:\\cpansmoke';
+} else {
+	$PATH = $ENV{HOME};
+}
 
 # Set a nice term title
 set_titlebar( "Perl-Compiler@" . hostname() );
@@ -74,10 +90,17 @@ prompt_action();
 exit;
 
 sub do_sanity_checks {
+	# Move to our path!
+	chdir( $PATH ) or die "Unable to chdir($PATH)";
+
 	# First of all, we check to see if our "essential" binaries are present
-	foreach my $bin ( qw( perl cpanp wget tar sudo chown rm mkdir touch mv which make sh patch ) ) {
-		my $path = get_binary_path( $bin );
-		if ( ! length $path ) {
+	my @binaries = qw( perl cpanp lwp-mirror lwp-request );
+	if ( $^O ne 'MSWin32' ) {
+		push( @binaries, qw( tar sudo chown rm mkdir touch mv make sh patch ) );
+	}
+
+	foreach my $bin ( @binaries ) {
+		if ( ! length get_binary_path( $bin ) ) {
 			die "ERROR: The binary '$bin' was not found, please rectify this and re-run this script!";
 		}
 	}
@@ -99,19 +122,57 @@ sub do_sanity_checks {
 
 	# less than 3 entries means only the '.' and '..' entries present..
 	if ( @entries < 3 ) {
-		my $res = lc( prompt( "Do you want me to automatically get the perl tarballs", 'y', 120 ) );
+		my $res = lc( prompt( "Do you want me to automatically get the perl dists", 'y', 120 ) );
 		if ( $res eq 'y' ) {
 			# Download all the tarballs we see
-			do_log( "[SANITYCHECK] Downloading the perl tarballs..." );
-			do_shellcommand( "wget ftp://192.168.0.200/perl_dists/src/* -P $path" );
+			do_log( "[SANITYCHECK] Downloading the perl dists..." );
+
+			my $ftpdir;
+			if ( $^O eq 'MSWin32' ) {
+				$ftpdir = 'ftp://192.168.0.200/perl_dists/strawberry';
+			} else {
+				$ftpdir = 'ftp://192.168.0.200/perl_dists/src';
+			}
+
+			my @files = get_directory_contents( $ftpdir );
+			foreach my $f ( @files ) {
+				my $localpath = File::Spec->catfile( $path, $f );
+				do_shellcommand( "lwp-mirror $ftpdir/$f $localpath" );
+			}
 		} else {
-			do_log( "[SANITYCHECK] No perl tarballs available..." );
+			do_log( "[SANITYCHECK] No perl dists available..." );
 			exit;
 		}
 	}
 }
 
+# TODO this is hackish but it does what we want... hah!
+sub get_directory_contents {
+	my $url = shift;
+
+	my @files;
+	my $output = do_shellcommand( "lwp-request $url" );
+
+#	apoc@blackhole:~$ lwp-request ftp://192.168.0.200/perl_dists/strawberry
+#	drwxr-xr-x    2 1001     1002         4096 Dec 19 17:36 bootstrap
+#	-rw-r--r--    1 1001     1002     38632105 Jul 29 23:06 strawberry-perl-5.10.0.6.zip
+#	-rw-r--r--    1 1001     1002     41407550 Oct 21 16:19 strawberry-perl-5.10.1.0.zip
+#	-rw-r--r--    1 1001     1002     34893520 Jan 29  2009 strawberry-perl-5.8.8.4.zip
+#	-rw-r--r--    1 1001     1002     40478661 Oct 17 21:44 strawberry-perl-5.8.9.3.zip
+	foreach my $l ( @$output ) {
+		if ( $l =~ /^\-.+([^\s]+)$/ ) {
+			push( @files, $1 );
+		}
+	}
+
+	return \@files;
+}
+
 sub prompt_action {
+	if ( $^O eq 'MSWin32' ) {
+		return;
+	}
+
 	my $res;
 	while ( ! defined $res ) {
 		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/(d)ebug/(e)xit/(i)nstall/perl(m)atrix/unchow(n)/(r)econfig cpanp/(s)elfupdate/(u)ninstall/cho(w)n/inde(x)]", 'e', 120 ) );
@@ -822,7 +883,7 @@ sub do_initCPANP_BOXED {
 		# do we have the tarball?
 		if ( ! -f "$PATH/CPANPLUS-$CPANPLUS_ver.tar.gz" ) {
 			# get it!
-			do_shellcommand( "wget ftp://192.168.0.200/CPAN/" . get_CPANPLUS_tarball() );
+			do_shellcommand( "lwp-mirror ftp://192.168.0.200/CPAN/" . get_CPANPLUS_tarball() . " $PATH/CPANPLUS-$CPANPLUS_ver.tar.gz" );
 		}
 
 		# extract it!
@@ -944,8 +1005,14 @@ sub do_replacements {
 	my $str = shift;
 
 	# basic stuff
-	$str =~ s/XXXHOMEXXX/$ENV{HOME}/g;
-	$str =~ s/XXXUSERXXX/$ENV{USER}/g;
+	if ( $^O eq 'MSWin32' ) {
+		# XXXHOMEXXX really is used for CPANPLUS APPDATA path so we use that
+		$str =~ s/XXXHOMEXXX/$ENV{APPDATA}/g;
+		$str =~ s/XXXUSERXXX/$ENV{USERNAME}/g;
+	} else {
+		$str =~ s/XXXHOMEXXX/$ENV{HOME}/g;
+		$str =~ s/XXXUSERXXX/$ENV{USER}/g;
+	}
 	$str =~ s/XXXPATHXXX/$PATH/g;
 
 	# I'm sick of seeing Use of uninitialized value in concatenation (.) or string at ./compile.pl line 928.
@@ -965,8 +1032,7 @@ sub do_replacements {
 sub get_binary_path {
 	my $binary = shift;
 
-	# TODO use File::Which
-	my $path = `which $binary`;
+	my $path = which( $binary );
 	if ( defined $path ) {
 		chomp( $path );
 		return $path;
