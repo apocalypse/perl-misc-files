@@ -547,6 +547,8 @@ END
 	if ( $^O eq 'MSWin32' ) {
 		# commit: wrote 'C:\Documents and Settings\cpan\Local Settings\Application Data\.cpan\CPAN\MyConfig.pm'
 		$cpan = 'C:\\Documents and Settings\\' . $ENV{USERNAME} . '\\Local Settings\\Application Data\\.cpan';
+	}
+
 	if ( -d $cpan ) {
 		do_log( "[CPANPLUS] Sanitizing the '$cpan' directory..." );
 		File::Path::Tiny::rm( $cpan ) or die "Unable to rm ($cpan): $!";
