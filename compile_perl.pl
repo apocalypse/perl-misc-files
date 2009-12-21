@@ -47,7 +47,6 @@ use strict; use warnings;
 #		- Sys::Info::Device::CPU::bitness() for a start...
 #	- auto-config the root/system CPANPLUS?
 #	- for the patch_hints thing, auto-detect the latest perl tarball and copy it from there instead of hardcoding it here...
-#	- use File::Spec for the directory stuff... ( I'm just too lazy )
 
 # load our dependencies
 use Capture::Tiny qw( capture_merged tee_merged );
@@ -58,7 +57,7 @@ use File::Spec;
 use File::Path::Tiny;
 use File::Which qw( which );
 use Term::Title qw( set_titlebar );
-use Shell::Command qw( mv touch );
+use Shell::Command qw( mv );
 
 # static var...
 my $perlver;		# the perl version we're processing now
@@ -935,7 +934,9 @@ sub finalize_perl {
 	# we're really done!
 	my $readysmoke = File::Spec->catfile( $path, 'ready.smoke' );
 	do_log( "[FINALIZER] Creating ready.smoke for '$path'" );
-	touch( $readysmoke ) or die "Unable to touch ($readysmoke): $!";
+	open( my $file, '>', $readysmoke ) or die "Unable to open ($readysmoke): $!";
+	print $file "perl-$perlver-$perlopts";
+	close( $file ) or die "Unable to close ($readysmoke): $!";
 
 	return 1;
 }
@@ -1753,7 +1754,7 @@ sub do_prebuild_patches {
 		close( $patch ) or die "Unable to close ($patchfile): $!";
 
 		do_shellcommand( "patch -p0 -d " . File::Spec->catdir( $PATH, 'build', "perl-$perlver-$perlopts" ) . " < $patchfile" );
-#		unlink("build/perl-$perlver-$perlopts/patch.$patch_num") or die "unable to unlink patchfile: $@";
+#		unlink("build/perl-$perlver-$perlopts/patch.$patch_num") or die "unable to unlink patchfile: $!";
 		$patch_num++;
 
 		return 1;
