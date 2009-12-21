@@ -48,6 +48,7 @@ sub create_mailer : State {
 			'192.168.0.206' => 'NetBSD 5.0.1 x86',
 			'192.168.0.207' => 'OpenSolaris 2009.06 amd64',
 			'192.168.0.208' => 'OpenSolaris 2009.06 x86',
+			'192.168.0.209' => 'Windows XP x86',
 		},
 
 		'delay'			=> 60,

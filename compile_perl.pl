@@ -16,7 +16,7 @@ use strict; use warnings;
 # This compiler builds each perl with a matrix of 49 possible combinations.
 # Compiling the entire perl suite listed above will result in: 686 perls!
 # Each perl averages 45M with all the necessary modules to smoke CPAN preinstalled. ( 30.15GB total! )
-# All the perls share the same CPANPLUS sourcedir in $ENV{HOME}/.cpanplus but build in $ENV{HOME}/cpanp_conf/perl-$perlver/.cpanplus/build
+# All the perls share the same CPANPLUS sourcedir in $PATH/.cpanplus but build in $PATH/cpanp_conf/perl-$perlver/.cpanplus/build # THIS IS A TODO
 
 # this script does everything, but we need some layout to be specified!
 # /home/cpan					<-- the main directory
@@ -38,7 +38,7 @@ use strict; use warnings;
 # c:\cpansmoke\perls\strawberry-perl-5.8.9		<-- finalized perl install
 # c:\cpansmoke\cpanp_conf				<-- where we store the CPANPLUS configs
 # c:\cpansmoke\cpanp_conf\strawberry-perl-5.8.9		<-- CPANPLUS config location for a specific perl
-# c:\cpansmoke\compile_perl_win32.pl			<-- where this script should be
+# c:\cpansmoke\compile_perl.pl				<-- where this script should be
 
 # TODO LIST
 #	- create "hints" file that sets operating system, 64bit, etc
@@ -48,7 +48,6 @@ use strict; use warnings;
 #	- auto-config the root/system CPANPLUS?
 #	- for the patch_hints thing, auto-detect the latest perl tarball and copy it from there instead of hardcoding it here...
 #	- use File::Spec for the directory stuff... ( I'm just too lazy )
-#	- use ExtUtils::Command for some commands? ( useful on win32 I suspect )
 
 # load our dependencies
 use Capture::Tiny qw( capture_merged tee_merged );
@@ -59,6 +58,7 @@ use File::Spec;
 use File::Path::Tiny;
 use File::Which qw( which );
 use Term::Title qw( set_titlebar );
+use Shell::Command qw( mv touch );
 
 # static var...
 my $perlver;		# the perl version we're processing now
@@ -69,7 +69,7 @@ my @LOGS = ();		# holds stored logs for a run
 my $domatrix = 0;	# compile the matrix of perl options or not?
 my $PATH;		# the home path where we do our stuff ( also used for local CPANPLUS config! )
 if ( $^O eq 'MSWin32' ) {
-	$PATH = 'C:\\cpansmoke';
+	$PATH = "C:\\cpansmoke";
 } else {
 	$PATH = $ENV{HOME};
 }
@@ -95,10 +95,10 @@ sub do_sanity_checks {
 
 	# First of all, we check to see if our "essential" binaries are present
 	my @binaries = qw( perl cpanp lwp-mirror lwp-request );
-	if ( $^O ne 'MSWin32' ) {
-		push( @binaries, qw( tar sudo chown rm mkdir touch mv make sh patch ) );
-	} else {
+	if ( $^O eq 'MSWin32' ) {
 		push( @binaries, qw( cacls more cmd dmake ) );
+	} else {
+		push( @binaries, qw( sudo chown make sh patch ) );
 	}
 
 	foreach my $bin ( @binaries ) {
@@ -138,7 +138,12 @@ sub do_sanity_checks {
 
 			my $files = get_directory_contents( $ftpdir );
 			foreach my $f ( @$files ) {
+				do_log( "[SANITYCHECK] Downloading perl dist '$f'" );
+
 				my $localpath = File::Spec->catfile( $path, $f );
+				if ( -f $localpath ) {
+					unlink( $f ) or die "Unable to unlink ($f): $!";
+				}
 				do_shellcommand( "lwp-mirror $ftpdir/$f $localpath" );
 			}
 		} else {
@@ -148,7 +153,7 @@ sub do_sanity_checks {
 	}
 }
 
-# TODO this is hackish but it does what we want... hah!
+# this is hackish but it does what we want... hah!
 sub get_directory_contents {
 	my $url = shift;
 
@@ -184,21 +189,16 @@ sub prompt_action {
 				$DEBUG = 1;
 			}
 		} elsif ( $res eq 'b' ) {
-			# We don't actually "compile" perls on MSWin32...
-			if ( $^O eq 'MSWin32' ) {
-				install_perls_win32();
-			} else {
-				# prompt user for perl version to compile
-				$res = prompt_perlver();
-				if ( defined $res ) {
-					if ( $res ne 'a' ) {
-						# do the stuff!
-						install_perl( $res );
-					} else {
-						# loop through all versions, starting from newest to oldest
-						foreach my $p ( reverse @{ getPerlVersions() } ) {
-							install_perl( $p );
-						}
+			# prompt user for perl version to compile
+			$res = prompt_perlver();
+			if ( defined $res ) {
+				if ( $res ne 'a' ) {
+					# do the stuff!
+					install_perl( $res );
+				} else {
+					# loop through all versions, starting from newest to oldest
+					foreach my $p ( reverse @{ getPerlVersions() } ) {
+						install_perl( $p );
 					}
 				}
 			}
@@ -210,49 +210,56 @@ sub prompt_action {
 			do_config_localCPANPLUS();
 		} elsif ( $res eq 'x' ) {
 			# update the local user's CPANPLUS index ( the one we share with all perls )
-			do_log( "[CPANPLUS] Updating CPANPLUS index..." );
-			do_shellcommand( "APPDATA=$PATH cpanp x --update_source" );
+			do_log( "[CPANPLUS] Updating local CPANPLUS index..." );
+			local $ENV{APPDATA} = $PATH;
+			do_shellcommand( "cpanp x --update_source" );
 		} elsif ( $res eq 'i' ) {
 			# install a specific module
 			my $module = prompt( "What module should we install?", '', 120 );
 			if ( defined $module and length $module ) {
 				do_log( "[CPANPLUS] Installing '$module' on all perls..." );
-				foreach my $p ( @{ getReadyPerls() } ) {
+				iterate_perls( sub {
+					my $p = shift;
+
 					if ( do_cpanp_action( $p, "i $module" ) ) {
 						do_log( "[CPANPLUS] Installed the module on '$p'" );
 					} else {
 						do_log( "[CPANPLUS] Failed to install the module on '$p'" );
 					}
-				}
+				} );
 			} else {
 				do_log( "[COMPILER] Module name not specified, please try again." );
 			}
 		} elsif ( $res eq 'u' ) {
-			# uinstall a specific module
+			# uninstall a specific module
 			my $module = prompt( "What module should we uninstall?", '', 120 );
 			if ( defined $module and length $module ) {
 				do_log( "[CPANPLUS] Uninstalling '$module' on all perls..." );
-				foreach my $p ( @{ getReadyPerls() } ) {
+				iterate_perls( sub {
+					my $p = shift;
+
 					# use --force so we skip the prompt
 					if ( do_cpanp_action( $p, "u $module --force" ) ) {
 						do_log( "[CPANPLUS] Uninstalled the module from '$p'" );
 					} else {
 						do_log( "[CPANPLUS] Failed to uninstall the module from '$p'" );
 					}
-				}
+				} );
 			} else {
 				do_log( "[COMPILER] Module name not specified, please try again." );
 			}
 		} elsif ( $res eq 's' ) {
 			# perform CPANPLUS s selfupdate all
 			do_log( "[CPANPLUS] Executing selfupdate on all CPANPLUS installs..." );
-			foreach my $p ( @{ getReadyPerls() } ) {
+			iterate_perls( sub {
+				my $p = shift;
+
 				if ( do_cpanp_action( $p, "s selfupdate all" ) ) {
 					do_log( "[CPANPLUS] Successfully updated CPANPLUS on '$p'" );
 				} else {
 					do_log( "[CPANPLUS] Failed to update CPANPLUS on '$p'" );
 				}
-			}
+			} );
 		} elsif ( $res eq 'e' ) {
 			return;
 		} elsif ( $res eq 'w' ) {
@@ -262,10 +269,12 @@ sub prompt_action {
 			} else {
 				# thanks to BinGOs for the idea to chown the perl installs to prevent rogue modules!
 				do_log( "[COMPILER] Executing chown -R root on all perl installs..." );
-				foreach my $p ( @{ getReadyPerls() } ) {
+				iterate_perls( sub {
+					my $p = shift;
+
 					# some OSes don't have root as a group, so we just set the user
 					do_shellcommand( "sudo chown -R root " . File::Spec->catdir( $PATH, 'perls', $p ) );
-				}
+				} );
 			}
 		} elsif ( $res eq 'n' ) {
 			if ( $^O eq 'MSWin32' ) {
@@ -274,21 +283,25 @@ sub prompt_action {
 			} else {
 				# Unchown the perl installs so we can do stuff to them :)
 				do_log( "[COMPILER] Executing chown -R $< on all perl installs..." );
-				foreach my $p ( @{ getReadyPerls() } ) {
+				iterate_perls( sub {
+					my $p = shift;
+
 					do_shellcommand( "sudo chown -R $< " . File::Spec->catdir( $PATH, 'perls', $p ) );
-				}
+				} );
 			}
 		} elsif ( $res eq 'r' ) {
 			# reconfig all perls' CPANPLUS settings
-			do_log( "[CPANPLUS] Reconfiguring all CPANPLUS instances..." );
-			foreach my $p ( @{ getReadyPerls() } ) {
+			do_log( "[CPANPLUS] Reconfiguring+reindexing all CPANPLUS instances..." );
+			iterate_perls( sub {
+				my $p = shift;
+
 				# get the perlver/perlopts
 				if ( $p =~ /^perl-([\d\.]+)-(.+)$/ ) {
 					( $perlver, $perlopts ) = ( $1, $2 );
 					do_installCPANPLUS_config();
 					do_cpanp_action( "perl-$perlver-$perlopts", "x --update_source" );
 				}
-			}
+			} );
 		} else {
 			do_log( "[COMPILER] Unknown action, please try again." );
 		}
@@ -298,6 +311,36 @@ sub prompt_action {
 		$perlver = undef;
 		$perlopts = undef;
 		reset_logs();
+	}
+
+	return;
+}
+
+sub iterate_perls {
+	my $sub = shift;
+
+	# Get all available perls and iterate over them
+	if ( $^O eq 'MSWin32' ) {
+		# alternate method, we have to swap perls...
+		local $ENV{PATH} = cleanse_strawberry_path();
+		foreach my $p ( @{ getReadyPerls() } ) {
+			# move this perl to c:\strawberry
+			if ( -d "C:\\strawberry" ) {
+				die "Old strawberry perl found in C:\\strawberry, please fix it!";
+			}
+			my $perlpath = File::Spec->catdir( $PATH, 'perls', $p );
+			mv( $perlpath, "C:\\strawberry" ) or die "Unable to mv: $!";
+
+			# execute action
+			$sub->( $p );
+
+			# move this perl back to original place
+			mv( "C:\\strawberry", $perlpath ) or die "Unable to mv: $!";
+		}
+	} else {
+		foreach my $p ( @{ getReadyPerls() } ) {
+			$sub->( $p );
+		}
 	}
 
 	return;
@@ -540,13 +583,18 @@ END
 
 	# force an update
 	# we don't use do_cpanp_action() here because we need to use the local user's CPANPLUS config not the perl's one...
-	do_shellcommand( "APPDATA=$PATH cpanp x --update_source" );
+	{
+		local $ENV{APPDATA} = $PATH;
+		do_shellcommand( "cpanp x --update_source" );
+	}
 
 	# blow away any annoying .cpan directories that remain
-	my $cpan = File::Spec->catdir( $PATH, '.cpan' );
+	my $cpan;
 	if ( $^O eq 'MSWin32' ) {
 		# commit: wrote 'C:\Documents and Settings\cpan\Local Settings\Application Data\.cpan\CPAN\MyConfig.pm'
 		$cpan = 'C:\\Documents and Settings\\' . $ENV{USERNAME} . '\\Local Settings\\Application Data\\.cpan';
+	} else {
+		$cpan = File::Spec->catdir( $PATH, '.cpan' );
 	}
 
 	if ( -d $cpan ) {
@@ -555,6 +603,7 @@ END
 	}
 
 	# thanks to BinGOs for the idea to prevent rogue module installs via CPAN
+	do_log( "[CPANPLUS] Executing mkdir($cpan)" );
 	mkdir( $cpan ) or die "Unable to mkdir ($cpan): $!";
 	if ( $^O eq 'MSWin32' ) {
 		# TODO use cacls.exe or something?
@@ -614,7 +663,7 @@ sub prompt_perlver {
 
 		my $path = File::Spec->catdir( $PATH, 'build' );
 		opendir( PERLS, $path ) or die "Unable to opendir ($path): $!";
-		$perls = [ sort versioncmp map { $_ =~ /^perl\-([\d\.]+)\./; $_ = $1; } grep { /^perl\-[\d\.]+\.tar\.gz$/ && -f File::Spec->catfile( $path, $_ ) } readdir( PERLS ) ];
+		$perls = [ sort versioncmp map { $_ =~ /^perl\-([\d\.]+)\./; $_ = $1; } grep { /^perl\-[\d\.]+\.(?:zip|tar\.gz)$/ && -f File::Spec->catfile( $path, $_ ) } readdir( PERLS ) ];
 		closedir( PERLS ) or die "Unable to closedir ($path): $!";
 
 		return $perls;
@@ -625,6 +674,16 @@ sub install_perl {
 	my $perl = shift;
 
 	reset_logs();
+
+	if ( $^O eq 'MSWin32' ) {
+		# special way of installing perls!
+		if ( ! install_perl_win32( $perl ) ) {
+			save_logs( 'fail' );
+		}
+
+		reset_logs();
+		return;
+	}
 
 	# Skip problematic perls
 	if ( ! can_build_perl( $perl, undef ) ) {
@@ -744,6 +803,46 @@ sub can_build_perl {
 	return 1;
 }
 
+sub install_perl_win32 {
+	# Special method to install strawberry perls for win32
+	my $perl = shift;
+
+	# Strawberry tacks on an extra digit for it's build number
+	if ( $perl =~ /^(\d+\.\d+\.\d+)\.\d+$/ ) {
+		$perlver = $1;
+		$perlopts = 'default';
+	} else {
+		die "Unknown strawberry perl version: $perl";
+	}
+
+	# Okay, is this perl installed?
+	my $path = File::Spec->catdir( $PATH, 'perls', "perl-$perlver-$perlopts" );
+	if ( ! -d $path ) {
+		# Okay, unzip the archive
+	} else {
+		# all done with configuring?
+		if ( -e File::Spec->catfile( $path, 'ready.smoke' ) ) {
+			do_log( "[PERLBUILDER] perl-$perlver-$perlopts is ready to smoke..." );
+			return 1;
+		} else {
+			do_log( "[PERLBUILDER] perl-$perlver-$perlopts is already built..." );
+		}
+	}
+
+	# move this perl to c:\strawberry
+	if ( -d "C:\\strawberry" ) {
+		die "Old strawberry perl found in C:\\strawberry, please fix it!";
+	}
+	mv( $path, "C:\\strawberry" ) or die "Unable to mv: $!";
+
+	my $ret = customize_perl();
+
+	# Move the strawberry install to it's regular place
+	mv( "C:\\strawberry", $path ) or die "Unable to mv: $!";
+
+	return $ret;
+}
+
 sub build_perl_opts {
 	# set the perl stuff
 	( $perlver, $perlopts ) = @_;
@@ -785,6 +884,10 @@ sub build_perl_opts {
 		}
 	}
 
+	return customize_perl();
+}
+
+sub customize_perl {
 	# do we have CPANPLUS already extracted?
 	if ( ! do_initCPANP_BOXED() ) {
 		return 0;
@@ -830,8 +933,9 @@ sub finalize_perl {
 	}
 
 	# we're really done!
-	# TODO use File::Touch
-	do_shellcommand( 'touch ' . File::Spec->catfile( $path, 'ready.smoke' ) );
+	my $readysmoke = File::Spec->catfile( $path, 'ready.smoke' );
+	do_log( "[FINALIZER] Creating ready.smoke for '$path'" );
+	touch( $readysmoke ) or die "Unable to touch ($readysmoke): $!";
 
 	return 1;
 }
@@ -845,8 +949,8 @@ sub do_prebuild {
 	}
 
 	# extract the tarball!
-	do_shellcommand( "tar -C " . File::Spec->catdir( $PATH, 'build' ) . " -zxf " . File::Spec->catfile( $PATH, 'build', "perl-$perlver.tar.gz" ) );
-	do_shellcommand( "mv " . File::Spec->catdir( $PATH, 'build', "perl-$perlver" ) . " " . File::Spec->catdir( $PATH, 'build', "perl-$perlver-$perlopts" ) );
+	do_archive_extract( File::Spec->catfile( $PATH, 'build', "perl-$perlver.tar.gz" ), File::Spec->catdir( $PATH, 'build' ) );
+	mv( File::Spec->catdir( $PATH, 'build', "perl-$perlver" ), File::Spec->catdir( $PATH, 'build', "perl-$perlver-$perlopts" ) ) or die "Unable to mv: $!";
 
 	# reset the patch counter
 	do_patch_reset();
@@ -855,26 +959,27 @@ sub do_prebuild {
 	do_prebuild_patches();
 
 	# TODO this sucks, but lib/Benchmark.t usually takes forever and fails unnecessarily on my loaded box...
-	my @fails = qw( lib/Benchmark.t );
-
-# TODO File::Path::Tiny/File::Spec conversion stopped here
+	my @fails = ( [ 'lib', 'Benchmark.t' ] );
 
 	# TODO netbsd/freebsd often bombs out on t/op/time.t when box is loaded...
 	if ( ( $^O eq 'netbsd' or $^O eq 'freebsd' ) and $perlver =~ /^5\.(?:8|6)\./ ) {
-		push( @fails, 't/op/time.t' );
+		push( @fails, [ 't', 'op', 'time.t' ] );
 	}
 
 	# TODO freebsd often bombs out on HiRes, we always install the latest version anyway...
-	push( @fails, 'ext/Time/HiRes/t/HiRes.t' ) if $^O eq 'freebsd' and $perlver =~ /^5\.8\./;
+	if ( $^O eq 'freebsd' and $perlver =~ /^5\.8\./ ) {
+		push( @fails, [ 'ext', 'Time-HiRes', 't', 'HiRes.t' ] );
+	}
 
 	# remove them!
 	foreach my $t ( @fails ) {
-		if ( -f "$PATH/build/perl-$perlver-$perlopts/$t" ) {
+		my $testpath = File::Spec->catfile( $PATH, 'build', "perl-$perlver-$perlopts", @$t );
+		if ( -f $testpath ) {
 			do_log( "[PERLBUILDER] Removing problematic '$t' test" );
-			unlink( "$PATH/build/perl-$perlver-$perlopts/$t" ) or die "Unable to unlink: $!";
+			unlink( $testpath ) or die "Unable to unlink ($testpath): $!";
 
 			# argh, we have to munge MANIFEST
-			do_shellcommand( "perl -nli -e 'print if ! /^" . quotemeta( $t ) . "/' $PATH/build/perl-$perlver-$perlopts/MANIFEST" );
+			do_shellcommand( "perl -nli -e 'print if ! /^" . quotemeta( join( '/', @$t ) ) . "/' $PATH/build/perl-$perlver-$perlopts/MANIFEST" );
 		}
 	}
 
@@ -888,28 +993,37 @@ sub do_initCPANP_BOXED {
 	$CPANPLUS_ver = get_CPANPLUS_ver() if ! defined $CPANPLUS_ver;
 
 	# do we have CPANPLUS already extracted?
-	if ( -d "$PATH/CPANPLUS-$CPANPLUS_ver" and -d "$PATH/CPANPLUS-$CPANPLUS_ver/.cpanplus/$ENV{USER}" ) {
+	my $cpandir = File::Spec->catdir( $PATH, "CPANPLUS-$CPANPLUS_ver" );
+	my $cpanuserdir = File::Spec->catdir( $cpandir, '.cpanplus' );
+	if ( $^O eq 'MSWin32' ) {
+		$cpanuserdir = File::Spec->catdir( $cpanuserdir, $ENV{USERNAME} );
+	} else {
+		$cpanuserdir = File::Spec->catdir( $cpanuserdir, $ENV{USER} );
+	}
+	if ( -d $cpandir and -d $cpanuserdir ) {
 		# cleanup the cruft
-		opendir( CPANPLUS, "$PATH/CPANPLUS-$CPANPLUS_ver/.cpanplus/$ENV{USER}" ) or die "Unable to opendir: $!";
+		opendir( CPANPLUS, $cpanuserdir ) or die "Unable to opendir($cpanuserdir): $!";
 		my @dirlist = readdir( CPANPLUS );
-		closedir( CPANPLUS ) or die "Unable to closedir: $!";
+		closedir( CPANPLUS ) or die "Unable to closedir($cpanuserdir): $!";
 
 		# look for perl versions of build directory
 		# /export/home/cpan/CPANPLUS-0.88/.cpanplus/cpan/5.10.0
 		@dirlist = grep { /^\d+\.\d+\.\d+$/ } @dirlist;
 		foreach my $d ( @dirlist ) {
-			# TODO use File::Path::Tiny
-			do_shellcommand( "rm -rf $PATH/CPANPLUS-$CPANPLUS_ver/.cpanplus/$ENV{USER}/$d" );
+			my $localdir = File::Spec->catdir( $cpanuserdir, $d );
+			do_log( "[CPANPLUS] Executing rmdir($localdir)" );
+			File::Path::Tiny::rm( $localdir ) or die "Unable to rm ($localdir): $!";
 		}
 	} else {
 		# do we have the tarball?
-		if ( ! -f "$PATH/CPANPLUS-$CPANPLUS_ver.tar.gz" ) {
+		my $cpantarball = File::Spec->catfile( $PATH, "CPANPLUS-$CPANPLUS_ver.tar.gz" );
+		if ( ! -f $cpantarball ) {
 			# get it!
-			do_shellcommand( "lwp-mirror ftp://192.168.0.200/CPAN/" . get_CPANPLUS_tarball() . " $PATH/CPANPLUS-$CPANPLUS_ver.tar.gz" );
+			do_shellcommand( "lwp-mirror ftp://192.168.0.200/CPAN/" . get_CPANPLUS_tarball() . " $cpantarball" );
 		}
 
 		# extract it!
-		do_shellcommand( "tar -zxf $PATH/CPANPLUS-$CPANPLUS_ver.tar.gz" );
+		do_archive_extract( $cpantarball, $PATH );
 
 		# configure the Boxed.pm file
 		do_installCPANP_BOXED_config();
@@ -921,6 +1035,29 @@ sub do_initCPANP_BOXED {
 	}
 
 	return 1;
+}
+
+sub do_archive_extract {
+	my $archive = shift;
+	my $path = shift;
+
+	if ( $DEBUG ) {
+		do_log( "[EXTRACTOR] Preparing to extract '$archive'" );
+	}
+
+	require Archive::Extract;
+	my $a = Archive::Extract->new( archive => $archive );
+	if ( defined $path ) {
+		if ( ! $a->extract( to => $path ) ) {
+			do_log( "[EXTRACTOR] Unable to extract '$archive' to '$path'" );
+		}
+	} else {
+		if ( ! $a->extract ) {
+			do_log( "[EXTRACTOR] Unable to extract '$archive'" );
+		}
+	}
+
+	return;
 }
 
 sub do_installCPANP_BOXED_config {
@@ -1000,7 +1137,7 @@ sub setup {
 	$conf->set_program( editor => 'XXXWHICH-nanoXXX' );
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
 	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
-	$conf->set_program( perlwrapper => 'XXXPATHXXX/CPANPLUS-XXXCPANPLUSXXX/bin/cpanp-run-perl' );
+	$conf->set_program( perlwrapper => 'XXXCATDIR-XXXPATHXXX/CPANPLUS-XXXCPANPLUSXXX/bin/cpanp-run-perlXXX' );
 	$conf->set_program( shell => 'XXXWHICH-bashXXX' );
 	$conf->set_program( sudo => undef );
 
@@ -1014,11 +1151,19 @@ END
 	$boxed = do_replacements( $boxed );
 
 	# save it!
-	# TODO use File::Path::Tiny
-	do_shellcommand( "mkdir -p $PATH/CPANPLUS-$CPANPLUS_ver/.cpanplus/$ENV{USER}/lib/CPANPLUS/Config" );
-	open( my $config, '>', "$PATH/CPANPLUS-$CPANPLUS_ver/.cpanplus/$ENV{USER}/lib/CPANPLUS/Config/Boxed.pm" ) or die "Unable to create config: $!";
+	my $cpanp_dir;
+	if ( $^O eq 'MSWin32' ) {
+		$cpanp_dir = File::Spec->catdir( $PATH, "CPANPLUS-$CPANPLUS_ver", '.cpanplus', $ENV{USERNAME}, 'lib', 'CPANPLUS', 'Config' );
+	} else {
+		$cpanp_dir = File::Spec->catdir( $PATH, "CPANPLUS-$CPANPLUS_ver", '.cpanplus', $ENV{USER}, 'lib', 'CPANPLUS', 'Config' );
+	}
+	do_log( "[CPANPLUS] Executing mkdir($cpanp_dir)" );
+	File::Path::Tiny::mk( $cpanp_dir ) or die "Unable to mkdir ($cpanp_dir): $!";
+
+	$cpanp_dir = File::Spec->catfile( $cpanp_dir, 'User.pm' );
+	open( my $config, '>', $cpanp_dir ) or die "Unable to create ($cpanp_dir): $!";
 	print $config $boxed;
-	close( $config ) or die "Unable to close config: $!";
+	close( $config ) or die "Unable to close ($cpanp_dir): $!";
 
 	return;
 }
@@ -1035,7 +1180,7 @@ sub do_replacements {
 	} else {
 		$str =~ s/XXXUSERXXX/$ENV{USER}/g;
 	}
-	$str =~ s/XXXPATHXXX/quotemeta( $PATH )/ge;
+	$str =~ s/XXXPATHXXX/do_replacements_slash( $PATH )/ge;
 
 	# I'm sick of seeing Use of uninitialized value in concatenation (.) or string at ./compile.pl line 928.
 	if ( defined $perlver ) {
@@ -1221,22 +1366,26 @@ END
 	# transform the XXXargsXXX
 	$cpanplus = do_replacements( $cpanplus );
 
-	# blow away the old cpanplus dir if it's there
-	if ( -d "$PATH/cpanp_conf/perl-$perlver-$perlopts" ) {
-		do_log( "[CPANPLUS] Removing old CPANPLUS conf directory in '$PATH/cpanp_conf/perl-$perlver-$perlopts'" );
+	# TODO save the old cpansmoke.dat files?
 
-		# TODO use File::Path::Tiny
-		do_shellcommand( "rm -rf $PATH/cpanp_conf/perl-$perlver-$perlopts" );
+	# blow away the old cpanplus dir if it's there
+	my $oldcpanplus = File::Spec->catdir( $PATH, 'cpanp_conf', "perl-$perlver-$perlopts" );
+	if ( -d $oldcpanplus ) {
+		do_log( "[CPANPLUS] Removing old CPANPLUS conf directory in '$oldcpanplus'" );
+		File::Path::Tiny::rm( $oldcpanplus ) or die "Unable to rm ($oldcpanplus): $!";
 	}
 
 	# save it!
-	# TODO use File::Path::Tiny
-	do_shellcommand( "mkdir -p $PATH/cpanp_conf/perl-$perlver-$perlopts/.cpanplus/lib/CPANPLUS/Config" );
-	open( my $config, '>', "$PATH/cpanp_conf/perl-$perlver-$perlopts/.cpanplus/lib/CPANPLUS/Config/User.pm" ) or die "Unable to create config: $!";
-	print $config $cpanplus;
-	close( $config ) or die "Unable to close config: $!";
+	my $cpanp_dir = File::Spec->catdir( $oldcpanplus, '.cpanplus', 'lib', 'CPANPLUS', 'Config' );
+	do_log( "[CPANPLUS] Executing mkdir($cpanp_dir)" );
+	File::Path::Tiny::mk( $cpanp_dir ) or die "Unable to mkdir ($cpanp_dir): $!";
 
-	# TODO figure out a way to symlink the $ENV{HOME}/.cpanplus/sourcefiles.s2.21.c0.88.stored and 01mailrc.txt.gz and 02packages and 03modlist files to this dist...
+	$cpanp_dir = File::Spec->catfile( $cpanp_dir, 'User.pm' );
+	open( my $config, '>', $cpanp_dir ) or die "Unable to create ($cpanp_dir): $!";
+	print $config $cpanplus;
+	close( $config ) or die "Unable to close ($cpanp_dir): $!";
+
+	# TODO figure out a way to symlink the $PATH/.cpanplus/sourcefiles.s2.21.c0.88.stored and 01mailrc.txt.gz and 02packages and 03modlist files to this dist...
 
 	return;
 }
@@ -1245,9 +1394,8 @@ sub do_cpanpboxed_action {
 	my( $action ) = @_;
 
 	# use default answer to prompts ( MakeMaker stuff - PERL_MM_USE_DEFAULT )
-	my $ret = do_shellcommand( "PERL_MM_USE_DEFAULT=1 $PATH/perls/perl-$perlver-$perlopts/bin/perl $PATH/CPANPLUS-$CPANPLUS_ver/bin/cpanp-boxed $action" );
-
-	return analyze_cpanp_install( $action, $ret );
+	local $ENV{PERL_MM_USE_DEFAULT} = 1;
+	return analyze_cpanp_install( $action, do_shellcommand( File::Spec->catfile( $PATH, 'perls', "perl-$perlver-$perlopts", 'bin', 'perl' ) . " " . File::Spec->catfile( $PATH, "CPANPLUS-$CPANPLUS_ver", 'bin', 'cpanp-boxed' ) . " $action" ) );
 }
 
 sub analyze_cpanp_install {
@@ -1318,9 +1466,29 @@ sub do_cpanp_action {
 	my( $perl, $action ) = @_;
 
 	# use default answer to prompts ( MakeMaker stuff - PERL_MM_USE_DEFAULT )
-	my $ret = do_shellcommand( "PERL_MM_USE_DEFAULT=1 APPDATA=$PATH/cpanp_conf/$perl/ $PATH/perls/$perl/bin/perl $PATH/perls/$perl/bin/cpanp $action" );
+	local $ENV{PERL_MM_USE_DEFAULT} = 1;
+	local $ENV{APPDATA} = File::Spec->catdir( $PATH, 'cpanp_conf', $perl );
 
-	return analyze_cpanp_install( $action, $ret );
+	# special way for MSWin32...
+	if ( $^O eq 'MSWin32' ) {
+		local $ENV{PATH} = cleanse_strawberry_path();
+		return analyze_cpanp_install( $action, do_shellcommand( "cpanp $action" ) );
+	} else {
+		return analyze_cpanp_install( $action, do_shellcommand( File::Spec->catfile( $PATH, 'perls', $perl, 'bin', 'perl' ) . " " . File::Spec->catfile( $PATH, 'perls', $perl, 'bin', 'cpanp' ) . " $action" ) );
+	}
+}
+
+sub cleanse_strawberry_path {
+	my @path = split( ';', $ENV{PATH} );
+	my @newpath;
+	foreach my $p ( @path ) {
+		if ( $p !~ /bootperl/ and $p !~ /strawberry/ ) {
+			push( @newpath, $p );
+		}
+	}
+	push( @newpath, "C:\\strawberry\\c\\bin" );
+	push( @newpath, "C:\\strawberry\\perl\\bin" );
+	return join( ';', @newpath );
 }
 
 sub do_installCPANTesters {
@@ -1579,11 +1747,12 @@ sub do_prebuild_patches {
 		my( $patchdata ) = @_;
 
 		# okay, apply it!
-		open( my $patch, '>', "$PATH/build/perl-$perlver-$perlopts/patch.$patch_num" ) or die "Unable to create patchfile: $!";
+		my $patchfile = File::Spec->catfile( $PATH, 'build', "perl-$perlver-$perlopts", "patch.$patch_num" );
+		open( my $patch, '>', $patchfile ) or die "Unable to create ($patchfile): $!";
 		print $patch $patchdata;
-		close( $patch ) or die "Unable to close patchfile: $!";
+		close( $patch ) or die "Unable to close ($patchfile): $!";
 
-		do_shellcommand( "patch -p0 -d $PATH/build/perl-$perlver-$perlopts < $PATH/build/perl-$perlver-$perlopts/patch.$patch_num" );
+		do_shellcommand( "patch -p0 -d " . File::Spec->catdir( $PATH, 'build', "perl-$perlver-$perlopts" ) . " < $patchfile" );
 #		unlink("build/perl-$perlver-$perlopts/patch.$patch_num") or die "unable to unlink patchfile: $@";
 		$patch_num++;
 
@@ -2012,7 +2181,7 @@ esac
 EOP
 
 	# we don't use do_patch() because it isn't a patch...
-	do_replacefile( "$PATH/build/perl-$perlver-$perlopts/hints/netbsd.sh", $data );
+	do_replacefile( File::Spec->catfile( $PATH, 'build', "perl-$perlver-$perlopts", 'hints', 'netbsd.sh' ), $data );
 
 	return;
 }
@@ -2327,7 +2496,7 @@ esac
 d_printf_format_null='undef'
 EOP
 
-	do_replacefile( "$PATH/build/perl-$perlver-$perlopts/hints/freebsd.sh", $data );
+	do_replacefile( File::Spec->catfile( $PATH, 'build', "perl-$perlver-$perlopts", 'hints', 'freebsd.sh' ), $data );
 
 	return;
 }

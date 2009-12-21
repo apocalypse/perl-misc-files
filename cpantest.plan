@@ -367,7 +367,7 @@ To setup ubuntu 9.10 as smoking host:
 		<Apocalypse> Ah, thanks for the tips :)
 
 	Once OS is installed:
-		- "sudo" cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased Filesys::DfPortable File::Path::Tiny Number::Bytes::Human File::Which Term::Title
+		- "sudo" cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased Filesys::DfPortable File::Path::Tiny Number::Bytes::Human File::Which Term::Title Archive::Tar Archive::Zip Archive::Extract Shell::Command
 		- copy compile_perl.pl # into the $PATH - $ENV{HOME} for unixy systems, C:\cpansmoke for mswin32
 		- chmod +x compile_perl.pl && perl -c compile_perl.pl
 		- start compiling perls!
