@@ -131,7 +131,8 @@ sub maildone : State {
 
 	# extract the perl version for easier reporting
 	# Perl: $^X = /home/cpan/perls/perl-5.8.3-default/bin/perl
-	if ( $data->{'DATA'}->{'report'} =~ /^\s+Perl\:\s+\$\^X\s+\=\s+[\/\w\-]+(\d+\.\d+\.\d+)\-[\/\w\-]+$/m ) {
+	# TODO need to add windows support, ha!
+	if ( $data->{'DATA'}->{'report'} =~ /^\s+Perl\:\s+\$\^X\s+\=\s+[\/\w\-\\]+(\d+\.\d+\.\d+)\-[\/\w\-\\]+$/m ) {
 		$data->{'DATA'}->{'subject'} .= " perl-" . $1;
 	}
 
