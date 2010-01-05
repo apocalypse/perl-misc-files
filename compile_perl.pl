@@ -115,7 +115,7 @@ sub do_sanity_checks {
 		}
 	}
 
-	# Get the perl tarballs?
+	# Do we have the perl tarballs?
 	my $path = File::Spec->catdir( $PATH, 'build' );
 	opendir( DIR, $path ) or die "Unable to opendir ($path): $!";
 	my @entries = readdir( DIR );
@@ -125,31 +125,37 @@ sub do_sanity_checks {
 	if ( @entries < 3 ) {
 		my $res = lc( prompt( "Do you want me to automatically get the perl dists", 'y', 120 ) );
 		if ( $res eq 'y' ) {
-			# Download all the tarballs we see
-			do_log( "[SANITYCHECK] Downloading the perl dists..." );
-
-			my $ftpdir;
-			if ( $^O eq 'MSWin32' ) {
-				$ftpdir = 'ftp://192.168.0.200/perl_dists/strawberry';
-			} else {
-				$ftpdir = 'ftp://192.168.0.200/perl_dists/src';
-			}
-
-			my $files = get_directory_contents( $ftpdir );
-			foreach my $f ( @$files ) {
-				do_log( "[SANITYCHECK] Downloading perl dist '$f'" );
-
-				my $localpath = File::Spec->catfile( $path, $f );
-				if ( -f $localpath ) {
-					unlink( $f ) or die "Unable to unlink ($f): $!";
-				}
-				do_shellcommand( "lwp-mirror $ftpdir/$f $localpath" );
-			}
+			getPerlTarballs();
 		} else {
 			do_log( "[SANITYCHECK] No perl dists available..." );
 			exit;
 		}
 	}
+}
+
+sub getPerlTarballs {
+	# Download all the tarballs we see
+	do_log( "[SANITYCHECK] Downloading the perl dists..." );
+
+	my $ftpdir = 'ftp://192.168.0.200/perl_dists/src';
+	if ( $^O eq 'MSWin32' ) {
+		$ftpdir = 'ftp://192.168.0.200/perl_dists/strawberry';
+	}
+
+	my $files = get_directory_contents( $ftpdir );
+	foreach my $f ( @$files ) {
+		if ( $DEBUG ) {
+			do_log( "[SANITYCHECK] Downloading perl dist '$f'" );
+		}
+
+		my $localpath = File::Spec->catfile( $PATH, 'build', $f );
+		if ( -f $localpath ) {
+			unlink( $localpath ) or die "Unable to unlink ($localpath): $!";
+		}
+		do_shellcommand( "lwp-mirror $ftpdir/$f $localpath" );
+	}
+
+	return;
 }
 
 # this is hackish but it does what we want... hah!
@@ -177,7 +183,7 @@ sub get_directory_contents {
 sub prompt_action {
 	my $res;
 	while ( ! defined $res ) {
-		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/(d)ebug/(e)xit/(i)nstall/perl(m)atrix/unchow(n)/(r)econfig cpanp/(s)elfupdate/(u)ninstall/cho(w)n/inde(x)]", 'e', 120 ) );
+		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/(d)ebug/(e)xit/(i)nstall/perl(m)atrix/unchow(n)/(r)econfig cpanp/(s)elfupdate/perl (t)arballs/(u)ninstall/cho(w)n/inde(x)]", 'e', 120 ) );
 		if ( $res eq 'd' ) {
 			# flip the debug state
 			if ( $DEBUG ) {
@@ -201,6 +207,9 @@ sub prompt_action {
 					}
 				}
 			}
+		} elsif ( $res eq 't' ) {
+			# Mirror the perl tarballs
+			getPerlTarballs();
 		} elsif ( $res eq 'm' ) {
 			# Should we compile/configure/use/etc the perlmatrix?
 			prompt_perlmatrix();
@@ -662,7 +671,7 @@ sub prompt_perlver {
 
 		my $path = File::Spec->catdir( $PATH, 'build' );
 		opendir( PERLS, $path ) or die "Unable to opendir ($path): $!";
-		$perls = [ sort versioncmp map { $_ =~ /^perl\-([\d\.]+)\./; $_ = $1; } grep { /^perl\-[\d\.]+\.(?:zip|tar\.gz)$/ && -f File::Spec->catfile( $path, $_ ) } readdir( PERLS ) ];
+		$perls = [ sort versioncmp map { $_ =~ /^perl\-([\d\.]+)\./; $_ = $1; } grep { /^perl\-[\d\.]+\.(?:zip|tar\.(?:gz|bz2))$/ && -f File::Spec->catfile( $path, $_ ) } readdir( PERLS ) ];
 		closedir( PERLS ) or die "Unable to closedir ($path): $!";
 
 		return $perls;
@@ -935,7 +944,7 @@ sub finalize_perl {
 	my $readysmoke = File::Spec->catfile( $path, 'ready.smoke' );
 	do_log( "[FINALIZER] Creating ready.smoke for '$path'" );
 	open( my $file, '>', $readysmoke ) or die "Unable to open ($readysmoke): $!";
-	print $file "perl-$perlver-$perlopts";
+	print $file "perl-$perlver-$perlopts\n";
 	close( $file ) or die "Unable to close ($readysmoke): $!";
 
 	return 1;
@@ -949,8 +958,18 @@ sub do_prebuild {
 		File::Path::Tiny::rm( $path ) or die "Unable to rm ($path): $!";
 	}
 
+	# Argh, we need to figure out the tarball - tar.gz or tar.bz2 or what??? ( thanks to perl-5.11.3 which didn't have a tar.gz file heh )
+	opendir( PERLDIR, File::Spec->catdir( $PATH, 'build' ) ) or die "Unable to opendir: $!";
+	my @tarballs = grep { /^perl\-$perlver.+/ } readdir( PERLDIR );
+	closedir( PERLDIR ) or die "Unable to closedir: $!";
+	if ( scalar @tarballs != 1 ) {
+		# hmpf!
+		do_log( "[PERLBUILDER] Perl tarball for $perlver not found!" );
+		return 0;
+	}
+
 	# extract the tarball!
-	do_archive_extract( File::Spec->catfile( $PATH, 'build', "perl-$perlver.tar.gz" ), File::Spec->catdir( $PATH, 'build' ) );
+	do_archive_extract( File::Spec->catfile( $PATH, 'build', $tarballs[0] ), File::Spec->catdir( $PATH, 'build' ) );
 	mv( File::Spec->catdir( $PATH, 'build', "perl-$perlver" ), File::Spec->catdir( $PATH, 'build', "perl-$perlver-$perlopts" ) ) or die "Unable to mv: $!";
 
 	# reset the patch counter
@@ -976,7 +995,7 @@ sub do_prebuild {
 	foreach my $t ( @fails ) {
 		my $testpath = File::Spec->catfile( $PATH, 'build', "perl-$perlver-$perlopts", @$t );
 		if ( -f $testpath ) {
-			do_log( "[PERLBUILDER] Removing problematic '$t' test" );
+			do_log( "[PERLBUILDER] Removing problematic '" . join( '/', @$t ) . "' test" );
 			unlink( $testpath ) or die "Unable to unlink ($testpath): $!";
 
 			# argh, we have to munge MANIFEST
@@ -984,7 +1003,7 @@ sub do_prebuild {
 		}
 	}
 
-	return;
+	return 1;
 }
 
 sub do_initCPANP_BOXED {
@@ -1161,7 +1180,7 @@ END
 	do_log( "[CPANPLUS] Executing mkdir($cpanp_dir)" );
 	File::Path::Tiny::mk( $cpanp_dir ) or die "Unable to mkdir ($cpanp_dir): $!";
 
-	$cpanp_dir = File::Spec->catfile( $cpanp_dir, 'User.pm' );
+	$cpanp_dir = File::Spec->catfile( $cpanp_dir, 'Boxed.pm' );
 	open( my $config, '>', $cpanp_dir ) or die "Unable to create ($cpanp_dir): $!";
 	print $config $boxed;
 	close( $config ) or die "Unable to close ($cpanp_dir): $!";
@@ -1249,7 +1268,7 @@ sub do_installCPANPLUS {
 
 	# use cpanp-boxed to install some modules that we know we need to bootstrap, argh! ( cpanp-boxed already skips tests so this should be fast )
 	# perl-5.6.1 -> ExtUtils::MakeMaker, Test::More, File::Temp, Time::HiRes
-	# Module::Build -> ExtUtils::CBuilder, ExtUtils::ParseXS
+	# Module::Build -> ExtUtils::CBuilder, ExtUtils::ParseXS ( modern Module::Build pulls this in automatically? )
 	# LWP on perl-5.8.2 bombs on Encode ( unable to install Encode on 5.6.x! )
 	# Test::Reporter::HTTPGateway -> LWP::UserAgent ( missing prereq, wow! )
 	my $mod_list = "ExtUtils::MakeMaker ExtUtils::CBuilder ExtUtils::ParseXS Test::More File::Temp Time::HiRes LWP::UserAgent";
@@ -1523,7 +1542,9 @@ sub do_build {
 	do_log( "[PERLBUILDER] Preparing to build perl-$perlver-$perlopts" );
 
 	# do prebuild stuff
-	do_prebuild();
+	if ( ! do_prebuild() ) {
+		return 0;
+	}
 
 	# we start off with the Configure step
 	my $extraoptions = '';

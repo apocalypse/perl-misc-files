@@ -72,6 +72,8 @@ sub save_links {
 	foreach my $l ( keys %links ) {
 		return if $l ne 'href';
 
+		# TODO we should download the tar.bz2 if it's available for this version...
+
 		# we're only interested in "perl-X.X.X.tar.gz" files
 		if ( $links{$l} =~ /^perl\-(\d+)\.(\d+)\.(\d+)\.tar\.gz$/ ) {
 			# only retrieve stable versions - even minor number
