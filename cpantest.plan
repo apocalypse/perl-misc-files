@@ -403,6 +403,7 @@ To setup ubuntu 9.10 as smoking host:
 	- install a DB ( mysql/Pg/CouchDB/etc? ) + setup it for basic stuff
 	- it listens on local private IP only
 	- database "cpantesters" for this stuff
+	- use Test::Database to allow CPAN modules to test the DB?
 
 13. setup local APC mirror
 	- this is on the "ftp/web/etc server"
