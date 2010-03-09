@@ -396,7 +396,24 @@ sub irc_botcmd_purge : State {
 
 sub check_free_space : State {
 	# TODO this is a ugly hack, until we get proper callbacks from SmokeBox
-	# it will work now, because of the 60s delay we set...
+
+#	<Apocalypse> I need some serious CPANPLUS smarts - in my CPAN smoker script I wipe the crud ( build dirs, downloaded tarballs, etc ) when free space is less than X, but I got my logic wrong
+#	<Apocalypse> What I do is basically rm -rf those directories under the .cpanplus root: authors/*, $perlver/build/*
+#	<Apocalypse> But what I managed to do was to totally hose the perl install and ended up sending gazillions of FAIL to cpantesters :(
+#	<Apocalypse> How do I sanely clean up everything in the cpanplus dir?
+#	<Apocalypse> Hmm, maybe I should just use CPANPLUS::YACSmoke's "flush" thingie
+#	<kane> Apocalypse: after you whipe that, you need to rebuild the indexes i suppose
+#	<@kane> 'x' from the default shell or the equivalent method in cpanplus::backend
+#	<Apocalypse> kane: Ah that's the part I didn't do - I just wiped the dirs then proceeded to smoke the next dist
+#	<Apocalypse> I didn't realize the indexes included info about built dists
+#	<kane> Apocalypse: they don't, but you also threw away the parsed version of the index cpanplus uses internally
+#	<@kane> depending on what you have and haven't loaded by then, Weird Stuff(tm) may happen
+#	<Apocalypse> Makes sense :)
+#	<Apocalypse> What happened to me was this - http://www.nntp.perl.org/group/perl.cpan.testers/2010/01/msg6675283.html
+#	<+dipsy> [ FAIL File-BOM-0.14 i86pc-solaris 2.11 - nntp.perl.org ]
+#	<Apocalypse> Lots of modules thought their deps were "installed" but I actually wiped them out...
+#	<Apocalypse> I'll re-create this situation and see if rebuilding the indexes fixed it
+#	<Apocalypse> Thanks again kane!
 
 	my $df = dfportable( $ENV{HOME} );
 	if ( defined $df ) {

@@ -95,7 +95,7 @@ To setup ubuntu 9.10 as smoking host:
 		10.5 Windows XP VM Settings
 			Name: Windows XP 32bit
 			OS Type: Windows XP
-			Memory: 384mb
+			Memory: 512mb
 			Processors: 1
 			ACPI: Enabled
 			IO-APIC: Disabled
@@ -492,6 +492,14 @@ To setup ubuntu 9.10 as smoking host:
 		<@BinGOs> Dragonfly BSD works fine with just ntpd running.
 		<@BinGOs> ( them being fbsd variants ).
 		<Apocalypse> Ah, thanks for the tips :)
+
+# for cygwin smoking on win32
+<BinGOs> I think the test case Apocalypse cited that I had submitted with TERM=xterm had been with putty-cygterm
+<@BinGOs> or whatever it is called.
+<Apocalypse> dngor: Agreed, hope the updated docs will be good enough :)
+<@BinGOs> the hacked version of putty that can run cygwin in a 'proper' terminal.
+<Apocalypse> That rocks, I need to put that on my notes for cpan smoking so whenever I setup a win32 smoking box with cygwin I'll know what to do :)
+
 
 <Apocalypse> ah MUCH better, before I was failing tons of tests now all passed :)
 <Apocalypse> I should write down everything I did and blog it somewhere heh

@@ -47,6 +47,8 @@ use strict; use warnings;
 #		- Sys::Info::Device::CPU::bitness() for a start...
 #	- auto-config the root/system CPANPLUS?
 #	- for the patch_hints thing, auto-detect the latest perl tarball and copy it from there instead of hardcoding it here...
+#	- move hardcoded stuff into variables - something like %CONFIG
+#	- fix all TODO lines in this code :)
 
 # load our dependencies
 use Capture::Tiny qw( capture_merged tee_merged );
@@ -445,7 +447,7 @@ sub get_CPANPLUS_ver {
 		my $ver = $1;
 		if ( $ver eq 'UNDEF' ) {
 			# argh, return what we know...
-			return '0.90';
+			return '0.9001';
 		} else {
 			return $ver;
 		}
@@ -471,7 +473,7 @@ sub get_CPANPLUS_tarball {
 		my $ver = $1;
 		if ( $ver eq 'UNDEF' ) {
 			# argh, return what we know ( needs to match up with get_CPANPLUS_ver() !!! )...
-			return 'authors/id/B/BI/BINGOS/CPANPLUS-0.90.tar.gz';
+			return 'authors/id/B/BI/BINGOS/CPANPLUS-0.9001.tar.gz';
 		} else {
 			return $ver;
 		}
@@ -1012,7 +1014,8 @@ sub do_prebuild {
 			unlink( $testpath ) or die "Unable to unlink ($testpath): $!";
 
 			# argh, we have to munge MANIFEST
-			do_shellcommand( "perl -nli -e 'print if ! /^" . quotemeta( join( '/', @$t ) ) . "/' $PATH/build/perl-$perlver-$perlopts/MANIFEST" );
+			my $manipath = File::Spec->catfile( $PATH, 'build', "perl-$perlver-$perlopts", 'MANIFEST' );
+			do_shellcommand( "perl -nli -e 'print if ! /^" . quotemeta( join( '/', @$t ) ) . "/' $manipath" );
 		}
 	}
 
@@ -1656,7 +1659,7 @@ sub check_perl_build {
 	#	Everything is up to date. Type 'make test' to run test suite.
 	#*** Error code 1 (ignored)
 	if ( $^O eq 'freebsd' and $perlver =~ /^5\.8\./ and $output->[-1] eq '*** Error code 1 (ignored)' ) {
-		do_log( "[PERLBUILDER] Detected freebsd ignored error code 1, ignoring it..." );
+		do_log( "[PERLBUILDER] Detected FreeBSD ignored error code 1, ignoring it..." );
 		return 1;
 	}
 
@@ -1669,7 +1672,7 @@ sub check_perl_build {
 	#        Everything is up to date. Type 'make test' to run test suite.
 	# (ignored)
 	if ( $^O eq 'netbsd' and $perlver =~ /^5\.8\./ and $output->[-1] eq ' (ignored)' ) {
-		do_log( "[PERLBUILDER] Detected netbsd ignored error code 1, ignoring it..." );
+		do_log( "[PERLBUILDER] Detected NetBSD ignored error code 1, ignoring it..." );
 		return 1;
 	}
 
