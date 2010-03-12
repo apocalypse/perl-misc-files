@@ -49,26 +49,26 @@ sub _start : State {
 
 sub create_smokebox : State {
 	$_[HEAP]->{'SMOKEBOX'} = POE::Component::SmokeBox->spawn(
-		'delay'	=> $delay,
+#		'delay'	=> $delay,
 	);
 
 	# Add system perl...
 	# Configuration successfully saved to CPANPLUS::Config::User
 	#    (/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm)
-	my $perl = `which perl`; chomp $perl;
-	my $smoker = POE::Component::SmokeBox::Smoker->new(
-		perl => $perl,
-		env => {
-			'APPDATA'		=> $ENV{HOME},
-			'PERL5_YACSMOKE_BASE'	=> $ENV{HOME},
-			'TMPDIR'		=> File::Spec->catdir( $ENV{HOME}, 'tmp' ),
-		},
-	);
-	$_[HEAP]->{'SMOKEBOX'}->add_smoker( $smoker );
+#	my $perl = `which perl`; chomp $perl;
+#	my $smoker = POE::Component::SmokeBox::Smoker->new(
+#		perl => $perl,
+#		env => {
+#			'APPDATA'		=> $ENV{HOME},
+#			'PERL5_YACSMOKE_BASE'	=> $ENV{HOME},
+#			'TMPDIR'		=> File::Spec->catdir( $ENV{HOME}, 'tmp' ),
+#		},
+#	);
+#	$_[HEAP]->{'SMOKEBOX'}->add_smoker( $smoker );
 	$_[HEAP]->{'PERLS'} = {};
 
 	# Store the system smoker so we can use it to update the CPANPLUS index
-	$_[HEAP]->{'SMOKER_SYSTEM'} = $smoker;
+#	$_[HEAP]->{'SMOKER_SYSTEM'} = $smoker;
 
 	# Do the first pass over our perls
 	$_[KERNEL]->yield( 'check_perls' );
@@ -134,7 +134,7 @@ sub create_irc : State {
 			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
 			'df'		=> 'Returns the free space of the machine. Takes no arguments.',
 			'delay'		=> 'Sets the delay for PoCo-SmokeBox. Takes one optional argument: number of seconds.',
-			'purge'		=> 'Purges the CPAN cruft we accumulate during smoking. !Use with caution! Takes no arguments.',
+#			'purge'		=> 'Purges the CPAN cruft we accumulate during smoking. !Use with caution! Takes no arguments.',
 		},
 		Addressed 	=> 0,
 		Ignore_unknown	=> 1,
@@ -342,8 +342,8 @@ sub irc_botcmd_smoke : State {
 			command => 'smoke',
 			module => $arg,
 			type => 'CPANPLUS::YACSmoke',
-			no_log => 1,
-			delay => $delay,
+#			no_log => 1,
+#			delay => $delay,
 		),
 	);
 
@@ -370,26 +370,16 @@ sub smokeresult : State {
 		if ( $starttime == 0 or $r->{'start_time'} < $starttime ) {
 			$starttime = $r->{'start_time'};
 		}
+
+		use Data::Dumper;
+		print Dumper( $r );
 	}
 	my $duration = duration_exact( $endtime - $starttime );
 
 	# report this to IRC
 	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module " . ( scalar @fails ? '(FAIL: ' . join( ' ', @fails ) . ' ) ' : '' ) . "in ${duration}." );
 
-	return;
-}
-
-sub irc_botcmd_purge : State {
-	my $nick = (split '!', $_[ARG0])[0];
-	my ($where, $arg) = @_[ARG1, ARG2];
-
-	# Set the purge flag
-	if ( exists $_[HEAP]->{'NEEDPURGE'} ) {
-		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Purge is already enabled!" );
-	} else {
-		$_[HEAP]->{'NEEDPURGE'} = 1;
-		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Set the purge flag, we will purge after the next smoke completes." );
-	}
+	# TODO inspect the tmp dir for droppings and report it!
 
 	return;
 }
@@ -419,6 +409,9 @@ sub check_free_space : State {
 	if ( defined $df ) {
 		# Do we need to wipe?
 		if ( $df->{'bavail'} < $freespace or defined $_[ARG0] ) {
+			$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Disk space getting low!" );
+			return;
+
 			# cpan@ubuntu-server64:~$ rm -rf /home/cpan/.cpanplus/authors/*						# downloaded tarballs
 			my $dir = File::Spec->catdir( $ENV{HOME}, '.cpanplus', 'authors' );
 			if ( -d $dir ) {
@@ -505,11 +498,8 @@ sub indexresult : State {
 	# report this to IRC
 	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Updated the CPANPLUS index " . ( scalar @fails ? '(FAIL: ' . join( ' ', @fails ) . ' ) ' : '' ) . "in ${duration}." );
 
-	if ( exists $_[HEAP]->{'NEEDPURGE'} ) {
-		$_[KERNEL]->yield( 'check_free_space', delete $_[HEAP]->{'NEEDPURGE'} );
-	} else {
-		$_[KERNEL]->yield( 'check_free_space' );
-	}
+	# We always do this after indexing
+	$_[KERNEL]->yield( 'check_free_space' );
 
 	return;
 }
@@ -522,7 +512,9 @@ sub irc_botcmd_perls : State {
 	my $perls = keys %{ $_[HEAP]->{'PERLS'} };
 
 	# don't forget to +1 for the SYSTEM perl!
-	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Available Perls: " . ( $perls + 1 ) );
+	# disabled system perl for now
+	#$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Available Perls: " . ( $perls + 1 ) );
+	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Available Perls: $perls" );
 
 	return;
 }

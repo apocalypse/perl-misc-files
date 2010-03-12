@@ -121,7 +121,7 @@ To setup ubuntu 9.10 as smoking host:
 			2. sudo passwd # to set root passwd
 			3. sudo vi /etc/pam.d/su && sudo groupadd wheel && sudo usermod -a -G wheel apoc
 			3. sudo apt-get update && sudo apt-get upgrade
-			3. sudo apt-get install build-essential ssh nano wget ftp ntp
+			3. sudo apt-get install build-essential ssh nano wget ftp ntp libssl-dev
 			4. sudo nano /etc/network/interfaces # to set static IP
 				iface eth0 inet static
 					address 192.168.0.200

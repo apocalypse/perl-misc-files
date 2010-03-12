@@ -5,7 +5,7 @@ use strict; use warnings;
 # 5.6.1, 5.6.2
 # 5.8.1, 5.8.2, 5.8.3, 5.8.4, 5.8.5, 5.8.6, 5.8.7, 5.8.8, 5.8.9
 # 5.10.0 5.10.1
-# 5.11.2
+# 5.11.2 5.11.5
 
 # We have successfully compiled perl on those OSes:
 # x86_64/x64/amd64 (64bit) OSes:
@@ -20,6 +20,7 @@ use strict; use warnings;
 
 # this script does everything, but we need some layout to be specified!
 # /home/cpan					<-- the main directory
+# /home/cpan/tmp				<-- tmp directory for cpan/perl/etc cruft
 # /home/cpan/CPANPLUS-0.XX			<-- the extracted CPANPLUS directory we use
 # /home/cpan/build				<-- where we store our perl builds + tarballs
 # /home/cpan/build/perl-5.6.2.tar.gz		<-- one perl tarball
@@ -32,6 +33,7 @@ use strict; use warnings;
 
 # this script does everything, but we need some layout to be specified ( this is the win32 variant )
 # c:\cpansmoke						<-- the main directory
+# c:\cpansmoke\tmp					<-- tmp directory for cpan/perl/etc cruft
 # c:\cpansmoke\build					<-- where we store our perl builds + zips
 # c:\cpansmoke\build\strawberry-perl-5.8.9.3.zip	<-- one perl zip
 # c:\cpansmoke\perls					<-- the perl installation directory
@@ -49,6 +51,7 @@ use strict; use warnings;
 #	- for the patch_hints thing, auto-detect the latest perl tarball and copy it from there instead of hardcoding it here...
 #	- move hardcoded stuff into variables - something like %CONFIG
 #	- fix all TODO lines in this code :)
+#	- we should run 2 CPANPLUS configs per perl - "prefer_makefile" true and false...
 
 # load our dependencies
 use Capture::Tiny qw( capture_merged tee_merged );
@@ -518,9 +521,17 @@ sub setup {
 	$conf->set_conf( buildflags => '' );
 	$conf->set_conf( cpantest => 1 );
 	$conf->set_conf( cpantest_mx => '' );
+#	$conf->set_conf( cpantest_reporter_args => {
+#		transport => 'HTTPGateway',
+#		transport_args => [ 'http://192.168.0.200:11111/submit' ],
+#	} );
+
 	$conf->set_conf( cpantest_reporter_args => {
-		transport => 'HTTPGateway',
-		transport_args => [ 'http://192.168.0.200:11111/submit' ],
+		transport => 'Metabase',
+		transport_args => [
+			uri => "https://metabase.cpantesters.org/beta/",
+			id_file => "/home/cpan/.metabase/id.json",
+		],
 	} );
 	$conf->set_conf( debug => 0 );
 	$conf->set_conf( dist_type => '' );
@@ -544,7 +555,7 @@ sub setup {
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
 	$conf->set_conf( prefer_bin => 0 );
-	$conf->set_conf( prefer_makefile => 1 );
+	$conf->set_conf( prefer_makefile => 0 );
 	$conf->set_conf( prereqs => 1 );
 	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
 	$conf->set_conf( show_startup_tip => 0 );
@@ -981,17 +992,12 @@ sub do_prebuild {
 	do_prebuild_patches();
 
 	# TODO this sucks, but lib/Benchmark.t usually takes forever and fails unnecessarily on my loaded box...
+	# Also, most time-related tests BOMB out because of the dang VM timing semantics...
 	my @fails = ( [ 'lib', 'Benchmark.t' ] );
-
-	# TODO netbsd/freebsd often bombs out on t/op/time.t when box is loaded...
-	if ( ( $^O eq 'netbsd' or $^O eq 'freebsd' ) and $perlver =~ /^5\.(?:8|6)\./ ) {
-		push( @fails, [ 't', 'op', 'time.t' ] );
-	}
-
-	# TODO freebsd often bombs out on HiRes, we always install the latest version anyway...
-	if ( $^O eq 'freebsd' and $perlver =~ /^5\.8\./ ) {
-		push( @fails, [ 'ext', 'Time-HiRes', 't', 'HiRes.t' ] );
-	}
+	push( @fails, [ 't', 'op', 'time.t' ], [ 'op', 'time.t' ] );
+	push( @fails, [ 'ext', 'Time-HiRes', 't', 'HiRes.t' ] );
+	push( @fails, [ 'cpan', 'Time-HiRes', 't', 'HiRes.t' ] );
+	push( @fails, [ 't', 'op', 'alarm.t' ], [ 'op', 'alarm.t' ] );
 
 	# TODO fix this freebsd problem on 5.11.3!
 	# Failed 4 tests out of 1679, 99.76% okay.
@@ -999,11 +1005,10 @@ sub do_prebuild {
 	#	../cpan/Time-HiRes/t/HiRes.t
 	#	op/alarm.t
 	#	op/sselect.t
-	if ( $^O eq 'freebsd' and $perlver =~ /^5\.11\.3/ ) {
+	if ( $^O eq 'freebsd' ) {
+		push( @fails, [ 'lib', 'Memoize', 't', 'expmod_t.t' ] );
 		push( @fails, [ 'cpan', 'Memoize', 't', 'expmod_t.t' ] );
-		push( @fails, [ 'cpan', 'Time-HiRes', 't', 'HiRes.t' ] );
 		push( @fails, [ 't', 'op', 'sselect.t' ] );
-		push( @fails, [ 't', 'op', 'alarm.t' ] );
 	}
 
 	# remove them!
@@ -1157,7 +1162,7 @@ sub setup {
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
 	$conf->set_conf( prefer_bin => 0 );
-	$conf->set_conf( prefer_makefile => 1 );
+	$conf->set_conf( prefer_makefile => 0 );
 	$conf->set_conf( prereqs => 1 );
 	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
 	$conf->set_conf( show_startup_tip => 0 );
@@ -1347,9 +1352,17 @@ sub setup {
 	$conf->set_conf( buildflags => '' );
 	$conf->set_conf( cpantest => 1 );
 	$conf->set_conf( cpantest_mx => '' );
+#	$conf->set_conf( cpantest_reporter_args => {
+#		transport => 'HTTPGateway',
+#		transport_args => [ 'http://192.168.0.200:11111/submit' ],
+#	} );
+
 	$conf->set_conf( cpantest_reporter_args => {
-		transport => 'HTTPGateway',
-		transport_args => [ 'http://192.168.0.200:11111/submit' ],
+		transport => 'Metabase',
+		transport_args => [
+			uri => "https://metabase.cpantesters.org/beta/",
+			id_file => "/home/cpan/.metabase/id.json",
+		],
 	} );
 	$conf->set_conf( debug => 0 );
 	$conf->set_conf( dist_type => '' );
@@ -1373,7 +1386,7 @@ sub setup {
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
 	$conf->set_conf( prefer_bin => 0 );
-	$conf->set_conf( prefer_makefile => 1 );
+	$conf->set_conf( prefer_makefile => 0 );
 	$conf->set_conf( prereqs => 1 );
 	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
 	$conf->set_conf( show_startup_tip => 0 );
@@ -1429,10 +1442,10 @@ END
 sub do_cpanpboxed_action {
 	my( $action ) = @_;
 
-	# use default answer to prompts ( MakeMaker stuff - PERL_MM_USE_DEFAULT )
-	# PERL_EXTUTILS_AUTOINSTALL = --defaultdeps
+	# use default answer to prompts
 	local $ENV{PERL_MM_USE_DEFAULT} = 1;
 	local $ENV{PERL_EXTUTILS_AUTOINSTALL} = '--defaultdeps';
+	local $ENV{TMPDIR} = File::Spec->catdir( $PATH, 'tmp' );
 	return analyze_cpanp_install( $action, do_shellcommand( File::Spec->catfile( $PATH, 'perls', "perl-$perlver-$perlopts", 'bin', 'perl' ) . " " . File::Spec->catfile( $PATH, "CPANPLUS-$CPANPLUS_ver", 'bin', 'cpanp-boxed' ) . " $action" ) );
 }
 
@@ -1503,10 +1516,10 @@ sub analyze_cpanp_install {
 sub do_cpanp_action {
 	my( $perl, $action ) = @_;
 
-	# use default answer to prompts ( MakeMaker stuff - PERL_MM_USE_DEFAULT )
-	# PERL_EXTUTILS_AUTOINSTALL = --defaultdeps
+	# use default answer to prompts
 	local $ENV{PERL_MM_USE_DEFAULT} = 1;
 	local $ENV{PERL_EXTUTILS_AUTOINSTALL} = '--defaultdeps';
+	local $ENV{TMPDIR} = File::Spec->catdir( $PATH, 'tmp' );
 	local $ENV{APPDATA} = File::Spec->catdir( $PATH, 'cpanp_conf', $perl );
 
 	# special way for MSWin32...
@@ -1535,7 +1548,8 @@ sub do_installCPANTesters {
 	do_log( "[CPANPLUS] Configuring CPANTesters..." );
 
 	# install the basic modules we need
-	if ( ! do_cpanpboxed_action( "i Test::Reporter CPANPLUS::YACSmoke" ) ) {
+	# Add the metabase stuff for test purposes :)
+	if ( ! do_cpanpboxed_action( "i Test::Reporter CPANPLUS::YACSmoke Test::Reporter::Transport::Metabase Net::SSL" ) ) {
 		return 0;
 	}
 
@@ -1995,7 +2009,7 @@ sub patch_hints_netbsd {
 #	<Apocalypse> Hmm, trying the compile now with 5.6.2 - if it works then hopefully the rest of 5.8.x would work :)
 #	<Apocalypse> I guess I should also apply this strategy to my failing freebsd builds... thanks all!
 
-	# load the hints/netbsd.sh from perl-5.10.1
+	# load the hints/netbsd.sh from perl-5.11.5
 	my $data = <<'EOP';
 # hints/netbsd.sh
 #
@@ -2015,54 +2029,54 @@ esac
 #
 case "$osvers" in
 0.9|0.8*)
-        usedl="$undef"
-        ;;
+	usedl="$undef"
+	;;
 *)
-        case `uname -m` in
-        pmax)
-                # NetBSD 1.3 and 1.3.1 on pmax shipped an `old' ld.so,
-                # which will not work.
-                case "$osvers" in
-                1.3|1.3.1)
-                        d_dlopen=$undef
-                        ;;
-                esac
-                ;;
-        esac
-        if test -f /usr/libexec/ld.elf_so; then
-                # ELF
-                d_dlopen=$define
-                d_dlerror=$define
-                cccdlflags="-DPIC -fPIC $cccdlflags"
-                lddlflags="--whole-archive -shared $lddlflags"
-                rpathflag="-Wl,-rpath,"
-                case "$osvers" in
-                1.[0-5]*)
-                        #
-                        # Include the whole libgcc.a into the perl executable
-                        # so that certain symbols needed by loadable modules
-                        # built as C++ objects (__eh_alloc, __pure_virtual,
-                        # etc.) will always be defined.
-                        #
-                        ccdlflags="-Wl,-whole-archive -lgcc \
-                                -Wl,-no-whole-archive -Wl,-E $ccdlflags"
-                        ;;
-                *)
-                        ccdlflags="-Wl,-E $ccdlflags"
-                        ;;
-                esac
-        elif test -f /usr/libexec/ld.so; then
-                # a.out
-                d_dlopen=$define
-                d_dlerror=$define
-                cccdlflags="-DPIC -fPIC $cccdlflags"
-                lddlflags="-Bshareable $lddlflags"
-                rpathflag="-R"
-        else
-                d_dlopen=$undef
-                rpathflag=
-        fi
-        ;;
+	case `uname -m` in
+	pmax)
+		# NetBSD 1.3 and 1.3.1 on pmax shipped an `old' ld.so,
+		# which will not work.
+		case "$osvers" in
+		1.3|1.3.1)
+			d_dlopen=$undef
+			;;
+		esac
+		;;
+	esac
+	if test -f /usr/libexec/ld.elf_so; then
+		# ELF
+		d_dlopen=$define
+		d_dlerror=$define
+		cccdlflags="-DPIC -fPIC $cccdlflags"
+		lddlflags="--whole-archive -shared $lddlflags"
+		rpathflag="-Wl,-rpath,"
+		case "$osvers" in
+		1.[0-5]*)
+			#
+			# Include the whole libgcc.a into the perl executable
+			# so that certain symbols needed by loadable modules
+			# built as C++ objects (__eh_alloc, __pure_virtual,
+			# etc.) will always be defined.
+			#
+			ccdlflags="-Wl,-whole-archive -lgcc \
+				-Wl,-no-whole-archive -Wl,-E $ccdlflags"
+			;;
+		*)
+			ccdlflags="-Wl,-E $ccdlflags"
+			;;
+		esac
+	elif test -f /usr/libexec/ld.so; then
+		# a.out
+		d_dlopen=$define
+		d_dlerror=$define
+		cccdlflags="-DPIC -fPIC $cccdlflags"
+		lddlflags="-Bshareable $lddlflags"
+		rpathflag="-R"
+	else
+		d_dlopen=$undef
+		rpathflag=
+	fi
+	;;
 esac
 
 # netbsd had these but they don't really work as advertised, in the
@@ -2073,33 +2087,33 @@ esac
 # netbsd fixed this in 1.3.2.
 case "$osvers" in
 0.9*|1.[012]*|1.3|1.3.1)
-        d_setregid="$undef"
-        d_setreuid="$undef"
-        ;;
+	d_setregid="$undef"
+	d_setreuid="$undef"
+	;;
 esac
 case "$osvers" in
 0.9*|1.*|2.*|3.*|4.*|5.*)
-        d_getprotoent_r="$undef"
-        d_getprotobyname_r="$undef"
-        d_getprotobynumber_r="$undef"
-        d_setprotoent_r="$undef"
-        d_endprotoent_r="$undef"
-        d_getservent_r="$undef"
-        d_getservbyname_r="$undef"
-        d_getservbyport_r="$undef"
-        d_setservent_r="$undef"
-        d_endservent_r="$undef"
-        d_getprotoent_r_proto="0"
-        d_getprotobyname_r_proto="0"
-        d_getprotobynumber_r_proto="0"
-        d_setprotoent_r_proto="0"
-        d_endprotoent_r_proto="0"
-        d_getservent_r_proto="0"
-        d_getservbyname_r_proto="0"
-        d_getservbyport_r_proto="0"
-        d_setservent_r_proto="0"
-        d_endservent_r_proto="0"
-        ;;
+	d_getprotoent_r="$undef"
+	d_getprotobyname_r="$undef"
+	d_getprotobynumber_r="$undef"
+	d_setprotoent_r="$undef"
+	d_endprotoent_r="$undef"
+	d_getservent_r="$undef"
+	d_getservbyname_r="$undef"
+	d_getservbyport_r="$undef"
+	d_setservent_r="$undef"
+	d_endservent_r="$undef"
+	d_getprotoent_r_proto="0"
+	d_getprotobyname_r_proto="0"
+	d_getprotobynumber_r_proto="0"
+	d_setprotoent_r_proto="0"
+	d_endprotoent_r_proto="0"
+	d_getservent_r_proto="0"
+	d_getservbyname_r_proto="0"
+	d_getservbyport_r_proto="0"
+	d_setservent_r_proto="0"
+	d_endservent_r_proto="0"
+	;;
 esac
 
 # These are obsolete in any netbsd.
@@ -2117,59 +2131,59 @@ ieeefp_h="define"
 cat > UU/usethreads.cbu <<'EOCBU'
 case "$usethreads" in
 $define|true|[yY]*)
-        lpthread=
-        for xxx in pthread; do
-                for yyy in $loclibpth $plibpth $glibpth dummy; do
-                        zzz=$yyy/lib$xxx.a
-                        if test -f "$zzz"; then
-                                lpthread=$xxx
-                                break;
-                        fi
-                        zzz=$yyy/lib$xxx.so
-                        if test -f "$zzz"; then
-                                lpthread=$xxx
-                                break;
-                        fi
-                        zzz=`ls $yyy/lib$xxx.so.* 2>/dev/null`
-                        if test "X$zzz" != X; then
-                                lpthread=$xxx
-                                break;
-                        fi
-                done
-                if test "X$lpthread" != X; then
-                        break;
-                fi
-        done
-        if test "X$lpthread" != X; then
-                # Add -lpthread.
-                libswanted="$libswanted $lpthread"
-                # There is no libc_r as of NetBSD 1.5.2, so no c -> c_r.
-                # This will be revisited when NetBSD gains a native pthreads
-                # implementation.
-        else
-                echo "$0: No POSIX threads library (-lpthread) found.  " \
-                     "You may want to install GNU pth.  Aborting." >&4
-                exit 1
-        fi
-        unset lpthread
+	lpthread=
+	for xxx in pthread; do
+		for yyy in $loclibpth $plibpth $glibpth dummy; do
+			zzz=$yyy/lib$xxx.a
+			if test -f "$zzz"; then
+				lpthread=$xxx
+				break;
+			fi
+			zzz=$yyy/lib$xxx.so
+			if test -f "$zzz"; then
+				lpthread=$xxx
+				break;
+			fi
+			zzz=`ls $yyy/lib$xxx.so.* 2>/dev/null`
+			if test "X$zzz" != X; then
+				lpthread=$xxx
+				break;
+			fi
+		done
+		if test "X$lpthread" != X; then
+			break;
+		fi
+	done
+	if test "X$lpthread" != X; then
+		# Add -lpthread.
+		libswanted="$libswanted $lpthread"
+		# There is no libc_r as of NetBSD 1.5.2, so no c -> c_r.
+		# This will be revisited when NetBSD gains a native pthreads
+		# implementation.
+	else
+		echo "$0: No POSIX threads library (-lpthread) found.  " \
+		     "You may want to install GNU pth.  Aborting." >&4
+		exit 1
+	fi
+	unset lpthread
 
-        # several reentrant functions are embeded in libc, but haven't
-        # been added to the header files yet.  Let's hold off on using
-        # them until they are a valid part of the API
-        case "$osvers" in
-        [012].*|3.[0-1])
-                d_getprotobyname_r=$undef
-                d_getprotobynumber_r=$undef
-                d_getprotoent_r=$undef
-                d_getservbyname_r=$undef
-                d_getservbyport_r=$undef
-                d_getservent_r=$undef
-                d_setprotoent_r=$undef
-                d_setservent_r=$undef
-                d_endprotoent_r=$undef
-                d_endservent_r=$undef ;;
-        esac
-        ;;
+	# several reentrant functions are embeded in libc, but haven't
+	# been added to the header files yet.  Let's hold off on using
+	# them until they are a valid part of the API
+	case "$osvers" in
+	[012].*|3.[0-1])
+		d_getprotobyname_r=$undef
+		d_getprotobynumber_r=$undef
+		d_getprotoent_r=$undef
+		d_getservbyname_r=$undef
+		d_getservbyport_r=$undef
+		d_getservent_r=$undef
+		d_setprotoent_r=$undef
+		d_setservent_r=$undef
+		d_endprotoent_r=$undef
+		d_endservent_r=$undef ;;
+	esac
+	;;
 
 esac
 EOCBU
@@ -2181,14 +2195,14 @@ loclibpth="/usr/pkg/lib /usr/local/lib"
 locincpth="/usr/pkg/include /usr/local/include"
 case "$rpathflag" in
 '')
-        ldflags=
-        ;;
+	ldflags=
+	;;
 *)
-        ldflags=
-        for yyy in $loclibpth; do
-                ldflags="$ldflags $rpathflag$yyy"
-        done
-        ;;
+	ldflags=
+	for yyy in $loclibpth; do
+		ldflags="$ldflags $rpathflag$yyy"
+	done
+	;;
 esac
 
 case `uname -m` in
@@ -2197,7 +2211,7 @@ alpha)
     gcc=`${cc:-cc} -v -c try.c 2>&1|grep 'gcc version egcs-2'`
     case "$gcc" in
     '' | "gcc version egcs-2.95."[3-9]*) ;; # 2.95.3 or better okay
-    *)  cat >&4 <<EOF
+    *)	cat >&4 <<EOF
 ***
 *** Your gcc ($gcc) is known to be
 *** too buggy on netbsd/alpha to compile Perl with optimization.
@@ -2208,8 +2222,8 @@ alpha)
 *** but that is not recommended.
 ***
 EOF
-        exit 1
-        ;;
+	exit 1
+	;;
     esac
     rm -f try.*
     ;;
@@ -2219,7 +2233,6 @@ esac
 case `uname -m` in
 sparc) d_semctl_semid_ds=undef ;;
 esac
-
 EOP
 
 	# we don't use do_patch() because it isn't a patch...
@@ -2231,7 +2244,7 @@ EOP
 sub patch_hints_freebsd {
 	# same strategy as netbsd, we need it...
 
-	# load the hints/netbsd.sh from perl-5.10.1
+	# load the hints/freebsd.sh from perl-5.11.5
 	my $data = <<'EOP';
 # Original based on info from
 # Carl M. Fongheiser <cmf@ins.infonet.net>
