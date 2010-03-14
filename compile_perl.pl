@@ -1513,7 +1513,19 @@ sub analyze_cpanp_install {
 			if ( $ret->[-1] =~ /Rebuilding\s+module\s+tree/ ) {
 				return 1;
 			} else {
-				return 0;
+				# Argh, 5.6.X needs a bit more tweaking
+#				[MSG] Rebuilding author tree, this might take a while
+#				You do not have 'Compress::Zlib' installed - Please install it as soon as possible. at /export/home/cpan/CPANPLUS-0.9002/bin/../lib/CPANPLUS/Internals/Source.pm line 544
+#				[MSG] Rebuilding module tree, this might take a while
+#				You do not have 'Compress::Zlib' installed - Please install it as soon as possible. at /export/home/cpan/CPANPLUS-0.9002/bin/../lib/CPANPLUS/Internals/Source.pm line 793
+#				You do not have 'Compress::Zlib' installed - Please install it as soon as possible. at /export/home/cpan/CPANPLUS-0.9002/bin/../lib/CPANPLUS/Internals/Source.pm line 630
+#				[SHELLCMD] Done executing, retval = 0
+#				[LOGS] Saving log to '/export/home/cpan/perls/perl-5.6.1-default.fail'
+				if ( $ret->[-1] =~ /You\s+do\s+not\s+have\s+\'Compress::Zlib\'\s+installed/ ) {
+					return 1;
+				} else {
+					return 0;
+				}
 			}
 		}
 	} elsif ( $action =~ /^u/ ) {

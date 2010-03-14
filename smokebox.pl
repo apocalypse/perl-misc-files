@@ -7,7 +7,7 @@ use strict; use warnings;
 # TODO
 #	- we should just update the system CPANPLUS, and the symlinks will handle the rest of the perls...
 
-use POE 1.287;					# I always want the latest POE just to be sure :)
+use POE;
 use POE::Component::SmokeBox 0.32;		# must be > 0.32 for the delay stuff
 use POE::Component::SmokeBox::Smoker;
 use POE::Component::SmokeBox::Job;
