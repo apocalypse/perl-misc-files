@@ -54,7 +54,7 @@ use strict; use warnings;
 #	- we should run 2 CPANPLUS configs per perl - "prefer_makefile" true and false...
 
 # load our dependencies
-use Capture::Tiny qw( capture_merged tee_merged );
+use Capture::Tiny qw( tee_merged );
 use Prompt::Timeout;
 use Sort::Versions;
 use Sys::Hostname qw( hostname );
@@ -68,7 +68,7 @@ use Shell::Command qw( mv );
 my $perlver;		# the perl version we're processing now
 my $perlopts;		# the perl options we're using for this run
 my $CPANPLUS_ver;	# the CPANPLUS version we'll use for cpanp-boxed
-my $DEBUG = 0;		# spews stuff on console or just top-level data
+my $CPANPLUS_path;	# the CPANPLUS tarball path we use
 my @LOGS = ();		# holds stored logs for a run
 my $domatrix = 0;	# compile the matrix of perl options or not?
 my $PATH;		# the home path where we do our stuff ( also used for local CPANPLUS config! )
@@ -149,9 +149,7 @@ sub getPerlTarballs {
 
 	my $files = get_directory_contents( $ftpdir );
 	foreach my $f ( @$files ) {
-		if ( $DEBUG ) {
-			do_log( "[SANITYCHECK] Downloading perl dist '$f'" );
-		}
+		do_log( "[SANITYCHECK] Downloading perl dist '$f'" );
 
 		my $localpath = File::Spec->catfile( $PATH, 'build', $f );
 		if ( -f $localpath ) {
@@ -188,17 +186,8 @@ sub get_directory_contents {
 sub prompt_action {
 	my $res;
 	while ( ! defined $res ) {
-		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/(d)ebug/(e)xit/(i)nstall/perl(m)atrix/unchow(n)/(r)econfig cpanp/(s)elfupdate/perl (t)arballs/(u)ninstall/cho(w)n/inde(x)]", 'e', 120 ) );
-		if ( $res eq 'd' ) {
-			# flip the debug state
-			if ( $DEBUG ) {
-				do_log( "[COMPILER] Debug turned off..." );
-				$DEBUG = 0;
-			} else {
-				do_log( "[COMPILER] Debug turned on..." );
-				$DEBUG = 1;
-			}
-		} elsif ( $res eq 'b' ) {
+		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/(e)xit/(i)nstall/perl(m)atrix/unchow(n)/(r)econfig cpanp/(s)elfupdate/perl (t)arballs/(u)ninstall/cho(w)n/inde(x)]", 'e', 120 ) );
+		if ( $res eq 'b' ) {
 			# prompt user for perl version to compile
 			$res = prompt_perlver();
 			if ( defined $res ) {
@@ -450,7 +439,7 @@ sub get_CPANPLUS_ver {
 		my $ver = $1;
 		if ( $ver eq 'UNDEF' ) {
 			# argh, return what we know...
-			return '0.9001';
+			return '0.9002';
 		} else {
 			return $ver;
 		}
@@ -469,14 +458,14 @@ sub get_CPANPLUS_ver {
 #	}
 }
 
-sub get_CPANPLUS_tarball {
+sub get_CPANPLUS_tarball_path {
 	# Spawn a shell to find the answer
 	my $output = do_shellcommand( $^X . ' -MCPANPLUS::Backend -e \'$cb=CPANPLUS::Backend->new;$mod=$cb->module_tree("CPANPLUS");$ver=defined $mod ? $mod->path . "/" . $mod->package : undef; print "TARBALL: " . ( defined $ver ? $ver : "UNDEF" ) . "\n";\'' );
 	if ( $output->[-1] =~ /^TARBALL\:\s+(.+)$/ ) {
 		my $ver = $1;
 		if ( $ver eq 'UNDEF' ) {
 			# argh, return what we know ( needs to match up with get_CPANPLUS_ver() !!! )...
-			return 'authors/id/B/BI/BINGOS/CPANPLUS-0.9001.tar.gz';
+			return 'authors/id/B/BI/BINGOS/CPANPLUS-0.9002.tar.gz';
 		} else {
 			return $ver;
 		}
@@ -530,7 +519,7 @@ sub setup {
 		transport => 'Metabase',
 		transport_args => [
 			uri => "https://metabase.cpantesters.org/beta/",
-			id_file => "/home/cpan/.metabase/id.json",
+			id_file => "XXXCATDIR-XXXPATHXXX/.metabase/id.jsonXXX",
 		],
 	} );
 	$conf->set_conf( debug => 0 );
@@ -555,7 +544,7 @@ sub setup {
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
 	$conf->set_conf( prefer_bin => 0 );
-	$conf->set_conf( prefer_makefile => 0 );
+	$conf->set_conf( prefer_makefile => 1 );
 	$conf->set_conf( prereqs => 1 );
 	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
 	$conf->set_conf( show_startup_tip => 0 );
@@ -630,15 +619,6 @@ END
 		# TODO use cacls.exe or something?
 	} else {
 		do_shellcommand( "sudo chown root $cpan" );
-	}
-
-	return;
-}
-
-sub prompt_debug {
-	my $res = lc( prompt( "Turn on debugging", 'y', 120 ) );
-	if ( $res eq 'y' ) {
-		$DEBUG = 1;
 	}
 
 	return;
@@ -839,7 +819,7 @@ sub install_perl_win32 {
 	# Okay, is this perl installed?
 	my $path = File::Spec->catdir( $PATH, 'perls', "perl-$perlver-$perlopts" );
 	if ( ! -d $path ) {
-		# Okay, unzip the archive
+		# TODO Okay, unzip the archive
 	} else {
 		# all done with configuring?
 		if ( -e File::Spec->catfile( $path, 'ready.smoke' ) ) {
@@ -909,6 +889,8 @@ sub build_perl_opts {
 }
 
 sub customize_perl {
+	do_log( "[PERLBUILDER] Firing up the perl-$perlver-$perlopts installer..." );
+
 	# do we have CPANPLUS already extracted?
 	if ( ! do_initCPANP_BOXED() ) {
 		return 0;
@@ -965,11 +947,25 @@ sub finalize_perl {
 
 sub do_prebuild {
 	# remove the old dir so we have a consistent build process
-	my $path = File::Spec->catdir( $PATH, 'build', "perl-$perlver-$perlopts" );
-	if ( -d $path ) {
-		do_log( "[PERLBUILDER] Executing rmdir($path)" );
-		File::Path::Tiny::rm( $path ) or die "Unable to rm ($path): $!";
+	my $build_dir = File::Spec->catdir( $PATH, 'build', "perl-$perlver-$perlopts" );
+	if ( -d $build_dir ) {
+		do_log( "[PERLBUILDER] Executing rmdir($build_dir)" );
+		File::Path::Tiny::rm( $build_dir ) or die "Unable to rm ($build_dir): $!";
 	}
+
+#	[PERLBUILDER] Firing up the perl-5.11.5-default installer...
+#	[PERLBUILDER] perl-5.11.5-default is ready to smoke...
+#	[PERLBUILDER] Firing up the perl-5.11.4-default installer...
+#	[PERLBUILDER] Preparing to build perl-5.11.4-default
+#	[EXTRACTOR] Preparing to extract '/export/home/cpan/build/perl-5.11.4.tar.gz'
+#	Could not open file '/export/home/cpan/build/perl-5.11.4/AUTHORS': Permission denied at /usr/perl5/site_perl/5.8.4/Archive/Extract.pm line 812
+#	Unable to read '/export/home/cpan/build/perl-5.11.4.tar.gz': Could not open file '/export/home/cpan/build/perl-5.11.4/AUTHORS': Permission denied at ./compile.pl line 1072
+	my $extract_dir = File::Spec->catdir( $PATH, 'build', "perl-$perlver" );
+	if ( -d $extract_dir ) {
+		do_log( "[PERLBUILDER] Executing rmdir($extract_dir)" );
+		File::Path::Tiny::rm( $extract_dir ) or die "Unable to rm ($extract_dir): $!";
+	}
+
 
 	# Argh, we need to figure out the tarball - tar.gz or tar.bz2 or what??? ( thanks to perl-5.11.3 which didn't have a tar.gz file heh )
 	opendir( PERLDIR, File::Spec->catdir( $PATH, 'build' ) ) or die "Unable to opendir: $!";
@@ -982,8 +978,10 @@ sub do_prebuild {
 	}
 
 	# extract the tarball!
-	do_archive_extract( File::Spec->catfile( $PATH, 'build', $tarballs[0] ), File::Spec->catdir( $PATH, 'build' ) );
-	mv( File::Spec->catdir( $PATH, 'build', "perl-$perlver" ), File::Spec->catdir( $PATH, 'build', "perl-$perlver-$perlopts" ) ) or die "Unable to mv: $!";
+	if ( ! do_archive_extract( File::Spec->catfile( $PATH, 'build', $tarballs[0] ), File::Spec->catdir( $PATH, 'build' ) ) ) {
+		return 0;
+	}
+	mv( $extract_dir, $build_dir ) or die "Unable to mv: $!";
 
 	# reset the patch counter
 	do_patch_reset();
@@ -1012,14 +1010,14 @@ sub do_prebuild {
 	}
 
 	# remove them!
+	my $manipath = File::Spec->catfile( $build_dir, 'MANIFEST' );
 	foreach my $t ( @fails ) {
-		my $testpath = File::Spec->catfile( $PATH, 'build', "perl-$perlver-$perlopts", @$t );
+		my $testpath = File::Spec->catfile( $build_dir, @$t );
 		if ( -f $testpath ) {
 			do_log( "[PERLBUILDER] Removing problematic '" . join( '/', @$t ) . "' test" );
 			unlink( $testpath ) or die "Unable to unlink ($testpath): $!";
 
 			# argh, we have to munge MANIFEST
-			my $manipath = File::Spec->catfile( $PATH, 'build', "perl-$perlver-$perlopts", 'MANIFEST' );
 			do_shellcommand( "perl -nli -e 'print if ! /^" . quotemeta( join( '/', @$t ) ) . "/' $manipath" );
 		}
 	}
@@ -1035,44 +1033,61 @@ sub do_initCPANP_BOXED {
 
 	# do we have CPANPLUS already extracted?
 	my $cpandir = File::Spec->catdir( $PATH, "CPANPLUS-$CPANPLUS_ver" );
-	my $cpanuserdir = File::Spec->catdir( $cpandir, '.cpanplus' );
-	if ( $^O eq 'MSWin32' ) {
-		$cpanuserdir = File::Spec->catdir( $cpanuserdir, $ENV{USERNAME} );
-	} else {
-		$cpanuserdir = File::Spec->catdir( $cpanuserdir, $ENV{USER} );
+	if ( -d $cpandir ) {
+		do_log( "[CPANPLUS] Executing rmdir($cpandir)" );
+		File::Path::Tiny::rm( $cpandir ) or die "Unable to rm ($cpandir): $!";
 	}
-	if ( -d $cpandir and -d $cpanuserdir ) {
-		# cleanup the cruft
-		opendir( CPANPLUS, $cpanuserdir ) or die "Unable to opendir($cpanuserdir): $!";
-		my @dirlist = readdir( CPANPLUS );
-		closedir( CPANPLUS ) or die "Unable to closedir($cpanuserdir): $!";
 
-		# look for perl versions of build directory
-		# /export/home/cpan/CPANPLUS-0.88/.cpanplus/cpan/5.10.0
-		@dirlist = grep { /^\d+\.\d+\.\d+$/ } @dirlist;
-		foreach my $d ( @dirlist ) {
-			my $localdir = File::Spec->catdir( $cpanuserdir, $d );
-			do_log( "[CPANPLUS] Executing rmdir($localdir)" );
-			File::Path::Tiny::rm( $localdir ) or die "Unable to rm ($localdir): $!";
-		}
-	} else {
-		# do we have the tarball?
-		my $cpantarball = File::Spec->catfile( $PATH, "CPANPLUS-$CPANPLUS_ver.tar.gz" );
-		if ( ! -f $cpantarball ) {
-			# get it!
-			do_shellcommand( "lwp-mirror ftp://192.168.0.200/CPAN/" . get_CPANPLUS_tarball() . " $cpantarball" );
-		}
+	# do we have the tarball?
+	$CPANPLUS_path = get_CPANPLUS_tarball_path() if ! defined $CPANPLUS_path;
+	my $cpantarball = File::Spec->catfile( $PATH, ( File::Spec->splitpath( $CPANPLUS_path ) )[2] );
+	if ( ! -f $cpantarball ) {
+		# get it!
+		do_shellcommand( "lwp-mirror ftp://192.168.0.200/CPAN/$CPANPLUS_path $cpantarball" );
+	}
 
-		# extract it!
-		do_archive_extract( $cpantarball, $PATH );
+	# extract it!
+	if ( ! do_archive_extract( $cpantarball, $PATH ) ) {
+		return 0;
+	}
 
-		# configure the Boxed.pm file
-		do_installCPANP_BOXED_config();
+# TODO - wait for new CPANPLUS version to solve this: http://rt.cpan.org/Ticket/Display.html?id=55541
+# For now we just patch it...
+	if ( $CPANPLUS_ver eq '0.9002' ) {
+		do_log( "[CPANPLUS] Patching CPANPLUS-$CPANPLUS_ver for perl-core issue - RT#55541" );
 
-		# force an update
-		if ( ! do_cpanpboxed_action( "x --update_source" ) ) {
-			return 0;
-		}
+		my $data = <<'EOF';
+--- lib/CPANPLUS/Dist.pm.orig	2010-03-13 19:43:13.000000000 -0700
++++ lib/CPANPLUS/Dist.pm	2010-03-13 19:46:03.000000000 -0700
+@@ -611,10 +611,10 @@
+         ### part of core?
+         if( $modobj->package_is_perl_core ) {
+             error(loc("Prerequisite '%1' is perl-core (%2) -- not ".
+-                      "installing that. Aborting install",
++                      "installing that. -- Note that the overall ".
++                      "install may fail due to this.",
+                       $modobj->module, $modobj->package ) );
+-            $flag++;
+-            last;
++            next;
+         }
+
+         ### circular dependency code ###
+EOF
+
+		my $patchfile = File::Spec->catfile( $cpandir, 'cpanplus.patch' );
+		open( my $patch, '>', $patchfile ) or die "Unable to create ($patchfile): $!";
+		print $patch $data;
+		close( $patch ) or die "Unable to close ($patchfile): $!";
+		do_shellcommand( "patch -p0 -d $cpandir < $patchfile" );
+	}
+
+	# configure the Boxed.pm file
+	do_installCPANP_BOXED_config();
+
+	# force an update
+	if ( ! do_cpanpboxed_action( "x --update_source" ) ) {
+		return 0;
 	}
 
 	return 1;
@@ -1082,23 +1097,28 @@ sub do_archive_extract {
 	my $archive = shift;
 	my $path = shift;
 
-	if ( $DEBUG ) {
-		do_log( "[EXTRACTOR] Preparing to extract '$archive'" );
-	}
+	do_log( "[EXTRACTOR] Preparing to extract '$archive'" );
 
 	require Archive::Extract;
 	my $a = Archive::Extract->new( archive => $archive );
+	if ( ! defined $a ) {
+		do_log( "[EXTRACTOR] Unable to initialize!" );
+		return 0;
+	}
+
 	if ( defined $path ) {
 		if ( ! $a->extract( to => $path ) ) {
-			do_log( "[EXTRACTOR] Unable to extract '$archive' to '$path'" );
+			do_log( "[EXTRACTOR] Unable to extract '$archive' to '$path': " . $a->error );
+			return 0;
 		}
 	} else {
 		if ( ! $a->extract ) {
-			do_log( "[EXTRACTOR] Unable to extract '$archive'" );
+			do_log( "[EXTRACTOR] Unable to extract '$archive': " . $a->error );
+			return 0;
 		}
 	}
 
-	return;
+	return 1;
 }
 
 sub do_installCPANP_BOXED_config {
@@ -1162,7 +1182,7 @@ sub setup {
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
 	$conf->set_conf( prefer_bin => 0 );
-	$conf->set_conf( prefer_makefile => 0 );
+	$conf->set_conf( prefer_makefile => 1 );
 	$conf->set_conf( prereqs => 1 );
 	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
 	$conf->set_conf( show_startup_tip => 0 );
@@ -1289,12 +1309,12 @@ sub do_installCPANPLUS {
 
 	# use cpanp-boxed to install some modules that we know we need to bootstrap, argh! ( cpanp-boxed already skips tests so this should be fast )
 	# perl-5.6.1 -> ExtUtils::MakeMaker, Test::More, File::Temp, Time::HiRes
-	# Module::Build -> ExtUtils::CBuilder, ExtUtils::ParseXS ( modern Module::Build pulls this in automatically? )
 	# LWP on perl-5.8.2 bombs on Encode ( unable to install Encode on 5.6.x! )
-	# Test::Reporter::HTTPGateway -> LWP::UserAgent ( missing prereq, wow! )
-	my $mod_list = "ExtUtils::MakeMaker ExtUtils::CBuilder ExtUtils::ParseXS Test::More File::Temp Time::HiRes LWP::UserAgent";
+	my $mod_list;
 	if ( $perlver !~ /^5\.6/ ) {
-		$mod_list .= " Encode";
+		$mod_list = "Encode";
+	} else {
+		$mod_list = "ExtUtils::MakeMaker Test::More File::Temp Time::HiRes";
 	}
 	if ( ! do_cpanpboxed_action( "i $mod_list" ) ) {
 		return 0;
@@ -1361,7 +1381,7 @@ sub setup {
 		transport => 'Metabase',
 		transport_args => [
 			uri => "https://metabase.cpantesters.org/beta/",
-			id_file => "/home/cpan/.metabase/id.json",
+			id_file => "XXXCATDIR-XXXPATHXXX/.metabase/id.jsonXXX",
 		],
 	} );
 	$conf->set_conf( debug => 0 );
@@ -1386,7 +1406,7 @@ sub setup {
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
 	$conf->set_conf( prefer_bin => 0 );
-	$conf->set_conf( prefer_makefile => 0 );
+	$conf->set_conf( prefer_makefile => 1 );
 	$conf->set_conf( prereqs => 1 );
 	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
 	$conf->set_conf( show_startup_tip => 0 );
@@ -1485,7 +1505,16 @@ sub analyze_cpanp_install {
 		if ( $ret->[-1] =~ /Writing\s+compiled\s+source\s+information/ ) {
 			return 1;
 		} else {
-			return 0;
+			# older CPANPLUS didn't write out the "compiled source" line...
+#			[MSG] Trying to get 'ftp://192.168.0.200/CPAN/modules/02packages.details.txt.gz'
+#			[MSG] Rebuilding author tree, this might take a while
+#			[MSG] Rebuilding module tree, this might take a while
+#			[LOGS] Saving log to '/home/cpan/perls/perl-5.6.1-default.fail'
+			if ( $ret->[-1] =~ /Rebuilding\s+module\s+tree/ ) {
+				return 1;
+			} else {
+				return 0;
+			}
 		}
 	} elsif ( $action =~ /^u/ ) {
 #		root@blackhole:/home/apoc# cpanp u Term::Title --force
@@ -1547,9 +1576,8 @@ sub cleanse_strawberry_path {
 sub do_installCPANTesters {
 	do_log( "[CPANPLUS] Configuring CPANTesters..." );
 
-	# install the basic modules we need
-	# Add the metabase stuff for test purposes :)
-	if ( ! do_cpanpboxed_action( "i Test::Reporter CPANPLUS::YACSmoke Test::Reporter::Transport::Metabase Net::SSL" ) ) {
+	# install the basic modules we need for CT2.0 smoking ( if we wanted the old HTTPGateway option, it's already installed heh )
+	if ( ! do_cpanpboxed_action( "i CPANPLUS::YACSmoke Test::Reporter::Transport::Metabase" ) ) {
 		return 0;
 	}
 
@@ -1559,15 +1587,14 @@ sub do_installCPANTesters {
 sub do_shellcommand {
 	my $cmd = shift;
 
-	my $output;
-	if ( $DEBUG ) {
-		do_log( "[SHELLCMD] Executing $cmd" );
-		$output = tee_merged { system( $cmd ) };
-	} else {
-		$output = capture_merged { system( $cmd ) };
-	}
+	# TODO make the output indented for readability, but don't do it on the original data!
+	# we need to tell tee_merged to automatically insert a \t before each line...
+	my( $output, $retval );
+	do_log( "[SHELLCMD] Executing '$cmd'" );
+	$output = tee_merged { $retval = system( $cmd ) };
+	do_log( "[SHELLCMD] Done executing, retval = " . ( $retval >> 8 ) );
+
 	my @output = split( /\n/, $output );
-	push( @LOGS, @output );
 	return \@output;
 }
 

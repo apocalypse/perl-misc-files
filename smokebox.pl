@@ -7,11 +7,11 @@ use strict; use warnings;
 # TODO
 #	- we should just update the system CPANPLUS, and the symlinks will handle the rest of the perls...
 
-use POE;
+use POE 1.287;					# I always want the latest POE just to be sure :)
 use POE::Component::SmokeBox 0.32;		# must be > 0.32 for the delay stuff
 use POE::Component::SmokeBox::Smoker;
 use POE::Component::SmokeBox::Job;
-use POE::Component::IRC::State;
+use POE::Component::IRC::State 6.18;		# 6.18 depends on POE::Filter::IRCD 2.42 to shutup warnings about 005 numerics
 use POE::Component::IRC::Plugin::AutoJoin;
 use POE::Component::IRC::Plugin::Connector;
 use POE::Component::IRC::Plugin::BotCommand;
@@ -49,9 +49,11 @@ sub _start : State {
 
 sub create_smokebox : State {
 	$_[HEAP]->{'SMOKEBOX'} = POE::Component::SmokeBox->spawn(
+# TODO disable delay so we smoke CT2.0 full blast for testing
 #		'delay'	=> $delay,
 	);
 
+# TODO disable system perl because I want a controlled environment for now...
 	# Add system perl...
 	# Configuration successfully saved to CPANPLUS::Config::User
 	#    (/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm)
@@ -118,6 +120,7 @@ sub create_irc : State {
 		nick	=> $ircnick,
 		ircname	=> $ircnick,
 		server	=> $ircserver,
+# TODO investigate why our local ircd kicks us off...
 #		Flood	=> 1,
 	) or die "Unable to spawn irc: $!";
 
@@ -134,7 +137,6 @@ sub create_irc : State {
 			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
 			'df'		=> 'Returns the free space of the machine. Takes no arguments.',
 			'delay'		=> 'Sets the delay for PoCo-SmokeBox. Takes one optional argument: number of seconds.',
-#			'purge'		=> 'Purges the CPAN cruft we accumulate during smoking. !Use with caution! Takes no arguments.',
 		},
 		Addressed 	=> 0,
 		Ignore_unknown	=> 1,
@@ -179,11 +181,11 @@ sub _stop : State {
 
 # gets the perls
 sub getPerlVersions {
-	my @perls;
-	opendir( PERLS, File::Spec->catdir( $ENV{HOME}, 'perls' ) ) or die "Unable to opendir: $!";
+	# TODO fix the path to be compatible with MSWin32
 
 	# look for ready perls only
-	@perls = grep { /^perl\-[\d\.]/ && -d File::Spec->catdir( $ENV{HOME}, 'perls', $_ ) && -e File::Spec->catfile( $ENV{HOME}, 'perls', $_, 'ready.smoke' ) } readdir( PERLS );
+	opendir( PERLS, File::Spec->catdir( $ENV{HOME}, 'perls' ) ) or die "Unable to opendir: $!";
+	my @perls = grep { /^perl\-[\d\.]/ && -d File::Spec->catdir( $ENV{HOME}, 'perls', $_ ) && -e File::Spec->catfile( $ENV{HOME}, 'perls', $_, 'ready.smoke' ) } readdir( PERLS );
 	closedir( PERLS ) or die "Unable to closedir: $!";
 
 	return \@perls;
@@ -342,6 +344,7 @@ sub irc_botcmd_smoke : State {
 			command => 'smoke',
 			module => $arg,
 			type => 'CPANPLUS::YACSmoke',
+# TODO smoke full blast for CT2.0 testing
 #			no_log => 1,
 #			delay => $delay,
 		),
@@ -371,6 +374,7 @@ sub smokeresult : State {
 			$starttime = $r->{'start_time'};
 		}
 
+		# TODO dump the stuff for now so we can investigate smokes
 		use Data::Dumper;
 		print Dumper( $r );
 	}
@@ -380,6 +384,7 @@ sub smokeresult : State {
 	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module " . ( scalar @fails ? '(FAIL: ' . join( ' ', @fails ) . ' ) ' : '' ) . "in ${duration}." );
 
 	# TODO inspect the tmp dir for droppings and report it!
+	# this would require proper callbacks in SmokeBox
 
 	return;
 }
@@ -409,6 +414,7 @@ sub check_free_space : State {
 	if ( defined $df ) {
 		# Do we need to wipe?
 		if ( $df->{'bavail'} < $freespace or defined $_[ARG0] ) {
+			# TODO need to implement proper callbacks in poco-smokebox so we can force an index if this happens
 			$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Disk space getting low!" );
 			return;
 
@@ -512,7 +518,7 @@ sub irc_botcmd_perls : State {
 	my $perls = keys %{ $_[HEAP]->{'PERLS'} };
 
 	# don't forget to +1 for the SYSTEM perl!
-	# disabled system perl for now
+	# TODO disabled system perl for now
 	#$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Available Perls: " . ( $perls + 1 ) );
 	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Available Perls: $perls" );
 
