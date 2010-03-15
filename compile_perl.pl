@@ -301,7 +301,11 @@ sub prompt_action {
 				if ( $p =~ /^perl-([\d\.]+)-(.+)$/ ) {
 					( $perlver, $perlopts ) = ( $1, $2 );
 					do_installCPANPLUS_config();
-					do_cpanp_action( "perl-$perlver-$perlopts", "x --update_source" );
+					if ( do_cpanp_action( "perl-$perlver-$perlopts", "x --update_source" ) ) {
+						do_log( "[CPANPLUS] Reconfigured perl-$perlver-$perlopts" );
+					} else {
+						do_log( "[CPANPLUS] Error in updating sources for perl-$perlver-$perlopts" );
+					}
 				}
 			} );
 		} else {
@@ -920,6 +924,11 @@ sub customize_perl {
 }
 
 sub finalize_perl {
+	# force an update to make sure it's ready for smoking
+	if ( ! do_cpanp_action( "perl-$perlver-$perlopts", "x --update_source" ) ) {
+		return 0;
+	}
+
 	# Get rid of the man directory!
 	my $path = File::Spec->catdir( $PATH, 'perls', "perl-$perlver-$perlopts" );
 	my $mandir = File::Spec->catdir( $path, 'man' );
@@ -1331,9 +1340,6 @@ sub do_installCPANPLUS {
 
 	# configure the installed CPANPLUS
 	do_installCPANPLUS_config();
-
-	# force an update
-	do_cpanp_action( "perl-$perlver-$perlopts", "x --update_source" );
 
 	return 1;
 }
