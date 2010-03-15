@@ -1389,7 +1389,10 @@ sub setup {
 	$conf->set_conf( email => 'apocal@cpan.org' );
 	$conf->set_conf( enable_custom_sources => 0 );
 	$conf->set_conf( extractdir => '' );
-	$conf->set_conf( fetchdir => 'XXXCATDIR-XXXPATHXXX/.cpanplus/authorsXXX' );
+	$conf->set_conf( fetchdir => '' );
+
+# TODO seems like this causes weird caching issues - better to split off the stuff for now...
+#	$conf->set_conf( fetchdir => 'XXXCATDIR-XXXPATHXXX/.cpanplus/authorsXXX' );
 	$conf->set_conf( flush => 1 );
 	$conf->set_conf( force => 0 );
 	$conf->set_conf( hosts => [
