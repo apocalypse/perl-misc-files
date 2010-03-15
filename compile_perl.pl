@@ -433,17 +433,19 @@ sub do_log {
 }
 
 sub get_CPANPLUS_ver {
+	# TODO fix hardcoded version - it's nice as a backup but...
+
 	# Spawn a shell to find the answer
 	my $output = do_shellcommand( $^X . ' -MCPANPLUS::Backend -e \'$cb=CPANPLUS::Backend->new;$mod=$cb->module_tree("CPANPLUS");$ver=defined $mod ? $mod->package_version : undef; print "VER: " . ( defined $ver ? $ver : "UNDEF" ) . "\n";\'' );
 	if ( $output->[-1] =~ /^VER\:\s+(.+)$/ ) {
 		my $ver = $1;
-		if ( $ver eq 'UNDEF' ) {
-			# argh, return what we know...
-			return '0.9002';
-		} else {
+		if ( $ver ne 'UNDEF' ) {
 			return $ver;
 		}
 	}
+
+	# default answer
+	return '0.9002';
 
 	# Not a good idea, because it consumed gobs of RAM unnecessarily...
 #	require CPANPLUS::Backend;
@@ -459,17 +461,19 @@ sub get_CPANPLUS_ver {
 }
 
 sub get_CPANPLUS_tarball_path {
+	# TODO fix hardcoded path - it's nice as a backup but...
+
 	# Spawn a shell to find the answer
 	my $output = do_shellcommand( $^X . ' -MCPANPLUS::Backend -e \'$cb=CPANPLUS::Backend->new;$mod=$cb->module_tree("CPANPLUS");$ver=defined $mod ? $mod->path . "/" . $mod->package : undef; print "TARBALL: " . ( defined $ver ? $ver : "UNDEF" ) . "\n";\'' );
 	if ( $output->[-1] =~ /^TARBALL\:\s+(.+)$/ ) {
 		my $ver = $1;
-		if ( $ver eq 'UNDEF' ) {
-			# argh, return what we know ( needs to match up with get_CPANPLUS_ver() !!! )...
-			return 'authors/id/B/BI/BINGOS/CPANPLUS-0.9002.tar.gz';
-		} else {
+		if ( $ver ne 'UNDEF' ) {
 			return $ver;
 		}
 	}
+
+	# default answer
+	return 'authors/id/B/BI/BINGOS/CPANPLUS-0.9002.tar.gz';
 }
 
 sub do_config_localCPANPLUS {
