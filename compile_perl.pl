@@ -19,6 +19,7 @@ use strict; use warnings;
 # Compiling the entire perl suite listed above will result in: 931 perls!
 # Each perl averages 40M with all the necessary modules to smoke CPAN preinstalled. ( ~37GB total! )
 
+
 # this script does everything, but we need some layout to be specified!
 # /home/cpan					<-- the main directory
 # /home/cpan/tmp				<-- tmp directory for cpan/perl/etc cruft
