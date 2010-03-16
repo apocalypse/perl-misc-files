@@ -390,6 +390,8 @@ sub smokeresult : State {
 }
 
 sub check_free_space : State {
+	my $do_purge = $_[ARG0];
+
 	# TODO this is a ugly hack, until we get proper callbacks from SmokeBox
 
 #	<Apocalypse> I need some serious CPANPLUS smarts - in my CPAN smoker script I wipe the crud ( build dirs, downloaded tarballs, etc ) when free space is less than X, but I got my logic wrong
@@ -413,9 +415,9 @@ sub check_free_space : State {
 	my $df = dfportable( $ENV{HOME} );
 	if ( defined $df ) {
 		# Do we need to wipe?
-		if ( $df->{'bavail'} < $freespace or defined $_[ARG0] ) {
+		if ( $df->{'bavail'} < $freespace or $do_purge ) {
 			# TODO need to implement proper callbacks in poco-smokebox so we can force an index if this happens
-			$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Disk space getting low!" );
+			$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Apocalypse: Disk space getting low!" );
 			return;
 
 			# cpan@ubuntu-server64:~$ rm -rf /home/cpan/.cpanplus/authors/*						# downloaded tarballs
