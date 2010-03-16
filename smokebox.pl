@@ -418,7 +418,7 @@ sub check_free_space : State {
 		if ( $df->{'bavail'} < $freespace or $do_purge ) {
 			# TODO need to implement proper callbacks in poco-smokebox so we can force an index if this happens
 			$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Apocalypse: Disk space getting low!" );
-			return;
+			exit;
 
 			# cpan@ubuntu-server64:~$ rm -rf /home/cpan/.cpanplus/authors/*						# downloaded tarballs
 			my $dir = File::Spec->catdir( $ENV{HOME}, '.cpanplus', 'authors' );
