@@ -7,7 +7,7 @@ use strict; use warnings;
 # Grab the cpanstats DB from http://devel.cpantesters.org/cpanstats.db.bz2
 # Get the cpantesters mapping from a magic fairy ;)
 
-# Warning: the resulting log will be ~400M as of March 16, 2010!
+# Warning: the resulting log will be ~800M as of March 16, 2010!
 
 # TODO use Term::ProgressBar and calculate the total number of rows + update the term...
 
