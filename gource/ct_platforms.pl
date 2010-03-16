@@ -18,7 +18,7 @@ my $cpan_map = '/home/apoc/Desktop/cpantesters_mapping.txt';
 # Load our modules!
 use DBI;
 use DateTime;
-use Data::GUID::Any qw( guid_as_string );
+#use Data::GUID::Any qw( guid_as_string );
 
 main();
 
@@ -43,7 +43,7 @@ sub main {
 
 	# Start with the header
 	# set the date as 935824000 which is right before id 1 in the DB :)
-	print "user:APOCALYPSE\n935824000\n:000000 100644 0000000... bd3b6ca... A	perl/\n\n";
+	print "user:APOCALYPSE\n935824000\n:000000 100644 0000000... AAAAAAA... A	/\n\n";
 
 	while ( $sth->fetch() ) {
 		# Process this report
@@ -98,8 +98,6 @@ sub find_cpantesters_map {
 # sub-sub-sub level: platform-osver
 my %tree;
 
-my $last_report_id = 0;
-
 sub process_report {
 	my $r = shift;
 	my %report = %$r;
@@ -129,8 +127,8 @@ sub process_report {
 	$report{osvers} = 'UNKNOWN' if ! defined $report{osvers} or ! length $report{osvers};
 	$report{perl} = 'UNKNOWN' if ! defined $report{perl} or ! length $report{perl};
 	$report{perl} = 'UNKNOWN' if length $report{perl} == 1;	# to shut up perl = 0 reports...
-	my $guid = substr( guid_as_string(), 0, 7 );
-	my $os = $report{platform} . ' (' . $report{osvers} . ')';
+#	my $guid = substr( guid_as_string(), 0, 7 );
+#	my $os = $report{platform} . ' (' . $report{osvers} . ')';
 
 	# Generate the git output!
 	my $output = "user:$report{tester}\n";
@@ -141,15 +139,26 @@ sub process_report {
 	#:000000 100644 0000000... 83c9f1a... A	poe/lib/POE/Session.pm
 	#:100644 100644 bd3b6ca... 63d6c22... M	poe/lib/POE/Kernel.pm
 	#:(old file mask - 0 if A) (new file mask - 0 if A) (parent guid - 0 if A) (new guid) (mode - A for add, M for modify) (path)
-	if ( exists $tree{ $report{perl} }{ $report{osname} }{ $os } ) {
-		$output .= ":100644 100644 " .
-			$tree{ $report{perl} }{ $report{osname} }{ $os } .
-			"... $guid... M\tperl/$report{perl}/$report{osname}/$os\n";
+	if ( exists $tree{ $report{perl} }{ $report{osname} }{ $report{platform} } ) {
+		# This perl/platform was already submitted
 
-		$tree{ $report{perl} }{ $report{osname} }{ $os } = $guid;
+#		$output .= ":100644 100644 " .
+#			$tree{ $report{perl} }{ $report{osname} }{ $os } .
+#			"... $guid... M\t/$report{perl}/$report{osname}/$os\n";
+#
+#		$tree{ $report{perl} }{ $report{osname} }{ $os } = $guid;
+
+		# experiment with fake GUIDs and see if Gource likes it or not ( yay, it does! )
+		$output .= ":100644 100644 AAAAAAA... AAAAAAA... M\t/$report{perl}/$report{osname}/v$report{perl} $report{osname} ($report{platform})\n";
 	} else {
-		$tree{ $report{perl} }{ $report{osname} }{ $os } = $guid;
-		$output .= ":000000 100644 0000000... $guid... A\tperl/$report{perl}/$report{osname}/$os\n";
+		# New perl/platform
+
+#		$output .= ":000000 100644 0000000... $guid... A\t/$report{perl}/$report{osname}/$os\n";
+#		$tree{ $report{perl} }{ $report{osname} }{ $os } = $guid;
+
+		# experiment with fake GUIDs and see if Gource likes it or not ( yay, it does! )
+		$output .= ":000000 100644 0000000... AAAAAAA... A\t/$report{perl}/$report{osname}/v$report{perl} $report{osname} ($report{platform})\n";
+		$tree{ $report{perl} }{ $report{osname} }{ $report{platform} } = 1;
 	}
 	$output .= "\n";
 
@@ -160,13 +169,16 @@ sub process_report {
 __END__
 
 # to generate the video, run this script and save the log, then run Gource like this:
-# You would need to experiment with the "-r 200" param to ffmpeg to get an optimal video!
-gource gource_cpantesters.log -1280x720 --highlight-all-users --multi-sampling --user-scale 0.5 \
+# You would need to experiment with the "-r 100" param to ffmpeg to get an optimal video!
+gource ct_platforms.log -1280x720 --highlight-all-users --multi-sampling --user-scale 0.5 \
   --disable-bloom --elasticity 0.0001 --max-file-lag 0.000001 --max-files 1000000 \
-  --date-format "CPANTesters Upload Activity On %B %d, %Y %X" --stop-on-idle -s 0.000001 \
-  --colour-images --user-friction 0.0000001 \
-  --output-ppm-stream - | ffmpeg -y -b 5000K -r 200 -f image2pipe -vcodec ppm -i - -vcodec mpeg4 gource_CT.mp4
+  --date-format "CPANTesters Upload Activity On %B %d, %Y %X" --stop-on-idle \
+  --colour-images --user-friction 0.0000001 --seconds-per-day 0.000001 --hide dirnames \
+  --output-ppm-stream - | ffmpeg -y -b 5000K -r 100 -f image2pipe -vcodec ppm -i - -vcodec mpeg4 gource_CT_platforms.mp4
 
+# I tried using -r200 but ffmepg didn't like it:
+#[mpeg4 @ 0x202f040]bitrate tolerance too small for bitrate
+#Error while opening codec for output stream #0.0 - maybe incorrect parameters such as bit_rate, rate, width or height
 
 apoc@blackhole:~/othergit/poe$ gource --git-log-command perl/
 git log --pretty=format:user:%aN%n%ct --reverse --raw --encoding=UTF-8 --no-renames
