@@ -4,8 +4,10 @@ use strict; use warnings;
 # We have successfully compiled those perl versions:
 # 5.6.1, 5.6.2
 # 5.8.1, 5.8.2, 5.8.3, 5.8.4, 5.8.5, 5.8.6, 5.8.7, 5.8.8, 5.8.9
-# 5.10.0 5.10.1
-# 5.11.2 5.11.5
+# 5.10.0, 5.10.1
+# 5.11.0, 5.11.1, 5.11.2, 5.11.3, 5.11.4, 5.11.5
+
+# We skip 5.6.0 and 5.8.0 because they are problematic builds
 
 # We have successfully compiled perl on those OSes:
 # x86_64/x64/amd64 (64bit) OSes:
@@ -14,9 +16,8 @@ use strict; use warnings;
 #
 
 # This compiler builds each perl with a matrix of 49 possible combinations.
-# Compiling the entire perl suite listed above will result in: 686 perls!
-# Each perl averages 45M with all the necessary modules to smoke CPAN preinstalled. ( 30.15GB total! )
-# All the perls share the same CPANPLUS sourcedir in $PATH/.cpanplus but build in $PATH/cpanp_conf/perl-$perlver/.cpanplus/build # THIS IS A TODO
+# Compiling the entire perl suite listed above will result in: 931 perls!
+# Each perl averages 40M with all the necessary modules to smoke CPAN preinstalled. ( ~37GB total! )
 
 # this script does everything, but we need some layout to be specified!
 # /home/cpan					<-- the main directory
