@@ -2,14 +2,16 @@
 use strict; use warnings;
 
 # This script takes the cpanstats DB and outputs it into a format
-# that Gource likes. What I am going to do is emulate the Git formatting
+# that Gource likes. This script specifically outputs the graph of
+# all perl versions/platforms tested.
 
 # Grab the cpanstats DB from http://devel.cpantesters.org/cpanstats.db.bz2
 # Get the cpantesters mapping from a magic fairy ;)
 
-# Warning: the resulting log will be ~800M as of March 16, 2010!
+# Warning: the resulting log will be ~900M as of March 16, 2010!
 
 # TODO use Term::ProgressBar and calculate the total number of rows + update the term...
+# TODO steal the gravatar script from POE and get gravatars for all PAUSE ids we detect
 
 # some misc configs
 my $cpanstats = '/home/apoc/Desktop/cpanstats.db';
@@ -18,7 +20,6 @@ my $cpan_map = '/home/apoc/Desktop/cpantesters_mapping.txt';
 # Load our modules!
 use DBI;
 use DateTime;
-#use Data::GUID::Any qw( guid_as_string );
 
 main();
 
@@ -43,7 +44,7 @@ sub main {
 
 	# Start with the header
 	# set the date as 935824000 which is right before id 1 in the DB :)
-	print "user:APOCALYPSE\n935824000\n:000000 100644 0000000... AAAAAAA... A	/\n\n";
+	print "user:APOCAL\n935824000\n:000000 100644 0000000... AAAAAAA... A	/\n\n";
 
 	while ( $sth->fetch() ) {
 		# Process this report
@@ -127,8 +128,6 @@ sub process_report {
 	$report{osvers} = 'UNKNOWN' if ! defined $report{osvers} or ! length $report{osvers};
 	$report{perl} = 'UNKNOWN' if ! defined $report{perl} or ! length $report{perl};
 	$report{perl} = 'UNKNOWN' if length $report{perl} == 1;	# to shut up perl = 0 reports...
-#	my $guid = substr( guid_as_string(), 0, 7 );
-#	my $os = $report{platform} . ' (' . $report{osvers} . ')';
 
 	# Generate the git output!
 	my $output = "user:$report{tester}\n";
@@ -139,24 +138,14 @@ sub process_report {
 	#:000000 100644 0000000... 83c9f1a... A	poe/lib/POE/Session.pm
 	#:100644 100644 bd3b6ca... 63d6c22... M	poe/lib/POE/Kernel.pm
 	#:(old file mask - 0 if A) (new file mask - 0 if A) (parent guid - 0 if A) (new guid) (mode - A for add, M for modify) (path)
+	# Make the graph easier to see by putting the ver/platform as the filename
 	if ( exists $tree{ $report{perl} }{ $report{osname} }{ $report{platform} } ) {
 		# This perl/platform was already submitted
 
-#		$output .= ":100644 100644 " .
-#			$tree{ $report{perl} }{ $report{osname} }{ $os } .
-#			"... $guid... M\t/$report{perl}/$report{osname}/$os\n";
-#
-#		$tree{ $report{perl} }{ $report{osname} }{ $os } = $guid;
-
-		# experiment with fake GUIDs and see if Gource likes it or not ( yay, it does! )
 		$output .= ":100644 100644 AAAAAAA... AAAAAAA... M\t/$report{perl}/$report{osname}/v$report{perl} $report{osname} ($report{platform})\n";
 	} else {
 		# New perl/platform
 
-#		$output .= ":000000 100644 0000000... $guid... A\t/$report{perl}/$report{osname}/$os\n";
-#		$tree{ $report{perl} }{ $report{osname} }{ $os } = $guid;
-
-		# experiment with fake GUIDs and see if Gource likes it or not ( yay, it does! )
 		$output .= ":000000 100644 0000000... AAAAAAA... A\t/$report{perl}/$report{osname}/v$report{perl} $report{osname} ($report{platform})\n";
 		$tree{ $report{perl} }{ $report{osname} }{ $report{platform} } = 1;
 	}
@@ -172,8 +161,8 @@ __END__
 # You would need to experiment with the "-r 100" param to ffmpeg to get an optimal video!
 gource ct_platforms.log -1280x720 --highlight-all-users --multi-sampling --user-scale 0.5 \
   --disable-bloom --elasticity 0.0001 --max-file-lag 0.000001 --max-files 1000000 \
-  --date-format "CPANTesters Upload Activity On %B %d, %Y %X" --stop-on-idle \
-  --colour-images --user-friction 0.0000001 --seconds-per-day 0.000001 --hide dirnames \
+  --date-format "CPANTesters Reports For Platforms On %B %d, %Y %X" --stop-on-idle --file-idle-time 1000 \
+  --colour-images --user-friction 0.0000001 --seconds-per-day 0.000001 --hide dirnames --camera-mode overview \
   --output-ppm-stream - | ffmpeg -y -b 5000K -r 100 -f image2pipe -vcodec ppm -i - -vcodec mpeg4 gource_CT_platforms.mp4
 
 # I tried using -r200 but ffmepg didn't like it:

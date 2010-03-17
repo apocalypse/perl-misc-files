@@ -2,14 +2,16 @@
 use strict; use warnings;
 
 # This script takes the cpanstats DB and outputs it into a format
-# that Gource likes. What I am going to do is emulate the Git formatting
+# that Gource likes. This script specifically outputs the graph of
+# all dists tested.
 
 # Grab the cpanstats DB from http://devel.cpantesters.org/cpanstats.db.bz2
 # Get the cpantesters mapping from a magic fairy ;)
 
-# Warning: the resulting log will be ~800M as of March 16, 2010!
+# Warning: the resulting log will be ~900M as of March 16, 2010!
 
 # TODO use Term::ProgressBar and calculate the total number of rows + update the term...
+# TODO steal the gravatar script from POE and get gravatars for all PAUSE ids we detect
 
 # some misc configs
 my $cpanstats = '/home/apoc/Desktop/cpanstats.db';
@@ -18,7 +20,6 @@ my $cpan_map = '/home/apoc/Desktop/cpantesters_mapping.txt';
 # Load our modules!
 use DBI;
 use DateTime;
-#use Data::GUID::Any qw( guid_as_string );
 
 main();
 
@@ -36,14 +37,14 @@ sub main {
 
 	# Pull out each upload and process it
 	# TODO should be ORDER BY date but it blows up? The column is not a true date column so...
-	my $sth = $dbh->prepare( 'SELECT date, dist, version, tester FROM cpanstats ORDER BY id' );
+	my $sth = $dbh->prepare( 'SELECT date, dist, tester FROM cpanstats ORDER BY id' );
 	$sth->execute;
 	my $newdata;
 	$sth->bind_columns( \( @$newdata{ @{ $sth->{'NAME_lc'} } } ) );
 
 	# Start with the header
 	# set the date as 935824000 which is right before id 1 in the DB :)
-	print "user:APOCALYPSE\n935824000\n:000000 100644 0000000... AAAAAAA... A	/\n\n";
+	print "user:APOCAL\n935824000\n:000000 100644 0000000... AAAAAAA... A	/\n\n";
 
 	while ( $sth->fetch() ) {
 		# Process this report
@@ -122,44 +123,18 @@ sub process_report {
 
 	# Cleanup some vars
 	$report{tester} = find_cpantesters_map( $report{tester} );
-#	my $guid = substr( guid_as_string(), 0, 7 );
 	my @dist = split( '-', $report{dist} );
 
 	# walk the tree and check if this is a new dist or not
 	my $walktree = \%tree;
-	my $parent = undef;
 	my $newdist = 0;
 	foreach my $mod ( @dist ) {
-		$parent = $walktree;
-
-		if ( ref $walktree ) {
-			if ( exists $walktree->{ $mod } ) {
-
-
-
-
-
-
-
-
-
-
-
-
-			# Sometimes a dist ends up having sub-dists!
-			if ( ! ref $walktree->{ $mod } ) {
-
-				$walktree->{ $mod } = {};
-			}
-
-			$walktree = $walktree->{ $mod };
-			next;
-		} else {
-			# New dist!
+		if ( ! exists $walktree->{ $mod } ) {
 			$newdist++;
 			$walktree->{ $mod } = {};
-			$walktree = $walktree->{ $mod };
 		}
+
+		$walktree = $walktree->{ $mod };
 	}
 
 	# Generate the git output!
@@ -168,23 +143,23 @@ sub process_report {
 
 	# we don't include the dist version because it makes the graph too crazy :(
 
+	# make the top-level split like D/DB/DBI so the graph looks better
+	my $toplevel = uc( substr( $dist[0], 0, 1 ) . '/' . substr( $dist[0], 0, 2 ) );
+
 	# git output is:
 	#:000000 100644 0000000... bd3b6ca... A	poe/lib/POE/Kernel.pm
 	#:000000 100644 0000000... 83c9f1a... A	poe/lib/POE/Session.pm
 	#:100644 100644 bd3b6ca... 63d6c22... M	poe/lib/POE/Kernel.pm
 	#:(old file mask - 0 if A) (new file mask - 0 if A) (parent guid - 0 if A) (new guid) (mode - A for add, M for modify) (path)
+	# Make the graph easier to see by putting the dist as the filename
 	if ( $newdist ) {
 		# new dist!
 
-		$output .= ":000000 100644 0000000... $guid... A\t/" . join( '/', @dist ) . "\n";
-		$walktree->{ $report{version} } = $guid;
+		$output .= ":000000 100644 0000000... AAAAAAA... A\t/$toplevel/" . join( '/', @dist ) . "/$report{dist}\n";
 	} else {
 		# same dist
 
-		$output .= ":100644 100644 " .
-			$walktree->{ $report{version} } .
-			"... $guid... M\t/" . join( '/', @dist ) . "/$report{version}\n";
-		$walktree->{ $report{version} } = $guid;
+		$output .= ":100644 100644 AAAAAAA... AAAAAAA... M\t/$toplevel/" . join( '/', @dist ) . "/$report{dist}\n";
 	}
 	$output .= "\n";
 
@@ -198,8 +173,8 @@ __END__
 # You would need to experiment with the "-r 100" param to ffmpeg to get an optimal video!
 gource ct_dists.log -1280x720 --highlight-all-users --multi-sampling --user-scale 0.5 \
   --disable-bloom --elasticity 0.0001 --max-file-lag 0.000001 --max-files 1000000 \
-  --date-format "CPANTesters Upload Activity On %B %d, %Y %X" --stop-on-idle \
-  --colour-images --user-friction 0.0000001 --seconds-per-day 0.000001 \
+  --date-format "CPANTesters Reports For Dists On %B %d, %Y %X" --stop-on-idle --file-idle-time 100 \
+  --colour-images --user-friction 0.0000001 --seconds-per-day 0.000001 --hide dirnames --camera-mode overview \
   --output-ppm-stream - | ffmpeg -y -b 5000K -r 100 -f image2pipe -vcodec ppm -i - -vcodec mpeg4 gource_CT_dists.mp4
 
 # I tried using -r200 but ffmepg didn't like it:
