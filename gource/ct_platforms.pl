@@ -163,7 +163,7 @@ gource ct_platforms.log -1280x720 --highlight-all-users --multi-sampling --user-
   --disable-bloom --elasticity 0.0001 --max-file-lag 0.000001 --max-files 1000000 \
   --date-format "CPANTesters Reports For Platforms On %B %d, %Y %X" --stop-on-idle --file-idle-time 1000 \
   --colour-images --user-friction 0.0000001 --seconds-per-day 0.000001 --hide dirnames --camera-mode overview \
-  --output-ppm-stream - | ffmpeg -y -b 5000K -r 100 -f image2pipe -vcodec ppm -i - -vcodec mpeg4 gource_CT_platforms.mp4
+  --output-ppm-stream - | ffmpeg -y -b 10000K -r 100 -f image2pipe -vcodec ppm -i - -vcodec mpeg4 gource_CT_platforms.mp4
 
 # I tried using -r200 but ffmepg didn't like it:
 #[mpeg4 @ 0x202f040]bitrate tolerance too small for bitrate

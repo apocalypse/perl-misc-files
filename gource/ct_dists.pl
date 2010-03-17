@@ -8,7 +8,7 @@ use strict; use warnings;
 # Grab the cpanstats DB from http://devel.cpantesters.org/cpanstats.db.bz2
 # Get the cpantesters mapping from a magic fairy ;)
 
-# Warning: the resulting log will be ~900M as of March 16, 2010!
+# Warning: the resulting log will be ~800M as of March 16, 2010!
 
 # TODO use Term::ProgressBar and calculate the total number of rows + update the term...
 # TODO steal the gravatar script from POE and get gravatars for all PAUSE ids we detect
@@ -175,7 +175,7 @@ gource ct_dists.log -1280x720 --highlight-all-users --multi-sampling --user-scal
   --disable-bloom --elasticity 0.0001 --max-file-lag 0.000001 --max-files 1000000 \
   --date-format "CPANTesters Reports For Dists On %B %d, %Y %X" --stop-on-idle --file-idle-time 100 \
   --colour-images --user-friction 0.0000001 --seconds-per-day 0.000001 --hide dirnames --camera-mode overview \
-  --output-ppm-stream - | ffmpeg -y -b 5000K -r 100 -f image2pipe -vcodec ppm -i - -vcodec mpeg4 gource_CT_dists.mp4
+  --output-ppm-stream - | ffmpeg -y -b 10000K -r 100 -f image2pipe -vcodec ppm -i - -vcodec mpeg4 gource_CT_dists.mp4
 
 # I tried using -r200 but ffmepg didn't like it:
 #[mpeg4 @ 0x202f040]bitrate tolerance too small for bitrate
