@@ -501,6 +501,11 @@ To setup ubuntu 9.10 as smoking host:
 <Apocalypse> That rocks, I need to put that on my notes for cpan smoking so whenever I setup a win32 smoking box with cygwin I'll know what to do :)
 
 
+
+Investigate use of CamelPack perl installer? http://stennie.org/camelpack/
+
+
+
 <Apocalypse> ah MUCH better, before I was failing tons of tests now all passed :)
 <Apocalypse> I should write down everything I did and blog it somewhere heh
 <Apocalypse> A lot of tiny things to fix...
