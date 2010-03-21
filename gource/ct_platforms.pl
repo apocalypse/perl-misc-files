@@ -6,16 +6,17 @@ use strict; use warnings;
 # all perl versions/platforms tested.
 
 # Grab the cpanstats DB from http://devel.cpantesters.org/cpanstats.db.bz2
+#	NOTE: it is recommended that you do: sqlite> CREATE INDEX ixdate2 ON cpanstats (date);
 # Get the cpantesters mapping from a magic fairy ;)
 
-# Warning: the resulting log will be ~900M as of March 16, 2010!
+# Warning: the resulting log will be ~800M as of March 20, 2010!
+# -rw-r--r-- 1 apoc apoc 797M 2010-03-20 23:47 ct_platforms.log
 
 # TODO use Term::ProgressBar and calculate the total number of rows + update the term...
-# TODO steal the gravatar script from POE and get gravatars for all PAUSE ids we detect
 
 # some misc configs
-my $cpanstats = '/home/apoc/Desktop/cpanstats.db';
-my $cpan_map = '/home/apoc/Desktop/cpantesters_mapping.txt';
+my $cpanstats = '/home/apoc/gource_ct/cpanstats.db';
+my $cpan_map = '/home/apoc/gource_ct/cpantesters_mapping.txt';
 
 # Load our modules!
 use DBI;
@@ -36,15 +37,14 @@ sub main {
 	} );
 
 	# Pull out each upload and process it
-	# TODO should be ORDER BY date but it blows up? The column is not a true date column so...
-	my $sth = $dbh->prepare( 'SELECT id, tester, platform, perl, osname, osvers, date FROM cpanstats ORDER BY id' );
+	my $sth = $dbh->prepare( 'SELECT tester, platform, perl, osname, osvers, date FROM cpanstats ORDER BY date' );
 	$sth->execute;
 	my $newdata;
 	$sth->bind_columns( \( @$newdata{ @{ $sth->{'NAME_lc'} } } ) );
 
 	# Start with the header
-	# set the date as 935824000 which is right before id 1 in the DB :)
-	print "user:APOCAL\n935824000\n:000000 100644 0000000... AAAAAAA... A	/\n\n";
+	# set the date as 935820000 which is right before id 1 in the DB :)
+	print "user:APOCAL\n935820000\n:000000 100644 0000000... AAAAAAA... A	/\n\n";
 
 	while ( $sth->fetch() ) {
 		# Process this report
@@ -75,7 +75,12 @@ sub load_cpantesters_map {
 	# reverse it so we can search by email and get the name
 	foreach my $name ( keys %temp ) {
 		foreach my $email ( @{ $temp{ $name } } ) {
-			$cpantesters_map{ $email } = $name;
+			# We want to get PAUSE ids only
+			if ( $name =~ /\(([^\)]+)\)$/ ) {
+				$cpantesters_map{ $email } = $1;
+			} else {
+				$cpantesters_map{ $email } = $name;
+			}
 		}
 	}
 }
@@ -84,11 +89,16 @@ sub find_cpantesters_map {
 	my $email = shift;
 
 	# Sanity
-	return 'UNKNOWN' if ! defined $email or ! length $email;
+	return 'UNKNOWN@UNKNOWN' if ! defined $email or ! length $email;
 	if ( exists $cpantesters_map{ $email } ) {
 		return $cpantesters_map{ $email };
 	} else {
-		return $email;
+		# We want to get PAUSE ids only
+		if ( $email =~ /\(([^\)]+)\)$/ ) {
+			return $1;
+		} else {
+			return $email;
+		}
 	}
 }
 
@@ -157,12 +167,15 @@ sub process_report {
 
 __END__
 
-# to generate the video, run this script and save the log, then run Gource like this:
-# You would need to experiment with the "-r 100" param to ffmpeg to get an optimal video!
-gource ct_platforms.log -1280x720 --highlight-all-users --multi-sampling --user-scale 0.5 \
-  --disable-bloom --elasticity 0.0001 --max-file-lag 0.000001 --max-files 1000000 \
+# to generate the video, run this script and save the log:
+perl ct_platforms.pl > ct_platforms.log
+
+# Then run Gource like this:
+gource ct_platforms.log -1280x720 --highlight-all-users --multi-sampling \
+  --disable-bloom --elasticity 0.0001 --max-file-lag 0.000001 --max-files 10000 \
   --date-format "CPANTesters Reports For Platforms On %B %d, %Y %X" --stop-on-idle --file-idle-time 1000 \
-  --colour-images --user-friction 0.0000001 --seconds-per-day 0.000001 --hide dirnames --camera-mode overview \
+  --user-friction 0.0000001 --seconds-per-day 0.000001 --hide dirnames --camera-mode overview \
+  --user-image-dir gravatars/ \
   --output-ppm-stream - | ffmpeg -y -b 10000K -r 100 -f image2pipe -vcodec ppm -i - -vcodec mpeg4 gource_CT_platforms.mp4
 
 # I tried using -r200 but ffmepg didn't like it:

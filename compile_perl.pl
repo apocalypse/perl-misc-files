@@ -9,6 +9,8 @@ use strict; use warnings;
 
 # We skip 5.6.0 and 5.8.0 because they are problematic builds
 
+# You may see MSWin32 code here but it's untested!
+
 # We have successfully compiled perl on those OSes:
 # x86_64/x64/amd64 (64bit) OSes:
 #	OpenSolaris 2009.6, FreeBSD 5.2-RELEASE, Ubuntu-server 9.10, NetBSD 5.0.1
@@ -188,7 +190,7 @@ sub get_directory_contents {
 sub prompt_action {
 	my $res;
 	while ( ! defined $res ) {
-		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/(e)xit/(i)nstall/perl(m)atrix/unchow(n)/(r)econfig cpanp/(s)elfupdate/perl (t)arballs/(u)ninstall/cho(w)n/inde(x)]", 'e', 120 ) );
+		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(r)econfig cpanp/perl (t)arballs/(u)ninstall/cho(w)n/inde(x)]", 'e', 120 ) );
 		if ( $res eq 'b' ) {
 			# prompt user for perl version to compile
 			$res = prompt_perlver();
@@ -203,6 +205,52 @@ sub prompt_action {
 					}
 				}
 			}
+		} elsif ( $res eq 'l' ) {
+			# Update the entire toolchain + Metabase deps
+			do_log( "[CPANPLUS] Executing toolchain update on all CPANPLUS installs..." );
+			iterate_perls( sub {
+				my $p = shift;
+
+				if ( do_cpanp_action( $p, "s selfupdate all" ) ) {
+					do_log( "[CPANPLUS] Successfully updated CPANPLUS on '$p'" );
+
+					# Okay, update the rest of the toolchain modules
+					# List taken from CPANPLUS::Internals::Constants::Report v0.9003
+					# use constant REPORT_TOOLCHAIN_VERSIONS
+					# We remove CPANPLUS from this list because it's redundant :)
+					# We remove 'version' because it's perl-core
+					# TODO is it possible to get this value from CPANPLUS automatically?
+					my $modlist = "i";
+					my @toolchain_modules = qw(
+						CPANPLUS::Dist::Build
+						Cwd
+						ExtUtils::CBuilder
+						ExtUtils::Command
+						ExtUtils::Install
+						ExtUtils::MakeMaker
+						ExtUtils::Manifest
+						ExtUtils::ParseXS
+						File::Spec
+						Module::Build
+						Test::Harness
+						Test::More
+					);
+
+					# Add Metabase and our YACSmoke stuff
+					push( @toolchain_modules, qw( CPANPLUS::YACSmoke Test::Reporter::Transport::Metabase ) );
+					foreach my $tool ( @toolchain_modules ) {
+						$modlist .= " $tool";
+					}
+
+					if ( do_cpanp_action( $p, $modlist ) ) {
+						do_log( "[CPANPLUS] Successfully updated toolchain modules on '$p'" );
+					} else {
+						do_log( "[CPANPLUS] Failed to update toolchain modules on '$p'" );
+					}
+				} else {
+					do_log( "[CPANPLUS] Failed to update CPANPLUS on '$p'" );
+				}
+			} );
 		} elsif ( $res eq 't' ) {
 			# Mirror the perl tarballs
 			getPerlTarballs();
@@ -252,18 +300,6 @@ sub prompt_action {
 			} else {
 				do_log( "[COMPILER] Module name not specified, please try again." );
 			}
-		} elsif ( $res eq 's' ) {
-			# perform CPANPLUS s selfupdate all
-			do_log( "[CPANPLUS] Executing selfupdate on all CPANPLUS installs..." );
-			iterate_perls( sub {
-				my $p = shift;
-
-				if ( do_cpanp_action( $p, "s selfupdate all" ) ) {
-					do_log( "[CPANPLUS] Successfully updated CPANPLUS on '$p'" );
-				} else {
-					do_log( "[CPANPLUS] Failed to update CPANPLUS on '$p'" );
-				}
-			} );
 		} elsif ( $res eq 'e' ) {
 			return;
 		} elsif ( $res eq 'w' ) {
@@ -1618,8 +1654,40 @@ sub do_shellcommand {
 	# we need to tell tee_merged to automatically insert a \t before each line...
 	my( $output, $retval );
 	do_log( "[SHELLCMD] Executing '$cmd'" );
-	$output = tee_merged { $retval = system( $cmd ) };
-	do_log( "[SHELLCMD] Done executing, retval = " . ( $retval >> 8 ) );
+
+	# TODO work with DAGOLDEN to figure out this crapola on my FreeBSD vm...
+	# It happens under heavy load, under no load, under whatever load :(
+#	[SHELLCMD] Executing '/home/cpan/perls/perl-5.8.2-default/bin/perl /home/cpan/perls/perl-5.8.2-default/bin/cpanp s selfupdate all'
+#	Timed out waiting for subprocesses to start at /usr/local/lib/perl5/site_perl/5.8.9/Capture/Tiny.pm line 221
+#        Capture::Tiny::_wait_for_tees('HASH(0x61ed58)') called at /usr/local/lib/perl5/site_perl/5.8.9/Capture/Tiny.pm line 286
+#        Capture::Tiny::_capture_tee(1, 0, 1, 'CODE(0x61ec88)') called at ./compile.pl line 1657
+#        main::do_shellcommand('/home/cpan/perls/perl-5.8.2-default/bin/perl /home/cpan/perls...') called at ./compile.pl line 1622
+#        main::do_cpanp_action('perl-5.8.2-default', 's selfupdate all') called at ./compile.pl line 214
+#        main::__ANON__('perl-5.8.2-default') called at ./compile.pl line 386
+#        main::iterate_perls('CODE(0x966b78)') called at ./compile.pl line 253
+#        main::prompt_action() called at ./compile.pl line 92
+	my $fails = 1;
+	until ( ! $fails ) {
+		eval {
+			$output = tee_merged { $retval = system( $cmd ) };
+		};
+		if ( ! $@ ) {
+			$fails = 0;
+		} else {
+			do_log( "[SHELLCMD] Detected Capture::Tiny FAIL, re-trying command" );
+
+			# ABORT if we fail 3 straight times...
+			if ( $fails++ == 3 ) {
+				last;
+			}
+		}
+	};
+	if ( $fails == 3 ) {
+		do_log( "[SHELLCMD] Giving up trying to execute command, ABORTING!" );
+		exit;
+	} else {
+		do_log( "[SHELLCMD] Done executing, retval = " . ( $retval >> 8 ) );
+	}
 
 	my @output = split( /\n/, $output );
 	return \@output;
