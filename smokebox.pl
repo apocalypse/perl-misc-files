@@ -282,6 +282,9 @@ sub irc_botcmd_queue : State {
 		}
 
 		# Add smokers info
+		# TODO fix wrong calculation bug...
+		# <netbsd64> Number of jobs in the queue: 0. Current job: smoke Pod::Simple, still working after 7 minutes and 56 seconds, running(/home/cpan/perls/perl-5.8.2-default/bin/perl), with 15/19 perls done.
+		# <netbsd64> Number of jobs in the queue: 0. Current job: smoke Pod::Simple, still working after 9 minutes and 50 seconds, running(/home/cpan/perls/perl-5.6.1-default/bin/perl), with 18/20 perls done.
 		my $smokedone = scalar @{ $currjob->{'result'} };
 		my $smokeleft = scalar @{ $currjob->{'smokers'} };
 		if ( $smokeleft == 0 ) {
