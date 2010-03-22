@@ -606,8 +606,11 @@ sub setup {
 	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
-	$conf->set_conf( prefer_bin => 0 );
-	$conf->set_conf( prefer_makefile => 1 );
+	$conf->set_conf( prefer_bin => 1 );
+
+# We let CPANPLUS automatically figure it out!
+#	$conf->set_conf( prefer_makefile => 1 );
+
 	$conf->set_conf( prereqs => 1 );
 	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
 	$conf->set_conf( show_startup_tip => 0 );
@@ -1266,8 +1269,11 @@ sub setup {
 	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
-	$conf->set_conf( prefer_bin => 0 );
-	$conf->set_conf( prefer_makefile => 1 );
+	$conf->set_conf( prefer_bin => 1 );
+
+# We let CPANPLUS automatically figure it out!
+#	$conf->set_conf( prefer_makefile => 1 );
+
 	$conf->set_conf( prereqs => 1 );
 	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
 	$conf->set_conf( show_startup_tip => 0 );
@@ -1475,6 +1481,7 @@ sub setup {
 
 # TODO seems like this causes weird caching issues - better to split off the stuff for now...
 #	$conf->set_conf( fetchdir => 'XXXCATDIR-XXXPATHXXX/.cpanplus/authorsXXX' );
+
 	$conf->set_conf( flush => 1 );
 	$conf->set_conf( force => 0 );
 	$conf->set_conf( hosts => [
@@ -1490,8 +1497,11 @@ sub setup {
 	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
-	$conf->set_conf( prefer_bin => 0 );
-	$conf->set_conf( prefer_makefile => 1 );
+	$conf->set_conf( prefer_bin => 1 );
+
+# We let CPANPLUS automatically figure it out!
+#	$conf->set_conf( prefer_makefile => 1 );
+
 	$conf->set_conf( prereqs => 1 );
 	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
 	$conf->set_conf( show_startup_tip => 0 );

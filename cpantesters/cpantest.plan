@@ -121,7 +121,7 @@ To setup ubuntu 9.10 as smoking host:
 			2. sudo passwd # to set root passwd
 			3. sudo vi /etc/pam.d/su && sudo groupadd wheel && sudo usermod -a -G wheel apoc
 			3. sudo apt-get update && sudo apt-get upgrade
-			3. sudo apt-get install build-essential ssh nano wget ftp ntp libssl-dev
+			3. sudo apt-get install build-essential ssh nano wget ftp ntp libssl-dev unzip
 			4. sudo nano /etc/network/interfaces # to set static IP
 				iface eth0 inet static
 					address 192.168.0.200
@@ -168,6 +168,7 @@ To setup ubuntu 9.10 as smoking host:
 			3. cd /usr/ports/shells/bash && make install
 			4. cd /usr/ports/ftp/wget && make install
 			5. cd /usr/ports/lang/perl5.10 && make install
+			6. cd /usr/ports/archivers/unzip && make install
 			3. chsh -s /usr/local/bin/bash apoc
 			3. chsh -s /usr/local/bin/bash root
 			4. /usr/local/bin/nano /etc/rc.conf
@@ -252,6 +253,7 @@ To setup ubuntu 9.10 as smoking host:
 				10.4 cd /usr/pkgsrc/net/wget && make install
 				10.5 cd /usr/pkgsrc/security/sudo && make install
 				10.6 nano /usr/pkg/etc/sudoers # and add "cpan ALL=/usr/sbin/chown"
+				10.7 cd /usr/pkgsrc/archivers/unzip && make install
 			11. usermod -s /usr/pkg/bin/bash apoc && usermod -s /usr/pkg/bin/bash root
 			12. useradd -m cpan
 			13. passwd cpan
@@ -290,6 +292,7 @@ To setup ubuntu 9.10 as smoking host:
 				desktop-mime-cache mime-types-cache input-method-cache ogl-select ppd-cache-update dns/multicast ktkt_warn
 				rmvolmgr power dbus gss smserver avahi-bridge-dsd vnc-config
 			12. pfexec pkg install ss-dev
+				# This also pulls in SUNWunzip but in the future it could change...
 				12.1 pfexec nano /etc/profile
 					# add those lines:
 					SUNW_NO_UPDATE_NOTIFY=1
