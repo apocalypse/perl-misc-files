@@ -6,6 +6,7 @@ use strict; use warnings;
 # 5.8.1, 5.8.2, 5.8.3, 5.8.4, 5.8.5, 5.8.6, 5.8.7, 5.8.8, 5.8.9
 # 5.10.0, 5.10.1
 # 5.11.0, 5.11.1, 5.11.2, 5.11.3, 5.11.4, 5.11.5
+# 5.12.0-RC0
 
 # We skip 5.6.0 and 5.8.0 because they are problematic builds
 
@@ -20,7 +21,6 @@ use strict; use warnings;
 # This compiler builds each perl with a matrix of 49 possible combinations.
 # Compiling the entire perl suite listed above will result in: 931 perls!
 # Each perl averages 40M with all the necessary modules to smoke CPAN preinstalled. ( ~37GB total! )
-
 
 # this script does everything, but we need some layout to be specified!
 # /home/cpan					<-- the main directory
@@ -56,6 +56,8 @@ use strict; use warnings;
 #	- move hardcoded stuff into variables - something like %CONFIG
 #	- fix all TODO lines in this code :)
 #	- we should run 2 CPANPLUS configs per perl - "prefer_makefile" true and false...
+#	- ARGH, perl-5.12.0-RC0.tar.gz screws up with our version system and everything...
+#		- for now I just move it to perl-5.12.0.tar.gz because it's too much yak shaving to fix the system :(
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
@@ -193,7 +195,7 @@ sub prompt_action {
 		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(r)econfig cpanp/perl (t)arballs/(u)ninstall/cho(w)n/inde(x)]", 'e', 120 ) );
 		if ( $res eq 'b' ) {
 			# prompt user for perl version to compile
-			$res = prompt_perlver();
+			$res = prompt_perlver( 0 );
 			if ( defined $res ) {
 				if ( $res ne 'a' ) {
 					# do the stuff!
@@ -207,7 +209,7 @@ sub prompt_action {
 			}
 		} elsif ( $res eq 'l' ) {
 			# Update the entire toolchain + Metabase deps
-			do_log( "[CPANPLUS] Executing toolchain update on all CPANPLUS installs..." );
+			do_log( "[CPANPLUS] Executing toolchain update on CPANPLUS installs..." );
 			iterate_perls( sub {
 				my $p = shift;
 
@@ -269,7 +271,7 @@ sub prompt_action {
 			# install a specific module
 			my $module = prompt( "What module should we install?", '', 120 );
 			if ( defined $module and length $module ) {
-				do_log( "[CPANPLUS] Installing '$module' on all perls..." );
+				do_log( "[CPANPLUS] Installing '$module' on perls..." );
 				iterate_perls( sub {
 					my $p = shift;
 
@@ -280,7 +282,7 @@ sub prompt_action {
 					}
 				} );
 			} else {
-				do_log( "[COMPILER] Module name not specified, please try again." );
+				do_log( "[CPANPLUS] Module name not specified, please try again." );
 			}
 		} elsif ( $res eq 'u' ) {
 			# uninstall a specific module
@@ -298,7 +300,7 @@ sub prompt_action {
 					}
 				} );
 			} else {
-				do_log( "[COMPILER] Module name not specified, please try again." );
+				do_log( "[CPANPLUS] Module name not specified, please try again." );
 			}
 		} elsif ( $res eq 'e' ) {
 			return;
@@ -308,7 +310,7 @@ sub prompt_action {
 				do_log( "[COMPILER] Unable to chown on $^O" );
 			} else {
 				# thanks to BinGOs for the idea to chown the perl installs to prevent rogue modules!
-				do_log( "[COMPILER] Executing chown -R root on all perl installs..." );
+				do_log( "[COMPILER] Executing chown -R root on perl installs..." );
 				iterate_perls( sub {
 					my $p = shift;
 
@@ -322,7 +324,7 @@ sub prompt_action {
 				do_log( "[COMPILER] Unable to chown on $^O" );
 			} else {
 				# Unchown the perl installs so we can do stuff to them :)
-				do_log( "[COMPILER] Executing chown -R $< on all perl installs..." );
+				do_log( "[COMPILER] Executing chown -R $< on perl installs..." );
 				iterate_perls( sub {
 					my $p = shift;
 
@@ -331,7 +333,7 @@ sub prompt_action {
 			}
 		} elsif ( $res eq 'r' ) {
 			# reconfig all perls' CPANPLUS settings
-			do_log( "[CPANPLUS] Reconfiguring+reindexing all CPANPLUS instances..." );
+			do_log( "[CPANPLUS] Reconfiguring+reindexing CPANPLUS instances..." );
 			iterate_perls( sub {
 				my $p = shift;
 
@@ -363,8 +365,17 @@ sub prompt_action {
 sub iterate_perls {
 	my $sub = shift;
 
+	# prompt user for perl version to iterate on
+	my $res = prompt_perlver( 1 );
+	if ( ! defined $res ) {
+		do_log( "[ITERATOR] No perls specified, aborting!" );
+		return;
+	}
+
 	# Get all available perls and iterate over them
 	if ( $^O eq 'MSWin32' ) {
+		# TODO use the $res perls
+
 		# alternate method, we have to swap perls...
 		local $ENV{PATH} = cleanse_strawberry_path();
 		foreach my $p ( @{ getReadyPerls() } ) {
@@ -382,8 +393,14 @@ sub iterate_perls {
 			mv( "C:\\strawberry", $perlpath ) or die "Unable to mv: $!";
 		}
 	} else {
-		foreach my $p ( @{ getReadyPerls() } ) {
-			$sub->( $p );
+		if ( $res ne 'a' ) {
+			# Only run on this perl!
+			$sub->( $res );
+		} else {
+			# loop through all versions, starting from newest to oldest
+			foreach my $p ( reverse @{ getReadyPerls() } ) {
+				$sub->( $p );
+			}
 		}
 	}
 
@@ -417,13 +434,13 @@ sub getReadyPerls {
 
 		# crap, but I want the list sorted for aesthetics :)
 		my @ready;
-		foreach my $p ( reverse sort versioncmp keys %ready ) {
+		foreach my $p ( sort versioncmp keys %ready ) {
 			foreach my $perl ( sort {$a cmp $b} @{ $ready{ $p } } ) {
 				push( @ready, $perl );
 			}
 		}
 
-		do_log( "[READYPERLS] Found " . ( scalar @ready ) . " perls ready to smoke" );
+		do_log( "[READYPERLS] Found " . ( scalar @ready ) . " perls ready to use" );
 		return \@ready;
 	} else {
 		do_log( "[READYPERLS] No perl distribution is built yet..." );
@@ -487,7 +504,7 @@ sub get_CPANPLUS_ver {
 	}
 
 	# default answer
-	return '0.9002';
+	return '0.9003';
 
 	# Not a good idea, because it consumed gobs of RAM unnecessarily...
 #	require CPANPLUS::Backend;
@@ -515,7 +532,7 @@ sub get_CPANPLUS_tarball_path {
 	}
 
 	# default answer
-	return 'authors/id/B/BI/BINGOS/CPANPLUS-0.9002.tar.gz';
+	return 'authors/id/B/BI/BINGOS/CPANPLUS-0.9003.tar.gz';
 }
 
 sub do_config_localCPANPLUS {
@@ -672,12 +689,19 @@ END
 
 # prompt the user for perl version
 sub prompt_perlver {
-	# get our perl tarballs
-	my $perls = getPerlVersions();
+	# Should we look at tarballs or at ready perls?
+	my $do_ready = shift;
+
+	my $perls;
+	if ( $do_ready ) {
+		$perls = getReadyPerls();
+	} else {
+		$perls = getPerlVersions();
+	}
 
 	my $res;
 	while ( ! defined $res ) {
-		$res = lc( prompt( "Which perl version to compile [ver/(d)isplay/(a)ll/(e)xit]", $perls->[-1], 120 ) );
+		$res = lc( prompt( "Which perl version to use [ver/(d)isplay/(a)ll/(e)xit]", $perls->[-1], 120 ) );
 		if ( $res eq 'd' ) {
 			# display available versions
 			do_log( "[READYPERLS] Available Perls[" . ( scalar @$perls ) . "]: " . join( ' ', @$perls ) );
@@ -1011,12 +1035,12 @@ sub do_prebuild {
 #	[EXTRACTOR] Preparing to extract '/export/home/cpan/build/perl-5.11.4.tar.gz'
 #	Could not open file '/export/home/cpan/build/perl-5.11.4/AUTHORS': Permission denied at /usr/perl5/site_perl/5.8.4/Archive/Extract.pm line 812
 #	Unable to read '/export/home/cpan/build/perl-5.11.4.tar.gz': Could not open file '/export/home/cpan/build/perl-5.11.4/AUTHORS': Permission denied at ./compile.pl line 1072
+	# Just remove any old dir that was there ( script exited in the middle so it was not cleaned up )
 	my $extract_dir = File::Spec->catdir( $PATH, 'build', "perl-$perlver" );
 	if ( -d $extract_dir ) {
 		do_log( "[PERLBUILDER] Executing rmdir($extract_dir)" );
 		File::Path::Tiny::rm( $extract_dir ) or die "Unable to rm ($extract_dir): $!";
 	}
-
 
 	# Argh, we need to figure out the tarball - tar.gz or tar.bz2 or what??? ( thanks to perl-5.11.3 which didn't have a tar.gz file heh )
 	opendir( PERLDIR, File::Spec->catdir( $PATH, 'build' ) ) or die "Unable to opendir: $!";
@@ -1032,6 +1056,16 @@ sub do_prebuild {
 	if ( ! do_archive_extract( File::Spec->catfile( $PATH, 'build', $tarballs[0] ), File::Spec->catdir( $PATH, 'build' ) ) ) {
 		return 0;
 	}
+
+	# TODO UGLY HACK FOR 5.12.0-RC0!
+	if ( $perlver eq '5.12.0' ) {
+		my $rc0path = File::Spec->catdir( $PATH, 'build', 'perl-5.12.0-RC0' );
+		if ( -d $rc0path ) {
+			$extract_dir = $rc0path;
+		}
+	}
+
+	# Move the extracted tarball to our "custom" build dir
 	mv( $extract_dir, $build_dir ) or die "Unable to mv: $!";
 
 	# reset the patch counter
