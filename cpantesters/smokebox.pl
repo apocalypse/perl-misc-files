@@ -29,6 +29,16 @@ my $ircnick = hostname();
 my $ircserver = '192.168.0.200';
 my $freespace = 1024 * 1024 * 1024 * 5;	# set it to 5GB - in bytes before we auto-purge CPAN files
 my $delay = 60;				# set delay in seconds between jobs/smokers to "throttle"
+my $logfile = 'smokebox.log';		# The log to dump smoke results and stuff
+
+# Set our system info
+my %VMs = (
+	# hostname => full text
+	'ubuntu-server64'	=> 'Ubuntu 9.10 server 64bit',
+	'freebsd64'		=> 'FreeBSD 7.2-RELEASE amd64',
+	'netbsd64'		=> 'NetBSD 5.0.1 amd64',
+	'opensolaris64'		=> 'OpenSolaris 2009.06 amd64',
+);
 
 POE::Session->create(
 	__PACKAGE__->inline_states(),
@@ -43,6 +53,12 @@ sub _start : State {
 	# setup our stuff
 	$_[KERNEL]->yield( 'create_smokebox' );
 	$_[KERNEL]->yield( 'create_irc' );
+
+	# Open our logfile for writing
+	if ( defined $logfile ) {
+		open( my $fh, '>', $logfile ) or die "Unable to open '$logfile': $!";
+		$_[HEAP]->{'LOGFILE'} = $fh;
+	}
 
 	return;
 }
@@ -64,6 +80,7 @@ sub create_smokebox : State {
 #			'APPDATA'		=> $ENV{HOME},
 #			'PERL5_YACSMOKE_BASE'	=> $ENV{HOME},
 #			'TMPDIR'		=> File::Spec->catdir( $ENV{HOME}, 'tmp' ),
+#			'PERL_CPANSMOKER_HOST'	=> $VMs{ $ircnick },
 #		},
 #	);
 #	$_[HEAP]->{'SMOKEBOX'}->add_smoker( $smoker );
@@ -101,6 +118,7 @@ sub check_perls : State {
 				'APPDATA'		=> File::Spec->catdir( $ENV{HOME}, 'cpanp_conf', $p ),
 				'PERL5_YACSMOKE_BASE'	=> File::Spec->catdir( $ENV{HOME}, 'cpanp_conf', $p ),
 				'TMPDIR'		=> File::Spec->catdir( $ENV{HOME}, 'tmp' ),
+				'PERL_CPANSMOKER_HOST'	=> $VMs{ $ircnick },
 			},
 		) );
 
@@ -175,6 +193,11 @@ sub _stop : State {
 	undef $_[HEAP]->{'SMOKEBOX'};
 	$_[HEAP]->{'IRC'}->shutdown();
 	undef $_[HEAP]->{'IRC'};
+
+	if ( defined $_[HEAP]->{'LOGFILE'} ) {
+		close( $_[HEAP]->{'LOGFILE'} ) or die "Unable to close '$logfile': $!";
+		undef $_[HEAP]->{'LOGFILE'};
+	}
 
 	return;
 }
@@ -379,7 +402,11 @@ sub smokeresult : State {
 
 		# TODO dump the stuff for now so we can investigate smokes
 		use Data::Dumper;
-		print Dumper( $r );
+		my $dump = Dumper( $r );
+		print STDOUT $dump, "\n";
+		if ( defined $_[HEAP]->{'LOGFILE'} ) {
+			print $_[HEAP]->{'LOGFILE'}, Dumper( $r ), "\n";
+		}
 	}
 	my $duration = duration_exact( $endtime - $starttime );
 
