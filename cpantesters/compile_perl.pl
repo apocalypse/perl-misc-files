@@ -535,6 +535,7 @@ sub get_CPANPLUS_tarball_path {
 	return 'authors/id/B/BI/BINGOS/CPANPLUS-0.9003.tar.gz';
 }
 
+# Look at do_installCPANP_BOXED_config for more details
 sub do_config_localCPANPLUS {
 	# configure the local user Config settings
 	my $uconfig = <<'END';
@@ -570,7 +571,7 @@ sub setup {
 	### conf section
 	$conf->set_conf( allow_build_interactivity => 0 );
 	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/.cpanplusXXX' );
-	$conf->set_conf( buildflags => '' );
+	$conf->set_conf( buildflags => 'uninst=1' );
 	$conf->set_conf( cpantest => 1 );
 	$conf->set_conf( cpantest_mx => '' );
 #	$conf->set_conf( cpantest_reporter_args => {
@@ -601,7 +602,7 @@ sub setup {
 		},
 	] );
 	$conf->set_conf( lib => [] );
-	$conf->set_conf( makeflags => '' );
+	$conf->set_conf( makeflags => 'UNINST=1' );
 	$conf->set_conf( makemakerflags => '' );
 	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
@@ -1209,6 +1210,12 @@ sub do_archive_extract {
 	return 1;
 }
 
+#<Apocalypse> BinGOs: Wondering what you put in the CPANPLUS config on your smoking setup for makemakerflags and buildflags
+#<@BinGOs> s conf makeflags UNINST=1 and s conf buildflags uninst=1
+#<Apocalypse> Why the uninst? You chown root the perl dirs so nothing can instal there, right?
+#<Apocalypse> Or is that for the initial perl build stage, where you want to make sure the modules you install override any core modules and they get deleted?
+#<@BinGOs> habit
+#<@BinGOs> and when I am updating
 sub do_installCPANP_BOXED_config {
 	# configure the Boxed Config settings
 	my $boxed = <<'END';
@@ -1244,7 +1251,7 @@ sub setup {
 	### conf section
 	$conf->set_conf( allow_build_interactivity => 0 );
 	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/CPANPLUS-XXXCPANPLUSXXX/.cpanplus/XXXUSERXXXXXX' );
-	$conf->set_conf( buildflags => '' );
+	$conf->set_conf( buildflags => 'uninst=1' );
 	$conf->set_conf( cpantest => 0 );
 	$conf->set_conf( cpantest_mx => '' );
 	$conf->set_conf( cpantest_reporter_args => {} );
@@ -1264,7 +1271,7 @@ sub setup {
 		},
 	] );
 	$conf->set_conf( lib => [] );
-	$conf->set_conf( makeflags => '' );
+	$conf->set_conf( makeflags => 'UNINST=1' );
 	$conf->set_conf( makemakerflags => '' );
 	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
@@ -1422,6 +1429,7 @@ sub do_installCPANPLUS {
 	return 1;
 }
 
+# Look at do_installCPANP_BOXED_config for more details
 sub do_installCPANPLUS_config {
 	# configure the CPANPLUS config
 	my $cpanplus = <<'END';
@@ -1457,7 +1465,7 @@ sub setup {
 	### conf section
 	$conf->set_conf( allow_build_interactivity => 0 );
 	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/cpanp_conf/perl-XXXPERLVERXXX/.cpanplusXXX' );
-	$conf->set_conf( buildflags => '' );
+	$conf->set_conf( buildflags => 'uninst=1' );
 	$conf->set_conf( cpantest => 1 );
 	$conf->set_conf( cpantest_mx => '' );
 #	$conf->set_conf( cpantest_reporter_args => {
@@ -1492,7 +1500,7 @@ sub setup {
 		},
 	] );
 	$conf->set_conf( lib => [] );
-	$conf->set_conf( makeflags => '' );
+	$conf->set_conf( makeflags => 'UNINST=1' );
 	$conf->set_conf( makemakerflags => '' );
 	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
