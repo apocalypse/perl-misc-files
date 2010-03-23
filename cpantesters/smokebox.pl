@@ -8,7 +8,7 @@ use strict; use warnings;
 #	- we should just update the system CPANPLUS, and the symlinks will handle the rest of the perls...
 
 use POE;
-use POE::Component::SmokeBox 0.32;		# must be > 0.32 for the delay stuff
+use POE::Component::SmokeBox 0.36;		# must be > 0.32 for the delay stuff + 0.36 for loop bug fix
 use POE::Component::SmokeBox::Smoker;
 use POE::Component::SmokeBox::Job;
 use POE::Component::IRC::State 6.18;		# 6.18 depends on POE::Filter::IRCD 2.42 to shutup warnings about 005 numerics
@@ -29,15 +29,14 @@ my $ircnick = hostname();
 my $ircserver = '192.168.0.200';
 my $freespace = 1024 * 1024 * 1024 * 5;	# set it to 5GB - in bytes before we auto-purge CPAN files
 my $delay = 60;				# set delay in seconds between jobs/smokers to "throttle"
-my $logfile = 'smokebox.log';		# The log to dump smoke results and stuff
 
 # Set our system info
 my %VMs = (
 	# hostname => full text
-	'ubuntu-server64'	=> 'Ubuntu 9.10 server 64bit',
-	'freebsd64'		=> 'FreeBSD 7.2-RELEASE amd64',
-	'netbsd64'		=> 'NetBSD 5.0.1 amd64',
-	'opensolaris64'		=> 'OpenSolaris 2009.06 amd64',
+	'ubuntu-server64'	=> 'Ubuntu 9.10 server 64bit (192.168.0.202)',
+	'freebsd64'		=> 'FreeBSD 7.2-RELEASE amd64 (192.168.0.203)',
+	'netbsd64'		=> 'NetBSD 5.0.1 amd64 (192.168.0.205)',
+	'opensolaris64'		=> 'OpenSolaris 2009.06 amd64 (192.168.0.207)',
 );
 
 POE::Session->create(
@@ -50,15 +49,18 @@ exit 0;
 sub _start : State {
 	$_[KERNEL]->alias_set( 'smoker' );
 
+	# Always enable SmokeBox debugging so we can dump output to a log
+	$ENV{PERL5_SMOKEBOX_DEBUG} = 1;
+	my $logfile = 'smokebox.log.' . time();
+	open( my $logfh, '>', $logfile ) or die "Unable to open '$logfile': $!";
+	$SIG{'__WARN__'} = sub {
+		print STDOUT $_[0];
+		print $logfh $_[0];
+	};
+
 	# setup our stuff
 	$_[KERNEL]->yield( 'create_smokebox' );
 	$_[KERNEL]->yield( 'create_irc' );
-
-	# Open our logfile for writing
-	if ( defined $logfile ) {
-		open( my $fh, '>', $logfile ) or die "Unable to open '$logfile': $!";
-		$_[HEAP]->{'LOGFILE'} = $fh;
-	}
 
 	return;
 }
@@ -70,9 +72,9 @@ sub create_smokebox : State {
 	);
 
 # TODO disable system perl because I want a controlled environment for now...
-	# Add system perl...
-	# Configuration successfully saved to CPANPLUS::Config::User
-	#    (/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm)
+#	# Add system perl...
+#	# Configuration successfully saved to CPANPLUS::Config::User
+#	#    (/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm)
 #	my $perl = `which perl`; chomp $perl;
 #	my $smoker = POE::Component::SmokeBox::Smoker->new(
 #		perl => $perl,
@@ -84,10 +86,12 @@ sub create_smokebox : State {
 #		},
 #	);
 #	$_[HEAP]->{'SMOKEBOX'}->add_smoker( $smoker );
-	$_[HEAP]->{'PERLS'} = {};
-
-	# Store the system smoker so we can use it to update the CPANPLUS index
+#
+#	# Store the system smoker so we can use it to update the CPANPLUS index
 #	$_[HEAP]->{'SMOKER_SYSTEM'} = $smoker;
+
+	# Store the local perls we built
+	$_[HEAP]->{'PERLS'} = {};
 
 	# Do the first pass over our perls
 	$_[KERNEL]->yield( 'check_perls' );
@@ -193,11 +197,6 @@ sub _stop : State {
 	undef $_[HEAP]->{'SMOKEBOX'};
 	$_[HEAP]->{'IRC'}->shutdown();
 	undef $_[HEAP]->{'IRC'};
-
-	if ( defined $_[HEAP]->{'LOGFILE'} ) {
-		close( $_[HEAP]->{'LOGFILE'} ) or die "Unable to close '$logfile': $!";
-		undef $_[HEAP]->{'LOGFILE'};
-	}
 
 	return;
 }
@@ -370,8 +369,9 @@ sub irc_botcmd_smoke : State {
 			command => 'smoke',
 			module => $arg,
 			type => 'CPANPLUS::YACSmoke',
+			no_log => 1,
+
 # TODO smoke full blast for CT2.0 testing
-#			no_log => 1,
 #			delay => $delay,
 		),
 	);
@@ -398,14 +398,6 @@ sub smokeresult : State {
 
 		if ( $starttime == 0 or $r->{'start_time'} < $starttime ) {
 			$starttime = $r->{'start_time'};
-		}
-
-		# TODO dump the stuff for now so we can investigate smokes
-		use Data::Dumper;
-		my $dump = Dumper( $r );
-		print STDOUT $dump, "\n";
-		if ( defined $_[HEAP]->{'LOGFILE'} ) {
-			print $_[HEAP]->{'LOGFILE'}, Dumper( $r ), "\n";
 		}
 	}
 	my $duration = duration_exact( $endtime - $starttime );
@@ -504,7 +496,9 @@ sub irc_botcmd_index : State {
 			command => 'index',
 			type => 'CPANPLUS::YACSmoke',
 			no_log => 1,
-			delay => $delay,
+
+# TODO smoke full blast for CT2.0 testing
+#			delay => $delay,
 		),
 	);
 
