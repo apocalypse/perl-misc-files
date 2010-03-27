@@ -36,18 +36,20 @@ if ( $longest % 8 != 0 ) {
 
 # Make the output
 my $output = "my \%AUTHORS = (\n";
+
+# Sort the authors
+# TODO - why is this not sorted right? - my LANG is LANG=en_US.UTF-8
+#	"Yuval Kogman"			=> 'PAUSEID',
+#	"Ævar Arnfjörð Bjarmason"	=> 'PAUSEID',
+
 foreach my $a ( sort { lc($a) cmp lc($b) } keys %authors ) {
 	# Figure out how many tabs we need :)
 	my $charsdiff = ( $longest - $authors{ $a } ) - 2; # subtract two for the "$a"
 
-	my $tabs;
-	if ( $charsdiff % 8 == 0 ) {
-		$tabs = int( $charsdiff / 8 );
-	} else {
-		$tabs = int( $charsdiff / 8 ) + 1; # +1 so it lines up properly
+	my $tabs = int( $charsdiff / 8 );
+	if ( $charsdiff % 8 != 0 ) {
+		$tabs++;	# +1 so it lines up properly
 	}
-
-
 
 	$output .= "\t\"$a\"" . ( "\t" x $tabs ) . "=> 'PAUSEID',\n";
 }
