@@ -35,7 +35,7 @@ if ( $longest % 8 != 0 ) {
 }
 
 # Make the output
-my $output = "my \%AUTHORS = (\n";
+my $output = "our \%AUTHORS = (\n";
 
 # Sort the authors
 # TODO - why is this not sorted right? - my LANG is LANG=en_US.UTF-8
@@ -51,7 +51,7 @@ foreach my $a ( sort { lc($a) cmp lc($b) } keys %authors ) {
 		$tabs++;	# +1 so it lines up properly
 	}
 
-	$output .= "\t\"$a\"" . ( "\t" x $tabs ) . "=> 'PAUSEID',\n";
+	$output .= "\t\"$a\"" . ( "\t" x $tabs ) . "=> '',\n";
 }
 
 $output .= ");\n";
