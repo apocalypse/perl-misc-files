@@ -23,7 +23,6 @@ my %authors;
 # Get the "longest" author name, heh
 my $longest = 0;
 foreach my $a ( keys %authors ) {
-
 	if ( $authors{$a} > $longest ) {
 		$longest = $authors{$a};
 	}
@@ -31,7 +30,7 @@ foreach my $a ( keys %authors ) {
 
 # Make sure the longest ends perfectly aligned with a tab boundary
 if ( $longest % 8 != 0 ) {
-	$longest += abs( $longest - ( 8 * ( int($longest / 8) + 1 ) ) );
+	$longest += abs( $longest - ( 8 * ( int( $longest / 8) + 1 ) ) );
 }
 
 # Make the output
@@ -54,5 +53,5 @@ foreach my $a ( sort { lc($a) cmp lc($b) } keys %authors ) {
 	$output .= "\t\"$a\"" . ( "\t" x $tabs ) . "=> '',\n";
 }
 
-$output .= ");\n";
+$output .= ");\n\n1;\n";
 print $output;
