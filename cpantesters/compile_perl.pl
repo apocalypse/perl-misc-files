@@ -216,35 +216,9 @@ sub prompt_action {
 				if ( do_cpanp_action( $p, "s selfupdate all" ) ) {
 					do_log( "[CPANPLUS] Successfully updated CPANPLUS on '$p'" );
 
-					# Okay, update the rest of the toolchain modules
-					# List taken from CPANPLUS::Internals::Constants::Report v0.9003
-					# use constant REPORT_TOOLCHAIN_VERSIONS
-					# We remove CPANPLUS from this list because it's redundant :)
-					# We remove 'version' because it's perl-core
-					# TODO is it possible to get this value from CPANPLUS automatically?
-					my $modlist = "i";
-					my @toolchain_modules = qw(
-						CPANPLUS::Dist::Build
-						Cwd
-						ExtUtils::CBuilder
-						ExtUtils::Command
-						ExtUtils::Install
-						ExtUtils::MakeMaker
-						ExtUtils::Manifest
-						ExtUtils::ParseXS
-						File::Spec
-						Module::Build
-						Test::Harness
-						Test::More
-					);
-
-					# Add Metabase and our YACSmoke stuff
-					push( @toolchain_modules, qw( CPANPLUS::YACSmoke Test::Reporter::Transport::Metabase ) );
-					foreach my $tool ( @toolchain_modules ) {
-						$modlist .= " $tool";
-					}
-
-					if ( do_cpanp_action( $p, $modlist ) ) {
+					# Get our toolchain modules
+					my $cpanp_action = 'i ' . join( ' ', @{ get_CPANPLUS_toolchain() } );
+					if ( do_cpanp_action( $p, $cpanp_action ) ) {
 						do_log( "[CPANPLUS] Successfully updated toolchain modules on '$p'" );
 					} else {
 						do_log( "[CPANPLUS] Failed to update toolchain modules on '$p'" );
@@ -579,13 +553,22 @@ sub setup {
 #		transport_args => [ 'http://192.168.0.200:11111/submit' ],
 #	} );
 
+#	$conf->set_conf( cpantest_reporter_args => {
+#		transport => 'Metabase',
+#		transport_args => [
+#			uri => "https://metabase.cpantesters.org/beta/",
+#			id_file => "XXXCATDIR-XXXPATHXXX/.metabase/id.jsonXXX",
+#		],
+#	} );
+
 	$conf->set_conf( cpantest_reporter_args => {
-		transport => 'Metabase',
+		transport => 'Socket',
 		transport_args => [
-			uri => "https://metabase.cpantesters.org/beta/",
-			id_file => "XXXCATDIR-XXXPATHXXX/.metabase/id.jsonXXX",
+			host => '192.168.0.200',
+			port => 11_111,
 		],
 	} );
+
 	$conf->set_conf( debug => 0 );
 	$conf->set_conf( dist_type => '' );
 	$conf->set_conf( email => 'apocal@cpan.org' );
@@ -972,11 +955,6 @@ sub customize_perl {
 
 	# we go ahead and configure CPANPLUS for this version :)
 	if ( ! do_installCPANPLUS() ) {
-		return 0;
-	}
-
-	# move on with the test stuff
-	if ( ! do_installCPANTesters() ) {
 		return 0;
 	}
 
@@ -1405,21 +1383,13 @@ sub get_binary_path {
 sub do_installCPANPLUS {
 	do_log( "[CPANPLUS] Configuring CPANPLUS..." );
 
-	# use cpanp-boxed to install some modules that we know we need to bootstrap, argh! ( cpanp-boxed already skips tests so this should be fast )
-	# perl-5.6.1 -> ExtUtils::MakeMaker, Test::More, File::Temp, Time::HiRes
-	# LWP on perl-5.8.2 bombs on Encode ( unable to install Encode on 5.6.x! )
-	my $mod_list;
-	if ( $perlver !~ /^5\.6/ ) {
-		$mod_list = "Encode";
-	} else {
-		$mod_list = "ExtUtils::MakeMaker Test::More File::Temp Time::HiRes";
-	}
-	if ( ! do_cpanpboxed_action( "i $mod_list" ) ) {
+	# Install CPANPLUS and it's stuff!
+	if ( ! do_cpanpboxed_action( "s selfupdate all" ) ) {
 		return 0;
 	}
 
-	# Install CPANPLUS and it's stuff!
-	if ( ! do_cpanpboxed_action( "s selfupdate all" ) ) {
+	# Install the toolchain modules
+	if ( ! do_cpanpboxed_action( "i " . join( ' ', @{ get_CPANPLUS_toolchain() } ) ) ) {
 		return 0;
 	}
 
@@ -1427,6 +1397,36 @@ sub do_installCPANPLUS {
 	do_installCPANPLUS_config();
 
 	return 1;
+}
+
+sub get_CPANPLUS_toolchain {
+	# List taken from CPANPLUS::Internals::Constants::Report v0.9003
+	# use constant REPORT_TOOLCHAIN_VERSIONS
+	# We remove CPANPLUS from this list because it's redundant :)
+	# We remove 'version' because it's perl-core
+	# TODO is it possible to get this value from CPANPLUS automatically?
+	my @toolchain_modules = qw(
+		CPANPLUS::Dist::Build
+		Cwd
+		ExtUtils::CBuilder
+		ExtUtils::Command
+		ExtUtils::Install
+		ExtUtils::MakeMaker
+		ExtUtils::Manifest
+		ExtUtils::ParseXS
+		File::Spec
+		Module::Build
+		Test::Harness
+		Test::More
+	);
+
+	# Add Metabase and our YACSmoke stuff
+	push( @toolchain_modules, qw( CPANPLUS::YACSmoke Test::Reporter::Transport::Socket ) );
+
+	# Add other useful toolchain modules
+	push( @toolchain_modules, qw( File::Temp ) );
+
+	return \@toolchain_modules;
 }
 
 # Look at do_installCPANP_BOXED_config for more details
@@ -1473,13 +1473,22 @@ sub setup {
 #		transport_args => [ 'http://192.168.0.200:11111/submit' ],
 #	} );
 
+#	$conf->set_conf( cpantest_reporter_args => {
+#		transport => 'Metabase',
+#		transport_args => [
+#			uri => "https://metabase.cpantesters.org/beta/",
+#			id_file => "XXXCATDIR-XXXPATHXXX/.metabase/id.jsonXXX",
+#		],
+#	} );
+
 	$conf->set_conf( cpantest_reporter_args => {
-		transport => 'Metabase',
+		transport => 'Socket',
 		transport_args => [
-			uri => "https://metabase.cpantesters.org/beta/",
-			id_file => "XXXCATDIR-XXXPATHXXX/.metabase/id.jsonXXX",
+			host => '192.168.0.200',
+			port => 11_111,
 		],
 	} );
+
 	$conf->set_conf( debug => 0 );
 	$conf->set_conf( dist_type => '' );
 	$conf->set_conf( email => 'apocal@cpan.org' );
@@ -1686,17 +1695,6 @@ sub cleanse_strawberry_path {
 	push( @newpath, "C:\\strawberry\\c\\bin" );
 	push( @newpath, "C:\\strawberry\\perl\\bin" );
 	return join( ';', @newpath );
-}
-
-sub do_installCPANTesters {
-	do_log( "[CPANPLUS] Configuring CPANTesters..." );
-
-	# install the basic modules we need for CT2.0 smoking ( if we wanted the old HTTPGateway option, it's already installed heh )
-	if ( ! do_cpanpboxed_action( "i CPANPLUS::YACSmoke Test::Reporter::Transport::Metabase" ) ) {
-		return 0;
-	}
-
-	return 1;
 }
 
 sub do_shellcommand {
