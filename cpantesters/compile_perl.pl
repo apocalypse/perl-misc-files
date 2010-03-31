@@ -6,7 +6,7 @@ use strict; use warnings;
 # 5.8.1, 5.8.2, 5.8.3, 5.8.4, 5.8.5, 5.8.6, 5.8.7, 5.8.8, 5.8.9
 # 5.10.0, 5.10.1
 # 5.11.0, 5.11.1, 5.11.2, 5.11.3, 5.11.4, 5.11.5
-# 5.12.0-RC0
+# 5.12.0-RC0, 5.12.0-RC1
 
 # We skip 5.6.0 and 5.8.0 because they are problematic builds
 
@@ -77,12 +77,26 @@ my $CPANPLUS_ver;	# the CPANPLUS version we'll use for cpanp-boxed
 my $CPANPLUS_path;	# the CPANPLUS tarball path we use
 my @LOGS = ();		# holds stored logs for a run
 my $domatrix = 0;	# compile the matrix of perl options or not?
+my $dodevel = 0;	# compile the devel versions of perl?
 my $PATH;		# the home path where we do our stuff ( also used for local CPANPLUS config! )
 if ( $^O eq 'MSWin32' ) {
 	$PATH = "C:\\cpansmoke";
 } else {
 	$PATH = $ENV{HOME};
 }
+
+# Global config hash
+my %C = (
+	'matrix'	=> $domatrix,		# compile the matrix of perl options or not?
+	'devel'		=> $dodevel,		# compile the devel versions of perl?
+	'path'		=> $PATH,		# the home path where we do our stuff ( also used for local CPANPLUS config! )
+	'cpanp_path'	=> $CPANPLUS_path,	# the CPANPLUS tarball path we use
+	'cpanp_ver'	=> $CPANPLUS_ver,	# the CPANPLUS version we'll use for cpanp-boxed
+	'perlver'	=> $perlver,		# the perl version we're processing now
+	'perlopts'	=> $perlopts,		# the perl options we're using for this run
+	'dist'		=> undef,		# the full perl dist
+	'server'	=> '192.168.0.200'	# our local CPAN server ( used for mirror/cpantesters upload/etc )
+);
 
 # Set a nice term title
 set_titlebar( "Perl-Compiler@" . hostname() );
@@ -101,7 +115,7 @@ exit;
 
 sub do_sanity_checks {
 	# Move to our path!
-	chdir( $PATH ) or die "Unable to chdir($PATH)";
+	chdir( $C{path} ) or die "Unable to chdir($C{path})";
 
 	# First of all, we check to see if our "essential" binaries are present
 	my @binaries = qw( perl cpanp lwp-mirror lwp-request );
@@ -113,13 +127,13 @@ sub do_sanity_checks {
 
 	foreach my $bin ( @binaries ) {
 		if ( ! length get_binary_path( $bin ) ) {
-			die "ERROR: The binary '$bin' was not found, please rectify this and re-run this script!";
+			die "ERROR: The binary '$bin' was not found, please rectify this and re-run this script!\n";
 		}
 	}
 
 	# Create some directories we need
 	foreach my $dir ( qw( build tmp perls cpanp_conf ) ) {
-		my $localdir = File::Spec->catdir( $PATH, $dir );
+		my $localdir = File::Spec->catdir( $C{path}, $dir );
 		if ( ! -d $localdir ) {
 			do_log( "[SANITYCHECK] Executing mkdir($localdir)" );
 			mkdir( $localdir ) or die "Unable to mkdir ($localdir): $!";
@@ -127,7 +141,7 @@ sub do_sanity_checks {
 	}
 
 	# Do we have the perl tarballs?
-	my $path = File::Spec->catdir( $PATH, 'build' );
+	my $path = File::Spec->catdir( $C{path}, 'build' );
 	opendir( DIR, $path ) or die "Unable to opendir ($path): $!";
 	my @entries = readdir( DIR );
 	closedir( DIR ) or die "Unable to closedir ($path): $!";
@@ -148,16 +162,18 @@ sub getPerlTarballs {
 	# Download all the tarballs we see
 	do_log( "[SANITYCHECK] Downloading the perl dists..." );
 
-	my $ftpdir = 'ftp://192.168.0.200/perl_dists/src';
+	my $ftpdir = 'ftp://' . $C{server} . '/perl_dists/';
 	if ( $^O eq 'MSWin32' ) {
-		$ftpdir = 'ftp://192.168.0.200/perl_dists/strawberry';
+		$ftpdir .= 'strawberry';
+	} else {
+		$ftpdir .= 'src';
 	}
 
 	my $files = get_directory_contents( $ftpdir );
 	foreach my $f ( @$files ) {
 		do_log( "[SANITYCHECK] Downloading perl dist '$f'" );
 
-		my $localpath = File::Spec->catfile( $PATH, 'build', $f );
+		my $localpath = File::Spec->catfile( $C{path}, 'build', $f );
 		if ( -f $localpath ) {
 			unlink( $localpath ) or die "Unable to unlink ($localpath): $!";
 		}
@@ -192,7 +208,7 @@ sub get_directory_contents {
 sub prompt_action {
 	my $res;
 	while ( ! defined $res ) {
-		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(r)econfig cpanp/perl (t)arballs/(u)ninstall/cho(w)n/inde(x)]", 'e', 120 ) );
+		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/use (d)evel perl/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(r)econfig cpanp/perl (t)arballs/(u)ninstall/cho(w)n/inde(x)]", 'e', 120 ) );
 		if ( $res eq 'b' ) {
 			# prompt user for perl version to compile
 			$res = prompt_perlver( 0 );
@@ -207,6 +223,9 @@ sub prompt_action {
 					}
 				}
 			}
+		} elsif ( $res eq 'd' ) {
+			# should we use the perl devel versions?
+			prompt_develperl();
 		} elsif ( $res eq 'l' ) {
 			# Update the entire toolchain + Metabase deps
 			do_log( "[CPANPLUS] Executing toolchain update on CPANPLUS installs..." );
@@ -239,7 +258,7 @@ sub prompt_action {
 		} elsif ( $res eq 'x' ) {
 			# update the local user's CPANPLUS index ( the one we share with all perls )
 			do_log( "[CPANPLUS] Updating local CPANPLUS index..." );
-			local $ENV{APPDATA} = $PATH;
+			local $ENV{APPDATA} = $C{path};
 			do_shellcommand( "cpanp x --update_source" );
 		} elsif ( $res eq 'i' ) {
 			# install a specific module
@@ -289,7 +308,7 @@ sub prompt_action {
 					my $p = shift;
 
 					# some OSes don't have root as a group, so we just set the user
-					do_shellcommand( "sudo chown -R root " . File::Spec->catdir( $PATH, 'perls', $p ) );
+					do_shellcommand( "sudo chown -R root " . File::Spec->catdir( $C{path}, 'perls', $p ) );
 				} );
 			}
 		} elsif ( $res eq 'n' ) {
@@ -302,7 +321,7 @@ sub prompt_action {
 				iterate_perls( sub {
 					my $p = shift;
 
-					do_shellcommand( "sudo chown -R $< " . File::Spec->catdir( $PATH, 'perls', $p ) );
+					do_shellcommand( "sudo chown -R $< " . File::Spec->catdir( $C{path}, 'perls', $p ) );
 				} );
 			}
 		} elsif ( $res eq 'r' ) {
@@ -357,7 +376,7 @@ sub iterate_perls {
 			if ( -d "C:\\strawberry" ) {
 				die "Old strawberry perl found in C:\\strawberry, please fix it!";
 			}
-			my $perlpath = File::Spec->catdir( $PATH, 'perls', $p );
+			my $perlpath = File::Spec->catdir( $C{path}, 'perls', $p );
 			mv( $perlpath, "C:\\strawberry" ) or die "Unable to mv: $!";
 
 			# execute action
@@ -383,7 +402,7 @@ sub iterate_perls {
 
 # finds all installed perls that have smoke.ready file in them
 sub getReadyPerls {
-	my $path = File::Spec->catdir( $PATH, 'perls' );
+	my $path = File::Spec->catdir( $C{path}, 'perls' );
 	if ( -d $path ) {
 		opendir( PERLS, $path ) or die "Unable to opendir ($path): $!";
 		my @list = readdir( PERLS );
@@ -422,12 +441,27 @@ sub getReadyPerls {
 	}
 }
 
+sub prompt_develperl {
+	my $res = lc( prompt( "Compile/use the devel perls", 'n', 120 ) );
+	if ( $res eq 'y' ) {
+		$dodevel = 1;
+		$C{devel} = 1;
+	} else {
+		$dodevel = 0;
+		$C{devel} = 0;
+	}
+
+	return;
+}
+
 sub prompt_perlmatrix {
 	my $res = lc( prompt( "Compile/use the perl matrix", 'n', 120 ) );
 	if ( $res eq 'y' ) {
 		$domatrix = 1;
+		$C{matrix} = 1;
 	} else {
 		$domatrix = 0;
+		$C{matrix} = 0;
 	}
 
 	return;
@@ -442,7 +476,7 @@ sub save_logs {
 	my $end = shift;
 
 	# Make sure we don't overwrite logs
-	my $file = File::Spec->catfile( $PATH, 'perls', "perl-$perlver-$perlopts.$end" );
+	my $file = File::Spec->catfile( $C{path}, 'perls', "perl-$perlver-$perlopts.$end" );
 	if ( -e $file ) {
 #		print "[LOGS] Skipping log save of '$file' as it already exists\n";
 	} else {
@@ -499,9 +533,9 @@ sub get_CPANPLUS_tarball_path {
 	# Spawn a shell to find the answer
 	my $output = do_shellcommand( $^X . ' -MCPANPLUS::Backend -e \'$cb=CPANPLUS::Backend->new;$mod=$cb->module_tree("CPANPLUS");$ver=defined $mod ? $mod->path . "/" . $mod->package : undef; print "TARBALL: " . ( defined $ver ? $ver : "UNDEF" ) . "\n";\'' );
 	if ( $output->[-1] =~ /^TARBALL\:\s+(.+)$/ ) {
-		my $ver = $1;
-		if ( $ver ne 'UNDEF' ) {
-			return $ver;
+		my $tar = $1;
+		if ( $tar ne 'UNDEF' ) {
+			return $tar;
 		}
 	}
 
@@ -621,7 +655,7 @@ sub setup {
 END
 
 	# blow away the old cpanplus dir if it's there
-	my $cpanplus = File::Spec->catdir( $PATH, '.cpanplus' );
+	my $cpanplus = File::Spec->catdir( $C{path}, '.cpanplus' );
 	if ( -d $cpanplus ) {
 		do_log( "[CPANPLUS] Removing old CPANPLUS conf directory in '$cpanplus'" );
 		File::Path::Tiny::rm( $cpanplus ) or die "Unable to rm ($cpanplus): $!";
@@ -644,7 +678,7 @@ END
 	# force an update
 	# we don't use do_cpanp_action() here because we need to use the local user's CPANPLUS config not the perl's one...
 	{
-		local $ENV{APPDATA} = $PATH;
+		local $ENV{APPDATA} = $C{path};
 		do_shellcommand( "cpanp x --update_source" );
 	}
 
@@ -654,7 +688,7 @@ END
 		# commit: wrote 'C:\Documents and Settings\cpan\Local Settings\Application Data\.cpan\CPAN\MyConfig.pm'
 		$cpan = 'C:\\Documents and Settings\\' . $ENV{USERNAME} . '\\Local Settings\\Application Data\\.cpan';
 	} else {
-		$cpan = File::Spec->catdir( $PATH, '.cpan' );
+		$cpan = File::Spec->catdir( $C{path}, '.cpan' );
 	}
 
 	if ( -d $cpan ) {
@@ -719,7 +753,7 @@ sub prompt_perlver {
 	sub getPerlVersions {
 		return $perls if defined $perls;
 
-		my $path = File::Spec->catdir( $PATH, 'build' );
+		my $path = File::Spec->catdir( $C{path}, 'build' );
 		opendir( PERLS, $path ) or die "Unable to opendir ($path): $!";
 		$perls = [ sort versioncmp map { $_ =~ /^perl\-([\d\.]+)\./; $_ = $1; } grep { /^perl\-[\d\.]+\.(?:zip|tar\.(?:gz|bz2))$/ && -f File::Spec->catfile( $path, $_ ) } readdir( PERLS ) ];
 		closedir( PERLS ) or die "Unable to closedir ($path): $!";
@@ -785,6 +819,14 @@ sub install_perl {
 
 sub can_build_perl {
 	my( $p, $o ) = @_;
+
+	# We skip devel perls if it's not enabled
+	if ( $p =~ /^5\.(\d+)/ ) {
+		if ( $1 % 2 != 0 and ! $C{devel} ) {
+			return 0;
+		}
+	}
+
 	# okay, list the known failures here
 
 	# Skip problematic perls
@@ -1595,7 +1637,59 @@ sub analyze_cpanp_install {
 		if ( $ret->[-1] =~ /No\s+errors\s+installing\s+all\s+modules/ ) {
 			return 1;
 		} else {
-			return 0;
+			# Argh, detect "core" module failures and ignore them
+#			Installing ExtUtils::Install (1.54)
+#			[ERROR] The core Perl 5.011005 module 'ExtUtils::Install' (1.55) is more recent than the latest release on CPAN (1.54). Aborting install.
+#			...
+#			Module 'CPANPLUS::Dist::Build' installed successfully
+#			Module 'Cwd' installed successfully
+#			Module 'ExtUtils::CBuilder' installed successfully
+#			Module 'ExtUtils::Command' installed successfully
+#			Error installing 'ExtUtils::Install'
+#			Module 'ExtUtils::MakeMaker' installed successfully
+#			Module 'ExtUtils::Manifest' installed successfully
+#			Module 'ExtUtils::ParseXS' installed successfully
+#			Module 'File::Spec' installed successfully
+#			Module 'Module::Build' installed successfully
+#			Module 'Test::Harness' installed successfully
+#			Module 'Test::More' installed successfully
+#			Module 'CPANPLUS::YACSmoke' installed successfully
+#			Module 'Test::Reporter::Transport::Socket' installed successfully
+#			Module 'File::Temp' installed successfully
+#			Problem installing one or more modules
+#
+#			[SHELLCMD] Done executing, retval = 0
+#			[LOGS] Saving log to '/home/cpan/perls/perl-5.11.5-default.fail'
+			if ( $ret->[-1] =~ /Problem\s+installing\s+one\s+or\s+more\s+modules/ ) {
+				# Argh, look for status of failed modules
+				my @fail;
+				my $line = -2;	# skip the "Problem installing" line
+				while ( 1 ) {
+					if ( length $ret->[$line] <= 1 ) {
+						$line--;
+					} elsif ( $ret->[$line] =~ /^Module\s+\'/ ) {
+						$line--;
+					} elsif ( $ret->[$line] =~ /^Error\s+installing\s+\'([^\']+)\'/ ) {
+						push( @fail, $1 );
+						$line--;
+					} else {
+						last;
+					}
+				}
+				if ( @fail ) {
+					foreach my $m ( @fail ) {
+						# Did it abort because of core perl?
+						if ( ! fgrep( 'ERROR.+The\s+core\s+Perl.+' . $m . '.+latest\s+release\s+on\s+CPAN.+Aborting\s+install', $ret ) ) {
+							return 0;
+						}
+					}
+
+					# Got here, all fails were core, ignore it!
+					return 1;
+				}
+			} else {
+				return 0;
+			}
 		}
 	} elsif ( $action =~ /^s/ ) {
 		# TODO analyse this?
