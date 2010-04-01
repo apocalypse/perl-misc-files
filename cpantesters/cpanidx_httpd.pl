@@ -10,10 +10,24 @@ use POE::Component::Server::SimpleHTTP;
 use DBI;
 use App::CPANIDX::Renderer;
 use App::CPANIDX::Queries;
+use Config::Tiny;
+use Getopt::Long;
 
-my $port = 11_111;
-my $dsn = 'dbi:SQLite:dbname=/home/cpan/CPANIDX.db';
 my $debug = 1;
+my $config = 'cpanidx.ini';
+
+GetOptions( 'config=s', \$config, );
+
+my $ini = Config::Tiny->new();
+my $cfg = $ini->read( $config ) or die $ini->errstr, "\n";
+
+my $port = $cfg->{_}->{socket};
+my $dsn = $cfg->{_}->{dsn};
+my $user = $cfg->{_}->{user};
+my $pass = $cfg->{_}->{pass};
+
+die "No 'socket' was specified in the config file '$config', aborting\n" unless $port;
+die "No 'dsn' was specified in the config file '$config', aborting\n" unless $dsn;
 
 start_httpd();
 exit;
@@ -39,7 +53,7 @@ sub start_httpd {
 sub HTTPD_START {
 	$_[KERNEL]->alias_set( 'CPANIDX' );
 
-	my $dbh = DBI->connect( $dsn ) or die $DBI::errstr, "\n";
+	my $dbh = DBI->connect( $dsn, $user, $pass ) or die $DBI::errstr, "\n";
 
 	POE::Component::Server::SimpleHTTP->new(
 		'ALIAS'         =>      'HTTPD',
