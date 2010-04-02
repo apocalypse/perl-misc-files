@@ -305,14 +305,16 @@ sub prompt_action {
 			}
 		} elsif ( $res eq 'r' ) {
 			# reconfig all perls' CPANPLUS settings
-			do_log( "[CPANPLUS] Reconfiguring+reindexing CPANPLUS instances..." );
+			do_log( "[CPANPLUS] Reconfiguring CPANPLUS instances..." );
 			iterate_perls( sub {
 				do_installCPANPLUS_config();
-				if ( do_cpanp_action( $C{perldist}, "x --update_source" ) ) {
-					do_log( "[CPANPLUS] Reconfigured CPANPLUS on '$C{perldist}'" );
-				} else {
-					do_log( "[CPANPLUS] Error in updating sources for '$C{perldist}'" );
-				}
+
+				# No longer needed because of CPANIDX
+#				if ( do_cpanp_action( $C{perldist}, "x --update_source" ) ) {
+#					do_log( "[CPANPLUS] Reconfigured CPANPLUS on '$C{perldist}'" );
+#				} else {
+#					do_log( "[CPANPLUS] Error in updating sources for '$C{perldist}'" );
+#				}
 			} );
 		} else {
 			do_log( "[COMPILER] Unknown action, please try again." );
@@ -660,6 +662,7 @@ END
 	# force an update
 	# we don't use do_cpanp_action() here because we need to use the local user's CPANPLUS config not the perl's one...
 	{
+		# TODO convert this to CPANIDX and no need to update index!
 		local $ENV{APPDATA} = $C{home};
 		do_shellcommand( "cpanp x --update_source" );
 	}
@@ -1585,8 +1588,6 @@ END
 	$cpanp_dir = File::Spec->catfile( $cpanp_dir, 'User.pm' );
 	do_replacefile( $cpanp_dir, $cpanplus );
 
-	# TODO figure out a way to symlink the $C{home}/.cpanplus/sourcefiles.s2.21.c0.88.stored and 01mailrc.txt.gz and 02packages and 03modlist files to this dist...
-
 	return;
 }
 
@@ -1597,6 +1598,7 @@ sub do_cpanpboxed_action {
 	local $ENV{PERL_MM_USE_DEFAULT} = 1;
 	local $ENV{PERL_EXTUTILS_AUTOINSTALL} = '--defaultdeps';
 	local $ENV{TMPDIR} = File::Spec->catdir( $C{home}, 'tmp' );
+
 	return analyze_cpanp_install( $action, do_shellcommand( File::Spec->catfile( $C{home}, 'perls', $C{perldist}, 'bin', 'perl' ) . " " . File::Spec->catfile( $C{home}, "CPANPLUS-$C{cpanp_ver}", 'bin', 'cpanp-boxed' ) . " $action" ) );
 }
 
