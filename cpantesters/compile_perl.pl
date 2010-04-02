@@ -449,18 +449,9 @@ sub reset_logs {
 sub save_logs {
 	my $end = shift;
 
-	# Make sure we don't overwrite logs
+	# Dump the logs into the file
 	my $file = File::Spec->catfile( $C{home}, 'perls', $C{perldist} . ".$end" );
-	if ( -e $file ) {
-#		print "[LOGS] Skipping log save of '$file' as it already exists\n";
-	} else {
-		print "[LOGS] Saving log to '$file'\n";
-		open( my $log, '>', $file ) or die "Unable to create log ($file): $!";
-		foreach my $l ( @LOGS ) {
-			print $log "$l\n";
-		}
-		close( $log ) or die "Unable to close log ($file): $!";
-	}
+	do_replacefile( $file, join( "\n", @LOGS ), 1 );
 
 	return;
 }
@@ -1659,6 +1650,7 @@ sub analyze_cpanp_install {
 					foreach my $m ( @fail ) {
 						# Did it abort because of core perl?
 						if ( ! fgrep( 'ERROR.+The\s+core\s+Perl.+' . $m . '.+latest\s+release\s+on\s+CPAN.+Aborting\s+install', $ret ) ) {
+							do_log( '[CPANPLUS] Detected error while installing modules' );
 							return 0;
 						}
 					}
@@ -1709,6 +1701,7 @@ sub analyze_cpanp_install {
 				if ( $ret->[-1] =~ /You\s+do\s+not\s+have\s+\'Compress::Zlib\'\s+installed/ ) {
 					return 1;
 				} else {
+					do_log( '[CPANPLUS] Detected error while indexing' );
 					return 0;
 				}
 			}
@@ -1731,6 +1724,7 @@ sub analyze_cpanp_install {
 		if ( $ret->[-1] =~ /All\s+modules\s+uninstalled\s+successfully/ ) {
 			return 1;
 		} else {
+			do_log( '[CPANPLUS] Detected error while uninstalling modules' );
 			return 0;
 		}
 	} else {
@@ -1809,12 +1803,11 @@ sub do_shellcommand {
 	if ( $fails == 4 ) {
 		do_log( "[SHELLCMD] Giving up trying to execute command, ABORTING!" );
 		exit;
-	} else {
-		do_log( "[SHELLCMD] Done executing, retval = " . ( $retval >> 8 ) );
 	}
 
 	my @output = split( /\n/, $output );
 	push( @LOGS, $_ ) for @output;
+	do_log( "[SHELLCMD] Done executing, retval = " . ( $retval >> 8 ) );
 	return \@output;
 }
 
@@ -2800,17 +2793,19 @@ EOP
 }
 
 sub do_replacefile {
-	my( $file, $data ) = @_;
-	do_log( "[PERLBUILDER] Replacing file '$file' with new data" );
-	do_log( "--------------------------------------------------" );
-	if ( ref $data ) {
-		foreach my $l ( @$data ) {
-			do_log( $l );
+	my( $file, $data, $quiet ) = @_;
+	if ( ! $quiet ) {
+		do_log( "[PERLBUILDER] Replacing file '$file' with new data" );
+		do_log( "--------------------------------------------------" );
+		if ( ref $data ) {
+			foreach my $l ( @$data ) {
+				do_log( $l );
+			}
+		} else {
+			do_log( $data );
 		}
-	} else {
-		do_log( $data );
+		do_log( "--------------------------------------------------" );
 	}
-	do_log( "--------------------------------------------------" );
 
 	# for starters, we delete the file
 	if ( -f $file ) {
