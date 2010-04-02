@@ -34,7 +34,7 @@ my $delay = 60;				# set delay in seconds between jobs/smokers to "throttle"
 my %VMs = (
 	# hostname => full text
 	'ubuntu-server64'	=> 'Ubuntu 9.10 server 64bit (192.168.0.202)',
-	'freebsd64'		=> 'FreeBSD 7.2-RELEASE amd64 (192.168.0.203)',
+	'freebsd64.0ne.us'	=> 'FreeBSD 7.2-RELEASE amd64 (192.168.0.203)',
 	'netbsd64'		=> 'NetBSD 5.0.1 amd64 (192.168.0.205)',
 	'opensolaris64'		=> 'OpenSolaris 2009.06 amd64 (192.168.0.207)',
 );
