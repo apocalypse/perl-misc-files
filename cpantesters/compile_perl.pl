@@ -2252,7 +2252,7 @@ sub patch_hints_netbsd {
 #	<Apocalypse> Hmm, trying the compile now with 5.6.2 - if it works then hopefully the rest of 5.8.x would work :)
 #	<Apocalypse> I guess I should also apply this strategy to my failing freebsd builds... thanks all!
 
-	# load the hints/netbsd.sh from perl-5.11.5
+	# load the hints/netbsd.sh from perl-5.12.0-RC1
 	my $data = <<'EOP';
 # hints/netbsd.sh
 #
@@ -2487,7 +2487,7 @@ EOP
 sub patch_hints_freebsd {
 	# same strategy as netbsd, we need it...
 
-	# load the hints/freebsd.sh from perl-5.11.5
+	# load the hints/freebsd.sh from perl-5.12.0-RC1
 	my $data = <<'EOP';
 # Original based on info from
 # Carl M. Fongheiser <cmf@ins.infonet.net>
