@@ -585,7 +585,9 @@ sub setup {
 		],
 	} );
 
-	$conf->set_conf( debug => 0 );
+# Make CPANPLUS a bit more verbose, so we help debugging
+	$conf->set_conf( debug => 1 );
+
 	$conf->set_conf( dist_type => '' );
 	$conf->set_conf( email => 'XXXCONFIG-EMAILXXX' );
 	$conf->set_conf( enable_custom_sources => 0 );
@@ -653,9 +655,7 @@ END
 	my $path = File::Spec->catdir( $cpanplus, 'lib', 'CPANPLUS', 'Config' );
 	File::Path::Tiny::mk( $path ) or die "Unable to mk ($path): $!";
 	$path = File::Spec->catfile( $path, 'User.pm' );
-	open( my $config, '>', $path ) or die "Unable to create config ($path): $!";
-	print $config $uconfig;
-	close( $config ) or die "Unable to close config ($path): $!";
+	do_replacefile( $path, $uconfig );
 
 	# force an update
 	# we don't use do_cpanp_action() here because we need to use the local user's CPANPLUS config not the perl's one...
@@ -1026,9 +1026,7 @@ sub finalize_perl {
 	# we're really done!
 	my $readysmoke = File::Spec->catfile( $path, 'ready.smoke' );
 	do_log( "[FINALIZER] Creating ready.smoke for '$path'" );
-	open( my $file, '>', $readysmoke ) or die "Unable to open ($readysmoke): $!";
-	print $file "$C{perldist}\n";
-	close( $file ) or die "Unable to close ($readysmoke): $!";
+	do_replacefile( $readysmoke, "$C{perldist}\n" );
 
 	return 1;
 }
@@ -1225,7 +1223,10 @@ sub setup {
 	$conf->set_conf( cpantest => 0 );
 	$conf->set_conf( cpantest_mx => '' );
 	$conf->set_conf( cpantest_reporter_args => {} );
-	$conf->set_conf( debug => 0 );
+
+# Make CPANPLUS a bit more verbose, so we help debugging
+	$conf->set_conf( debug => 1 );
+
 	$conf->set_conf( dist_type => '' );
 	$conf->set_conf( email => 'XXXCONFIG-EMAILXXX' );
 	$conf->set_conf( enable_custom_sources => 0 );
@@ -1290,9 +1291,7 @@ END
 	File::Path::Tiny::mk( $cpanp_dir ) or die "Unable to mkdir ($cpanp_dir): $!";
 
 	$cpanp_dir = File::Spec->catfile( $cpanp_dir, 'Boxed.pm' );
-	open( my $config, '>', $cpanp_dir ) or die "Unable to create ($cpanp_dir): $!";
-	print $config $boxed;
-	close( $config ) or die "Unable to close ($cpanp_dir): $!";
+	do_replacefile( $cpanp_dir, $boxed );
 
 	return;
 }
@@ -1505,7 +1504,9 @@ sub setup {
 		],
 	} );
 
-	$conf->set_conf( debug => 0 );
+# Make CPANPLUS a bit more verbose, so we help debugging
+	$conf->set_conf( debug => 1 );
+
 	$conf->set_conf( dist_type => '' );
 	$conf->set_conf( email => 'XXXCONFIG-EMAILXXX' );
 	$conf->set_conf( enable_custom_sources => 0 );
@@ -1582,9 +1583,7 @@ END
 	File::Path::Tiny::mk( $cpanp_dir ) or die "Unable to mkdir ($cpanp_dir): $!";
 
 	$cpanp_dir = File::Spec->catfile( $cpanp_dir, 'User.pm' );
-	open( my $config, '>', $cpanp_dir ) or die "Unable to create ($cpanp_dir): $!";
-	print $config $cpanplus;
-	close( $config ) or die "Unable to close ($cpanp_dir): $!";
+	do_replacefile( $cpanp_dir, $cpanplus );
 
 	# TODO figure out a way to symlink the $C{home}/.cpanplus/sourcefiles.s2.21.c0.88.stored and 01mailrc.txt.gz and 02packages and 03modlist files to this dist...
 
@@ -1746,6 +1745,7 @@ sub do_cpanp_action {
 	local $ENV{PERL_EXTUTILS_AUTOINSTALL} = '--defaultdeps';
 	local $ENV{TMPDIR} = File::Spec->catdir( $C{home}, 'tmp' );
 	local $ENV{APPDATA} = File::Spec->catdir( $C{home}, 'cpanp_conf', $perl );
+	local $ENV{PERL5_CPANIDX_URL} = 'http://' . $C{server} . ':11110/CPANIDX/';	# TODO fix this hardcoded stuff
 
 	# special way for MSWin32...
 	if ( $^O eq 'MSWin32' ) {
@@ -1812,6 +1812,7 @@ sub do_shellcommand {
 	}
 
 	my @output = split( /\n/, $output );
+	push( @LOGS, $_ ) for @output;
 	return \@output;
 }
 
@@ -2048,10 +2049,7 @@ sub do_prebuild_patches {
 
 		# okay, apply it!
 		my $patchfile = File::Spec->catfile( $C{home}, 'build', $C{perldist}, "patch.$patch_num" );
-		open( my $patch, '>', $patchfile ) or die "Unable to create ($patchfile): $!";
-		print $patch $patchdata;
-		close( $patch ) or die "Unable to close ($patchfile): $!";
-
+		do_replacefile( $patchfile, $patchdata );
 		do_shellcommand( "patch -p0 -d " . File::Spec->catdir( $C{home}, 'build', $C{perldist} ) . " < $patchfile" );
 		$patch_num++;
 
@@ -2802,9 +2800,16 @@ EOP
 sub do_replacefile {
 	my( $file, $data ) = @_;
 	do_log( "[PERLBUILDER] Replacing file '$file' with new data" );
+	do_log( "--------------------------------------------------" );
+	foreach my $l ( @$data ) {
+		do_log( $l );
+	}
+	do_log( "--------------------------------------------------" );
 
 	# for starters, we delete the file
-	unlink( $file ) or die "Unable to unlink '$file': $!";
+	if ( -f $file ) {
+		unlink( $file ) or die "Unable to unlink '$file': $!";
+	}
 	open( my $f, '>', $file ) or die "Unable to open '$file' for writing: $!";
 	print $f $data;
 	close( $f ) or die "Unable to close '$file': $!";
