@@ -123,6 +123,7 @@ sub check_perls : State {
 				'PERL5_YACSMOKE_BASE'	=> File::Spec->catdir( $ENV{HOME}, 'cpanp_conf', $p ),
 				'TMPDIR'		=> File::Spec->catdir( $ENV{HOME}, 'tmp' ),
 				'PERL_CPANSMOKER_HOST'	=> $VMs{ $ircnick },
+				'PERL5_CPANIDX_URL'	=> 'http://' . $ircserver . ':11110/CPANIDX/',	# TODO fix this hardcoded path
 			},
 		) );
 
@@ -152,7 +153,7 @@ sub create_irc : State {
 		Commands 	=> {
 			'queue'		=> 'Returns information about the smoker job queue. Takes no arguments.',
 			'smoke'		=> 'Adds the specified module to the smoke queue. Takes one argument: the module name.',
-			'index'		=> 'Updates the CPANPLUS source index. Takes no arguments.',
+#			'index'		=> 'Updates the CPANPLUS source index. Takes no arguments.',
 			'status'	=> 'Enables/disables the smoker. Takes one optional argument: a boolean.',
 			'perls'		=> 'Lists the available perl versions to smoke. Takes no arguments.',
 			'uname'		=> 'Returns the uname of the machine the smokebot is running on. Takes no arguments.',
@@ -207,7 +208,7 @@ sub getPerlVersions {
 
 	# look for ready perls only
 	opendir( PERLS, File::Spec->catdir( $ENV{HOME}, 'perls' ) ) or die "Unable to opendir: $!";
-	my @perls = grep { /^perl\-[\d\.]/ && -d File::Spec->catdir( $ENV{HOME}, 'perls', $_ ) && -e File::Spec->catfile( $ENV{HOME}, 'perls', $_, 'ready.smoke' ) } readdir( PERLS );
+	my @perls = grep { /^perl\_[\d\.]+/ && -d File::Spec->catdir( $ENV{HOME}, 'perls', $_ ) && -e File::Spec->catfile( $ENV{HOME}, 'perls', $_, 'ready.smoke' ) } readdir( PERLS );
 	closedir( PERLS ) or die "Unable to closedir: $!";
 
 	return \@perls;
@@ -408,6 +409,9 @@ sub smokeresult : State {
 	# TODO inspect the tmp dir for droppings and report it!
 	# this would require proper callbacks in SmokeBox
 
+	# We always do this after smoking
+	$_[KERNEL]->yield( 'check_free_space' );
+
 	return;
 }
 
@@ -486,55 +490,55 @@ sub check_free_space : State {
 	return;
 }
 
-sub irc_botcmd_index : State {
-	my $nick = (split '!', $_[ARG0])[0];
-	my ($where, $arg) = @_[ARG1, ARG2];
+#sub irc_botcmd_index : State {
+#	my $nick = (split '!', $_[ARG0])[0];
+#	my ($where, $arg) = @_[ARG1, ARG2];
+#
+#	# Send off the job!
+#	$_[HEAP]->{'SMOKEBOX'}->submit( event => 'indexresult',
+#		job => POE::Component::SmokeBox::Job->new(
+#			command => 'index',
+#			type => 'CPANPLUS::YACSmoke',
+#			no_log => 1,
+#
+## TODO smoke full blast for CT2.0 testing
+##			delay => $delay,
+#		),
+#	);
+#
+#	# hack: ignore the CPAN bot!
+#	if ( $nick ne 'CPAN' ) {
+#		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Added CPAN index to the job queue." );
+#	}
+#
+#	return;
+#}
 
-	# Send off the job!
-	$_[HEAP]->{'SMOKEBOX'}->submit( event => 'indexresult',
-		job => POE::Component::SmokeBox::Job->new(
-			command => 'index',
-			type => 'CPANPLUS::YACSmoke',
-			no_log => 1,
-
-# TODO smoke full blast for CT2.0 testing
-#			delay => $delay,
-		),
-	);
-
-	# hack: ignore the CPAN bot!
-	if ( $nick ne 'CPAN' ) {
-		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Added CPAN index to the job queue." );
-	}
-
-	return;
-}
-
-sub indexresult : State {
-	# extract some useful data
-	my $starttime = 0;
-	my $endtime = time;
-	my @fails;
-
-	foreach my $r ( $_[ARG0]->{'result'}->results() ) {
-		if ( $r->{'status'} != 0 ) {
-			push( @fails, $r->{'perl'} );
-		}
-
-		if ( $starttime == 0 or $r->{'start_time'} < $starttime ) {
-			$starttime = $r->{'start_time'};
-		}
-	}
-	my $duration = duration_exact( $endtime - $starttime );
-
-	# report this to IRC
-	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Updated the CPANPLUS index " . ( scalar @fails ? '(FAIL: ' . join( ' ', @fails ) . ' ) ' : '' ) . "in ${duration}." );
-
-	# We always do this after indexing
-	$_[KERNEL]->yield( 'check_free_space' );
-
-	return;
-}
+#sub indexresult : State {
+#	# extract some useful data
+#	my $starttime = 0;
+#	my $endtime = time;
+#	my @fails;
+#
+#	foreach my $r ( $_[ARG0]->{'result'}->results() ) {
+#		if ( $r->{'status'} != 0 ) {
+#			push( @fails, $r->{'perl'} );
+#		}
+#
+#		if ( $starttime == 0 or $r->{'start_time'} < $starttime ) {
+#			$starttime = $r->{'start_time'};
+#		}
+#	}
+#	my $duration = duration_exact( $endtime - $starttime );
+#
+#	# report this to IRC
+#	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Updated the CPANPLUS index " . ( scalar @fails ? '(FAIL: ' . join( ' ', @fails ) . ' ) ' : '' ) . "in ${duration}." );
+#
+#	# We always do this after indexing
+#	$_[KERNEL]->yield( 'check_free_space' );
+#
+#	return;
+#}
 
 sub irc_botcmd_perls : State {
 	my $nick = (split '!', $_[ARG0])[0];

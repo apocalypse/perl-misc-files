@@ -999,11 +999,6 @@ sub customize_perl {
 }
 
 sub finalize_perl {
-	# force an update to make sure it's ready for smoking
-	if ( ! do_cpanp_action( $C{perldist}, "x --update_source" ) ) {
-		return 0;
-	}
-
 	# Get rid of the man directory!
 	my $path = File::Spec->catdir( $C{home}, 'perls', $C{perldist} );
 	my $mandir = File::Spec->catdir( $path, 'man' );
@@ -1398,6 +1393,12 @@ sub do_installCPANPLUS {
 	# configure the installed CPANPLUS
 	do_installCPANPLUS_config();
 
+	# force an update to make sure it's ready for smoking
+	# not needed because we use CPANIDX now
+#	if ( ! do_cpanp_action( $C{perldist}, "x --update_source" ) ) {
+#		return 0;
+#	}
+
 	return 1;
 }
 
@@ -1424,6 +1425,9 @@ sub get_CPANPLUS_toolchain {
 
 	# Add Metabase and our YACSmoke stuff
 	push( @toolchain_modules, qw( CPANPLUS::YACSmoke Test::Reporter::Transport::Socket ) );
+
+	# Add our CPANIDX stuff
+	push( @toolchain_modules, qw( CPANPLUS::Internals::Source::CPANIDX ) );
 
 	# Add other useful toolchain modules
 	push( @toolchain_modules, qw( File::Temp ) );
@@ -1526,7 +1530,7 @@ sub setup {
 	$conf->set_conf( show_startup_tip => 0 );
 	$conf->set_conf( signature => 0 );
 	$conf->set_conf( skiptest => 0 );
-	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::Memory' );
+	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::CPANIDX' );
 	$conf->set_conf( storable => 1 );
 	$conf->set_conf( timeout => 300 );
 	$conf->set_conf( verbose => 1 );

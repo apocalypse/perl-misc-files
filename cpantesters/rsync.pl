@@ -7,6 +7,7 @@ use POE::Component::IRC::State;
 use POE::Component::IRC::Plugin::AutoJoin;
 use POE::Component::IRC::Plugin::Connector;
 use POE::Component::IRC::Plugin::BotCommand;
+use POE::Wheel::Run;
 use base 'POE::Session::AttributeBased';
 
 use Time::Duration qw( duration_exact );
@@ -108,7 +109,9 @@ sub rsyncdone : State {
 		$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "Rsync run done in " . duration_exact( $r->{'stoptime'} - $r->{'starttime'} ) . " with $r->{'dists'} new dists!" );
 		if ( $r->{'dists'} > 0 ) {
 			# start an index run!
-			$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "!index" );
+#			$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "!index" );
+
+			$_[KERNEL]->yield( 'run_cpanidx' );
 		}
 	} else {
 		$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "Rsync run failed in " . duration_exact( $r->{'stoptime'} - $r->{'starttime'} ) . " with error: $r->{'exit'}!" );
@@ -116,6 +119,62 @@ sub rsyncdone : State {
 
 	# take note of the time
 	$_[HEAP]->{'RSYNCTS'} = time;
+
+	return;
+}
+
+sub run_cpanidx : State {
+	# Kill the old one, if it's still around
+	if ( defined $_[HEAP]->{'CPANIDX'} ) {
+		$_[HEAP]->{'CPANIDX'}->kill( -9 );
+		undef $_[HEAP]->{'CPANIDX'};
+	}
+
+	my $wheel = POE::Wheel::Run->new(
+		Program		=> [ 'cpanidx-gendb', ],
+		StdoutEvent	=> 'pwr_stdout',
+		StderrEvent	=> 'pwr_stderr',
+		CloseEvent	=> 'pwr_close',
+	);
+
+	$_[KERNEL]->sig_child( $wheel->PID, 'pwr_child' );
+	$_[HEAP]->{'CPANIDX'} = $wheel;
+
+	return;
+}
+
+sub pwr_stdout : State {
+	my( $line ) = $_[ARG0];
+
+#warn "Got PWR:STDOUT: $line";
+
+	return;
+}
+
+sub pwr_stderr : State {
+	my( $line ) = $_[ARG0];
+
+#warn "Got PWR:STDERR: $line";
+
+	return;
+}
+
+sub pwr_close : State {
+	my $id = $_[ARG0];
+
+#warn "Got PWR:CLOSE";
+
+	undef $_[HEAP]->{'CPANIDX'} if defined $_[HEAP]->{'CPANIDX'};
+
+	return;
+}
+
+sub pwr_child : State {
+	my $pid = $_[ARG1];
+
+#warn "Got PWR:CHILD";
+
+	undef $_[HEAP]->{'CPANIDX'} if defined $_[HEAP]->{'CPANIDX'};
 
 	return;
 }
