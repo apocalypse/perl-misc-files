@@ -143,7 +143,7 @@ sub do_sanity_checks {
 	if ( @entries < 3 ) {
 		my $res = lc( prompt( "Do you want me to automatically get the perl dists", 'y', 120 ) );
 		if ( $res eq 'y' ) {
-			getPerlTarballs();
+			downloadPerlTarballs();
 		} else {
 			do_log( "[SANITYCHECK] No perl dists available..." );
 			exit;
@@ -151,7 +151,7 @@ sub do_sanity_checks {
 	}
 }
 
-sub getPerlTarballs {
+sub downloadPerlTarballs {
 	# Download all the tarballs we see
 	do_log( "[SANITYCHECK] Downloading the perl dists..." );
 
@@ -235,7 +235,7 @@ sub prompt_action {
 			} );
 		} elsif ( $res eq 't' ) {
 			# Mirror the perl tarballs
-			getPerlTarballs();
+			downloadPerlTarballs();
 		} elsif ( $res eq 'm' ) {
 			# Should we compile/configure/use/etc the perlmatrix?
 			prompt_perlmatrix();
@@ -363,7 +363,7 @@ sub iterate_perls {
 			# TODO add split_perl stuff here
 
 			# execute action
-			$sub->( $p );
+			$sub->();
 
 			# move this perl back to original place
 			mv( "C:\\strawberry", $perlpath ) or die "Unable to mv: $!";
@@ -375,7 +375,7 @@ sub iterate_perls {
 			( $C{perlver}, $C{perlopts} ) = split_perl( $p );
 			$C{perldist} = $p;
 
-			$sub->( $p );
+			$sub->();
 		}
 	}
 
@@ -695,7 +695,7 @@ sub prompt_perlver_ready {
 }
 
 sub prompt_perlver_tarballs {
-	return _prompt_perlver( getPerlVersions() );
+	return _prompt_perlver( getAvailablePerls() );
 }
 
 # prompt the user for perl version
@@ -737,7 +737,7 @@ sub _prompt_perlver {
 	my $perls = undef;
 
 	# gets the perls
-	sub getPerlVersions {
+	sub getAvailablePerls {
 		return $perls if defined $perls;
 
 		my $path = File::Spec->catdir( $C{home}, 'build' );
