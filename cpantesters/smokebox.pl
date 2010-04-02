@@ -83,6 +83,7 @@ sub create_smokebox : State {
 #			'PERL5_YACSMOKE_BASE'	=> $ENV{HOME},
 #			'TMPDIR'		=> File::Spec->catdir( $ENV{HOME}, 'tmp' ),
 #			'PERL_CPANSMOKER_HOST'	=> $VMs{ $ircnick },
+#			'PERL5_CPANIDX_URL'	=> 'http://' . $ircserver . ':11110/CPANIDX/',	# TODO fix this hardcoded path
 #		},
 #	);
 #	$_[HEAP]->{'SMOKEBOX'}->add_smoker( $smoker );

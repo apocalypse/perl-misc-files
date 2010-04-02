@@ -561,11 +561,14 @@ sub setup {
 	$conf->set_conf( buildflags => 'uninst=1' );
 	$conf->set_conf( cpantest => 1 );
 	$conf->set_conf( cpantest_mx => '' );
+
+# The HTTPGateway solution via POEGateway
 #	$conf->set_conf( cpantest_reporter_args => {
 #		transport => 'HTTPGateway',
 #		transport_args => [ 'http://XXXCONFIG-SERVERXXX:XXXCONFIG-SERVERCTPORTXXX/submit' ],
 #	} );
 
+# The CT2.0 Metabase transport
 #	$conf->set_conf( cpantest_reporter_args => {
 #		transport => 'Metabase',
 #		transport_args => [
@@ -574,6 +577,7 @@ sub setup {
 #		],
 #	} );
 
+# The Socket proxied transport, best for my setup - thanks BinGOs!
 	$conf->set_conf( cpantest_reporter_args => {
 		transport => 'Socket',
 		transport_args => [
@@ -1474,11 +1478,14 @@ sub setup {
 	$conf->set_conf( buildflags => 'uninst=1' );
 	$conf->set_conf( cpantest => 1 );
 	$conf->set_conf( cpantest_mx => '' );
+
+# The HTTPGateway solution via POEGateway
 #	$conf->set_conf( cpantest_reporter_args => {
 #		transport => 'HTTPGateway',
 #		transport_args => [ 'http://XXXCONFIG-SERVERXXX:XXXCONFIG-SERVERCTPORTXXX/submit' ],
 #	} );
 
+# The CT2.0 Metabase transport
 #	$conf->set_conf( cpantest_reporter_args => {
 #		transport => 'Metabase',
 #		transport_args => [
@@ -1487,6 +1494,7 @@ sub setup {
 #		],
 #	} );
 
+# The Socket proxied transport, best for my setup - thanks BinGOs!
 	$conf->set_conf( cpantest_reporter_args => {
 		transport => 'Socket',
 		transport_args => [
@@ -1500,10 +1508,10 @@ sub setup {
 	$conf->set_conf( email => 'XXXCONFIG-EMAILXXX' );
 	$conf->set_conf( enable_custom_sources => 0 );
 	$conf->set_conf( extractdir => '' );
-	$conf->set_conf( fetchdir => '' );
 
 # TODO seems like this causes weird caching issues - better to split off the stuff for now...
 #	$conf->set_conf( fetchdir => 'XXXCATDIR-XXXPATHXXX/.cpanplus/authorsXXX' );
+	$conf->set_conf( fetchdir => '' );
 
 	$conf->set_conf( flush => 1 );
 	$conf->set_conf( force => 0 );
@@ -1530,7 +1538,11 @@ sub setup {
 	$conf->set_conf( show_startup_tip => 0 );
 	$conf->set_conf( signature => 0 );
 	$conf->set_conf( skiptest => 0 );
+
+# We now use CPANIDX to speed up our smoking!
+#	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::Memory' );
 	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::CPANIDX' );
+
 	$conf->set_conf( storable => 1 );
 	$conf->set_conf( timeout => 300 );
 	$conf->set_conf( verbose => 1 );
