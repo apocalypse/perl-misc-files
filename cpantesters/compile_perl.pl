@@ -2801,8 +2801,12 @@ sub do_replacefile {
 	my( $file, $data ) = @_;
 	do_log( "[PERLBUILDER] Replacing file '$file' with new data" );
 	do_log( "--------------------------------------------------" );
-	foreach my $l ( @$data ) {
-		do_log( $l );
+	if ( ref $data ) {
+		foreach my $l ( @$data ) {
+			do_log( $l );
+		}
+	} else {
+		do_log( $data );
 	}
 	do_log( "--------------------------------------------------" );
 
