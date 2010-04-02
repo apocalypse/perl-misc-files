@@ -55,7 +55,6 @@ use strict; use warnings;
 #	- for the patch_hints thing, auto-detect the latest perl tarball and copy it from there instead of hardcoding it here...
 #	- fix all TODO lines in this code :)
 #	- we should run 2 CPANPLUS configs per perl - "prefer_makefile" true and false...
-#	- Use CPANIDX as CPANPLUS source index? Investigate how to setup the master server...
 #	- consider "perl-5.12.0-RC1.tar.gz" and "perl-5.6.1-TRIAL1.tar.gz" devel releases and skip them?
 
 # load our dependencies
@@ -80,7 +79,7 @@ my %C = (
 	'perlopts'	=> undef,		# the perl options we're using for this run
 	'perldist'	=> undef,		# the full perl dist ( perl_5.6.2_default or perl_$perlver_$perlopts )
 	'server'	=> '192.168.0.200',	# our local CPAN server ( used for mirror/cpantesters upload/etc )
-	'serverctport'	=> '11111',		# our local CPAN server CT2.0 metabase/httpgateway port
+	'serverctport'	=> '11111',		# our local CPAN server CT2.0 socket/httpgateway port
 	'serverftpdir'	=> '/CPAN/',		# our local CPAN server ftp dir
 	'email'		=> 'apocal@cpan.org'	# the email address to use for CPANPLUS config
 );
@@ -1431,7 +1430,7 @@ sub get_CPANPLUS_toolchain {
 	push( @toolchain_modules, qw( CPANPLUS::YACSmoke Test::Reporter::Transport::Socket ) );
 
 	# Add our CPANIDX stuff
-	push( @toolchain_modules, qw( CPANPLUS::Internals::Source::CPANIDX ) );
+	#push( @toolchain_modules, qw( CPANPLUS::Internals::Source::CPANIDX ) );
 
 	# TODO wait for BinGOs to release a real version!
 	push( @toolchain_modules, qw( B/BI/BINGOS/CPANPLUS-Internals-Source-CPANIDX-0.01_05.tar.gz ) );
@@ -1815,9 +1814,6 @@ sub do_shellcommand {
 	my @output = split( /\n/, $output );
 	return \@output;
 }
-
-
-## TODO REFACTOR STOPPED HERE
 
 sub do_build {
 	# ignore the args for now, as we use globals :(
