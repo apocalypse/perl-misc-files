@@ -1433,6 +1433,9 @@ sub get_CPANPLUS_toolchain {
 	# Add our CPANIDX stuff
 	push( @toolchain_modules, qw( CPANPLUS::Internals::Source::CPANIDX ) );
 
+	# TODO wait for BinGOs to release a real version!
+	push( @toolchain_modules, qw( B/BI/BINGOS/CPANPLUS-Internals-Source-CPANIDX-0.01_05.tar.gz ) );
+
 	# Add other useful toolchain modules
 	push( @toolchain_modules, qw( File::Temp ) );
 
