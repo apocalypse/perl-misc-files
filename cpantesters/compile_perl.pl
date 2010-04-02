@@ -1804,7 +1804,7 @@ sub do_shellcommand {
 			}
 		}
 	};
-	if ( $fails == 3 ) {
+	if ( $fails == 4 ) {
 		do_log( "[SHELLCMD] Giving up trying to execute command, ABORTING!" );
 		exit;
 	} else {
