@@ -2,6 +2,7 @@
 use strict; use warnings;
 
 # Adapted from BinGOs' http://cpansearch.perl.org/src/BINGOS/App-CPANIDX-0.08/bin/cpanidx-fcgi script
+
 # TODO list:
 #	- use SimpleDBI
 
@@ -83,7 +84,7 @@ sub HTTPD_CPANIDX {
 	# ARG0 = HTTP::Request object, ARG1 = HTTP::Response object, ARG2 = the DIR that matched
 	my( $request, $response, $dirmatch ) = @_[ ARG0 .. ARG2 ];
 
-warn "New CPANIDX request: " . $request->uri->path . "\n" if $debug;
+#warn "New CPANIDX request: " . $request->uri->path . "\n" if $debug;
 
 	my( $root, $enc, $type, $search ) = grep { $_ } split m#/#, $request->uri->path;
 	$search = '0' if $type =~ /^next/ and !$search;
@@ -107,7 +108,7 @@ sub HTTPD_ERROR {
 	# ARG0 = HTTP::Request object, ARG1 = HTTP::Response object, ARG2 = the DIR that matched
 	my( $request, $response, $dirmatch ) = @_[ ARG0 .. ARG2 ];
 
-warn "New error: " . $request->uri->path . "\n" if $debug;
+#warn "New error: " . $request->uri->path . "\n" if $debug;
 
 	# Check for errors
 	if ( ! defined $request ) {

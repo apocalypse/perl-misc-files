@@ -5,7 +5,7 @@ use strict; use warnings;
 # Please run compile_perl.pl first!
 
 # TODO
-#	- we should just update the system CPANPLUS, and the symlinks will handle the rest of the perls...
+#	- Drop support for system perl? Too much work to make sure it is in a "sane" state...
 
 use POE;
 use POE::Component::SmokeBox 0.36;		# must be > 0.32 for the delay stuff + 0.36 for loop bug fix
