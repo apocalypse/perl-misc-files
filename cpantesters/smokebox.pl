@@ -157,7 +157,7 @@ sub create_irc : State {
 #			'index'		=> 'Updates the CPANPLUS source index. Takes no arguments.',
 			'status'	=> 'Enables/disables the smoker. Takes one optional argument: a boolean.',
 			'perls'		=> 'Lists the available perl versions to smoke. Takes no arguments.',
-			'uname'		=> 'Returns the uname of the machine the smokebot is running on. Takes no arguments.',
+			'uname'		=> 'Returns the uname of the machine. Takes no arguments.',
 			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
 			'df'		=> 'Returns the free space of the machine. Takes no arguments.',
 			'delay'		=> 'Sets the delay for PoCo-SmokeBox. Takes one optional argument: number of seconds.',

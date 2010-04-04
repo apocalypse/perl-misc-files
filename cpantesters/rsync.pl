@@ -61,7 +61,7 @@ sub create_irc : State {
 	$_[HEAP]->{'IRC'}->plugin_add( 'BotCommand', POE::Component::IRC::Plugin::BotCommand->new(
 		Commands	=> {
 			'queue'		=> 'Returns information about the rsync queue. Takes no arguments.',
-			'uname'		=> 'Returns the uname of the machine the rsyncer is running on. Takes no arguments.',
+			'uname'		=> 'Returns the uname of the machine. Takes no arguments.',
 			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
 			'df'		=> 'Returns the free space of the machine. Takes no arguments.',
 		},
