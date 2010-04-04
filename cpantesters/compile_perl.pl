@@ -94,7 +94,12 @@ my @LOGS = ();
 set_titlebar( "Perl-Compiler@" . hostname() );
 
 # Do some basic sanity checks
-do_sanity_checks();
+# Only do this if we're not root!
+if ( $< != 0 ) {
+	do_sanity_checks();
+} else {
+	print "WARNING you are running this as root! WARNING\n";
+}
 
 # What option do we want to do?
 prompt_action();
@@ -202,7 +207,7 @@ sub get_directory_contents {
 sub prompt_action {
 	my $res;
 	while ( ! defined $res ) {
-		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/use (d)evel perl/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(r)econfig cpanp/perl (t)arballs/(u)ninstall/cho(w)n/inde(x)]", 'e', 120 ) );
+		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/use (d)evel perl/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(r)econfig cpanp/(s)ystem toolchain update/perl (t)arballs/(u)ninstall/cho(w)n/inde(x)]", 'e', 120 ) );
 		if ( $res eq 'b' ) {
 			# prompt user for perl version to compile
 			$res = prompt_perlver_tarballs();
@@ -212,6 +217,9 @@ sub prompt_action {
 					install_perl( $p );
 				}
 			}
+		} elsif ( $res eq 's' ) {
+			# configure the system for smoking!
+			do_config_systemCPANPLUS();
 		} elsif ( $res eq 'd' ) {
 			# should we use the perl devel versions?
 			prompt_develperl();
@@ -327,6 +335,139 @@ sub prompt_action {
 	}
 
 	return;
+}
+
+sub do_config_systemCPANPLUS {
+	# First of all, we need to be root!
+	if ( $< != 0 ) {
+		# Make sure the user knows what they are doing!
+		my $result = prompt( "You are not running as root, execute this action?", "n", 120 );
+		if ( ! defined $result or lc( $result ) ne 'y' ) {
+			do_log( '[CPANPLUS] Refusing to configure system CPANPLUS without approval...' );
+			return 0;
+		}
+	}
+
+	# configure the system Config settings
+	my $uconfig = <<'END';
+###############################################
+###
+###  Configuration structure for CPANPLUS::Config::User
+###
+###############################################
+
+#last changed: Sun Mar  1 10:56:52 2009 GMT
+
+### minimal pod, so you can find it with perldoc -l, etc
+=pod
+
+=head1 NAME
+
+CPANPLUS::Config::User
+
+=head1 DESCRIPTION
+
+This is a CPANPLUS configuration file. Editing this
+config changes the way CPANPLUS will behave
+
+=cut
+
+package CPANPLUS::Config::User;
+
+use strict;
+
+sub setup {
+	my $conf = shift;
+
+	### conf section
+	$conf->set_conf( allow_build_interactivity => 0 );
+	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/.cpanplusXXX' );
+	$conf->set_conf( buildflags => 'uninst=1' );
+	$conf->set_conf( cpantest => 0 );
+	$conf->set_conf( cpantest_mx => '' );
+
+# Make CPANPLUS a bit more verbose, so we help debugging
+	$conf->set_conf( debug => 1 );
+
+	$conf->set_conf( dist_type => '' );
+	$conf->set_conf( email => 'XXXCONFIG-EMAILXXX' );
+	$conf->set_conf( enable_custom_sources => 0 );
+	$conf->set_conf( extractdir => '' );
+	$conf->set_conf( fetchdir => '' );
+	$conf->set_conf( flush => 1 );
+	$conf->set_conf( force => 0 );
+	$conf->set_conf( hosts => [
+		{
+			'path' => 'XXXCONFIG-SERVERFTPDIRXXX',
+			'scheme' => 'ftp',
+			'host' => 'XXXCONFIG-SERVERXXX',
+		},
+	] );
+	$conf->set_conf( lib => [] );
+	$conf->set_conf( makeflags => 'UNINST=1' );
+	$conf->set_conf( makemakerflags => '' );
+	$conf->set_conf( md5 => 1 );
+	$conf->set_conf( no_update => 1 );
+	$conf->set_conf( passive => 1 );
+	$conf->set_conf( prefer_bin => 1 );
+
+# We let CPANPLUS automatically figure it out!
+#	$conf->set_conf( prefer_makefile => 1 );
+
+	$conf->set_conf( prereqs => 1 );
+	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
+	$conf->set_conf( show_startup_tip => 0 );
+	$conf->set_conf( signature => 0 );
+	$conf->set_conf( skiptest => 0 );
+	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::Memory' );
+	$conf->set_conf( storable => 1 );
+	$conf->set_conf( timeout => 300 );
+	$conf->set_conf( verbose => 1 );
+	$conf->set_conf( write_install_logs => 0 );
+
+	### program section
+	$conf->set_program( editor => 'XXXWHICH-nanoXXX' );
+	$conf->set_program( make => 'XXXWHICH-makeXXX' );
+	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
+	$conf->set_program( perlwrapper => 'XXXWHICH-cpanp-run-perlXXX' );
+	$conf->set_program( shell => 'XXXWHICH-bashXXX' );
+	$conf->set_program( sudo => undef );
+
+	return 1;
+}
+
+1;
+END
+
+	# actually config CPANPLUS!
+	do_config_CPANPLUS_actions( $uconfig );
+
+	# use default answer to prompts
+	local $ENV{PERL_MM_USE_DEFAULT} = 1;
+	local $ENV{PERL_EXTUTILS_AUTOINSTALL} = '--defaultdeps';
+	local $ENV{TMPDIR} = File::Spec->catdir( $C{home}, 'tmp' );
+	local $ENV{APPDATA} = $C{home};
+
+	# force an update
+	# we don't use do_cpanp_action() here because we need to use the local user's CPANPLUS config not the perl's one...
+	if ( ! analyze_cpanp_install( "x --update_source", do_shellcommand( "cpanp x --update_source" ) ) ) {
+		return 0;
+	}
+
+	# Now, get it to update everything
+	if ( ! analyze_cpanp_install( "s selfupdate all", do_shellcommand( "cpanp s selfupdate all" ) ) ) {
+		return 0;
+	}
+
+	# Okay, now the rest of the toolchain...
+	my $cpanp_action = 'i ' . join( ' ', @{ get_CPANPLUS_toolchain() } );
+	if ( ! analyze_cpanp_install( $cpanp_action, do_shellcommand( 'cpanp ' . $cpanp_action ) ) ) {
+		return 0;
+	}
+
+	# TODO change config to use CPANIDX?
+
+	return 1;
 }
 
 sub split_perl {
@@ -611,7 +752,11 @@ sub setup {
 	$conf->set_conf( show_startup_tip => 0 );
 	$conf->set_conf( signature => 0 );
 	$conf->set_conf( skiptest => 0 );
-	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::Memory' );
+
+# We now use CPANIDX to speed up our smoking!
+#	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::Memory' );
+	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::CPANIDX' );
+
 	$conf->set_conf( storable => 1 );
 	$conf->set_conf( timeout => 300 );
 	$conf->set_conf( verbose => 1 );
@@ -631,32 +776,8 @@ sub setup {
 1;
 END
 
-	# blow away the old cpanplus dir if it's there
-	my $cpanplus = File::Spec->catdir( $C{home}, '.cpanplus' );
-	if ( -d $cpanplus ) {
-		do_log( "[CPANPLUS] Removing old CPANPLUS conf directory in '$cpanplus'" );
-		File::Path::Tiny::rm( $cpanplus ) or die "Unable to rm ($cpanplus): $!";
-	}
-
-	# overwrite any old config, just in case...
-	do_log( "[CPANPLUS] Configuring the local user's CPANPLUS config..." );
-
-	# transform the XXXargsXXX
-	$uconfig = do_replacements( $uconfig );
-
-	# save it!
-	my $path = File::Spec->catdir( $cpanplus, 'lib', 'CPANPLUS', 'Config' );
-	File::Path::Tiny::mk( $path ) or die "Unable to mk ($path): $!";
-	$path = File::Spec->catfile( $path, 'User.pm' );
-	do_replacefile( $path, $uconfig );
-
-	# force an update
-	# we don't use do_cpanp_action() here because we need to use the local user's CPANPLUS config not the perl's one...
-	{
-		# TODO convert this to CPANIDX and no need to update index!
-		local $ENV{APPDATA} = $C{home};
-		do_shellcommand( "cpanp x --update_source" );
-	}
+	# actually config CPANPLUS!
+	do_config_CPANPLUS_actions( $uconfig );
 
 	# blow away any annoying .cpan directories that remain
 	my $cpan;
@@ -681,7 +802,32 @@ END
 		do_shellcommand( "sudo chown root $cpan" );
 	}
 
-	return;
+	return 1;
+}
+
+sub do_config_CPANPLUS_actions {
+	my $uconfig = shift;
+
+	# blow away the old cpanplus dir if it's there
+	my $cpanplus = File::Spec->catdir( $C{home}, '.cpanplus' );
+	if ( -d $cpanplus ) {
+		do_log( "[CPANPLUS] Removing old CPANPLUS conf directory in '$cpanplus'" );
+		File::Path::Tiny::rm( $cpanplus ) or die "Unable to rm ($cpanplus): $!";
+	}
+
+	# overwrite any old config, just in case...
+	do_log( "[CPANPLUS] Configuring the CPANPLUS config..." );
+
+	# transform the XXXargsXXX
+	$uconfig = do_replacements( $uconfig );
+
+	# save it!
+	my $path = File::Spec->catdir( $cpanplus, 'lib', 'CPANPLUS', 'Config' );
+	File::Path::Tiny::mk( $path ) or die "Unable to mk ($path): $!";
+	$path = File::Spec->catfile( $path, 'User.pm' );
+	do_replacefile( $path, $uconfig );
+
+	return 1;
 }
 
 sub prompt_perlver_ready {

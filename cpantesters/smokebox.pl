@@ -4,9 +4,6 @@ use strict; use warnings;
 # This script should be used after you've compiled all the perls
 # Please run compile_perl.pl first!
 
-# TODO
-#	- Drop support for system perl? Too much work to make sure it is in a "sane" state...
-
 use POE;
 use POE::Component::SmokeBox 0.36;		# must be > 0.32 for the delay stuff + 0.36 for loop bug fix
 use POE::Component::SmokeBox::Smoker;
@@ -71,28 +68,26 @@ sub create_smokebox : State {
 #		'delay'	=> $delay,
 	);
 
-# TODO disable system perl because I want a controlled environment for now...
-#	# Add system perl...
-#	# Configuration successfully saved to CPANPLUS::Config::User
-#	#    (/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm)
-#	my $perl = `which perl`; chomp $perl;
-#	my $smoker = POE::Component::SmokeBox::Smoker->new(
-#		perl => $perl,
-#		env => {
-#			'APPDATA'		=> $ENV{HOME},
-#			'PERL5_YACSMOKE_BASE'	=> $ENV{HOME},
-#			'TMPDIR'		=> File::Spec->catdir( $ENV{HOME}, 'tmp' ),
-#			'PERL_CPANSMOKER_HOST'	=> $VMs{ $ircnick },
-#			'PERL5_CPANIDX_URL'	=> 'http://' . $ircserver . ':11110/CPANIDX/',	# TODO fix this hardcoded path
-#		},
-#	);
-#	$_[HEAP]->{'SMOKEBOX'}->add_smoker( $smoker );
-#
-#	# Store the system smoker so we can use it to update the CPANPLUS index
-#	$_[HEAP]->{'SMOKER_SYSTEM'} = $smoker;
+	# Add system perl...
+	# Configuration successfully saved to CPANPLUS::Config::User
+	#    (/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm)
+	my $perl = `which perl`; chomp $perl;
+	my $smoker = POE::Component::SmokeBox::Smoker->new(
+		perl => $perl,
+		env => {
+			'APPDATA'		=> $ENV{HOME},
+			'PERL5_YACSMOKE_BASE'	=> $ENV{HOME},
+			'TMPDIR'		=> File::Spec->catdir( $ENV{HOME}, 'tmp' ),
+			'PERL_CPANSMOKER_HOST'	=> $VMs{ $ircnick },
+			'PERL5_CPANIDX_URL'	=> 'http://' . $ircserver . ':11110/CPANIDX/',	# TODO fix this hardcoded path
+		},
+	);
+	$_[HEAP]->{'SMOKEBOX'}->add_smoker( $smoker );
 
 	# Store the local perls we built
-	$_[HEAP]->{'PERLS'} = {};
+	$_[HEAP]->{'PERLS'} = {
+		$perl => undef,
+	};
 
 	# Do the first pass over our perls
 	$_[KERNEL]->yield( 'check_perls' );
@@ -405,7 +400,7 @@ sub smokeresult : State {
 	my $duration = duration_exact( $endtime - $starttime );
 
 	# report this to IRC
-	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module " . ( scalar @fails ? '(FAIL: ' . join( ' ', @fails ) . ' ) ' : '' ) . "in ${duration}." );
+	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module " . ( scalar @fails ? '(FAIL: ' . join( ' ', @fails ) . ') ' : '' ) . "in ${duration}." );
 
 	# TODO inspect the tmp dir for droppings and report it!
 	# this would require proper callbacks in SmokeBox
@@ -533,7 +528,7 @@ sub check_free_space : State {
 #	my $duration = duration_exact( $endtime - $starttime );
 #
 #	# report this to IRC
-#	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Updated the CPANPLUS index " . ( scalar @fails ? '(FAIL: ' . join( ' ', @fails ) . ' ) ' : '' ) . "in ${duration}." );
+#	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Updated the CPANPLUS index " . ( scalar @fails ? '(FAIL: ' . join( ' ', @fails ) . ') ' : '' ) . "in ${duration}." );
 #
 #	# We always do this after indexing
 #	$_[KERNEL]->yield( 'check_free_space' );
@@ -547,10 +542,6 @@ sub irc_botcmd_perls : State {
 
 	# get the available versions
 	my $perls = keys %{ $_[HEAP]->{'PERLS'} };
-
-	# don't forget to +1 for the SYSTEM perl!
-	# TODO disabled system perl for now
-	#$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Available Perls: " . ( $perls + 1 ) );
 	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Available Perls: $perls" );
 
 	return;
