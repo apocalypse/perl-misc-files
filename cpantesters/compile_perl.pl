@@ -951,7 +951,7 @@ sub can_build_perl {
 	# We skip devel perls if it's not enabled
 	if ( $C{perlver} =~ /^5\.(\d+)/ ) {
 		if ( $1 % 2 != 0 and ! $C{devel} ) {
-			do_log( '[COMPILER] Skipping devel version of perl...' );
+			do_log( '[COMPILER] Skipping devel version of perl-' . $C{perlver} . '...' );
 			return 0;
 		}
 	}
@@ -968,7 +968,7 @@ sub can_build_perl {
 		# <Apocalypse> Ah, so CPANPLUS definitely won't work on 5.6.0? I should just drop it...
 		#
 		# 5.8.0 blows up horribly in it's tests everywhere I try to compile it...
-		do_log( '[COMPILER] Skipping known problematic perl...' );
+		do_log( '[COMPILER] Skipping known problematic perl-' . $C{perlver} . '...' );
 		return 0;
 	}
 
