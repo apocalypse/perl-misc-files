@@ -51,11 +51,11 @@ use strict; use warnings;
 #		- that way, we can know what perl versions to skip and etc
 #		- maybe we can autodetect it?
 #		- Sys::Info::Device::CPU::bitness() for a start...
-#	- auto-config the root/system CPANPLUS?
 #	- for the patch_hints thing, auto-detect the latest perl tarball and copy it from there instead of hardcoding it here...
 #	- fix all TODO lines in this code :)
 #	- we should run 2 CPANPLUS configs per perl - "prefer_makefile" true and false...
 #	- consider "perl-5.12.0-RC1.tar.gz" and "perl-5.6.1-TRIAL1.tar.gz" devel releases and skip them?
+#	- put all our module prereqs into a BEGIN { eval } check so we can pretty-print the missing modules
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
