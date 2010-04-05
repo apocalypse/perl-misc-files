@@ -36,6 +36,7 @@ use strict; use warnings;
 # /home/cpan/compile_perl.pl			<-- where this script should be
 
 # this script does everything, but we need some layout to be specified ( this is the win32 variant )
+# You need to install bootstrap perl first!
 # c:\cpansmoke						<-- the main directory
 # c:\cpansmoke\tmp					<-- tmp directory for cpan/perl/etc cruft
 # c:\cpansmoke\build					<-- where we store our perl builds + zips
