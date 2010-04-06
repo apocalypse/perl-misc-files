@@ -228,7 +228,7 @@ sub get_directory_contents {
 sub prompt_action {
 	my $res;
 	while ( ! defined $res ) {
-		$res = lc( do_prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/use (d)evel perl/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(r)econfig cpanp/(s)ystem toolchain update/perl (t)arballs/(u)ninstall/cho(w)n/inde(x)]", 'e' ) );
+		$res = lc( do_prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/use (d)evel perl/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(r)econfig cpanp/(s)ystem toolchain update/perl (t)arballs/(u)ninstall/cho(w)n]", 'e' ) );
 		if ( $res eq 'b' ) {
 			# prompt user for perl version to compile
 			$res = prompt_perlver_tarballs();
@@ -271,11 +271,6 @@ sub prompt_action {
 		} elsif ( $res eq 'c' ) {
 			# configure the local user's CPANPLUS
 			do_config_localCPANPLUS();
-		} elsif ( $res eq 'x' ) {
-			# update the local user's CPANPLUS index ( the one we share with all perls )
-			do_log( "[CPANPLUS] Updating local CPANPLUS index..." );
-			local $ENV{APPDATA} = $C{home};
-			do_shellcommand( "cpanp x --update_source" );
 		} elsif ( $res eq 'i' ) {
 			# install a specific module
 			my $module = do_prompt( "What module should we install?", '' );
@@ -1108,6 +1103,12 @@ sub install_perl_win32 {
 	# Move the strawberry install to it's regular place
 	mv( "C:\\strawberry", $path ) or die "Unable to mv: $!";
 
+	# finalize the perl install!
+	# This needs to be done because customize_perl calls it while the dir is still in c:\strawberry!
+	if ( $ret and ! finalize_perl() ) {
+		return 0;
+	}
+
 	return $ret;
 }
 
@@ -1170,8 +1171,11 @@ sub customize_perl {
 	}
 
 	# finalize the perl install!
-	if ( ! finalize_perl() ) {
-		return 0;
+	# Ah, if we're on win32 this will not work...
+	if ( $^O ne 'MSWin32' ) {
+		if ( ! finalize_perl() ) {
+			return 0;
+		}
 	}
 
 	# we're done!
@@ -1483,7 +1487,7 @@ sub do_replacements {
 	if ( $^O eq 'MSWin32' ) {
 		$str =~ s/XXXUSERXXX/$ENV{USERNAME}/g;
 		$str =~ s/XXXPREFERBINXXX/0/g;
-		$str =~ s/XXXPERLWRAPPERXXX/C:\\\\strawberry\\\\perl\\\\bin\\\\cpanp-run-perl/g;
+		$str =~ s/XXXPERLWRAPPERXXX/C:\\\\strawberry\\\\perl\\\\bin\\\\cpanp-run-perl\.BAT/g;
 	} else {
 		$str =~ s/XXXUSERXXX/$ENV{USER}/g;
 		$str =~ s/XXXPREFERBINXXX/1/g;
@@ -1954,13 +1958,14 @@ sub do_cpanp_action {
 
 	# special way for MSWin32...
 	if ( $^O eq 'MSWin32' ) {
-		local $ENV{PATH} = cleanse_strawberry_path();
-		return analyze_cpanp_install( $action, do_shellcommand( "cpanp $action" ) );
+		local $ENV{PATH} = cleanse_strawberry_path() if defined $perl;
+
+		return analyze_cpanp_install( $action, do_shellcommand( get_binary_path( 'cpanp' ) . ' ' . $action ) );
 	} else {
 		if ( defined $perl ) {
 			return analyze_cpanp_install( $action, do_shellcommand( File::Spec->catfile( $C{home}, 'perls', $perl, 'bin', 'perl' ) . " " . File::Spec->catfile( $C{home}, 'perls', $perl, 'bin', 'cpanp' ) . " $action" ) );
 		} else {
-			return analyze_cpanp_install( $action, do_shellcommand( "perl " . File::Spec->catfile( $C{home}, 'perls', $perl, 'bin', 'cpanp' ) . " $action" ) );
+			return analyze_cpanp_install( $action, do_shellcommand( "perl $action" ) );
 		}
 	}
 }
