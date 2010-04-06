@@ -58,7 +58,8 @@ use strict; use warnings;
 #	- consider "perl-5.12.0-RC1.tar.gz" and "perl-5.6.1-TRIAL1.tar.gz" devel releases and skip them?
 #	- put all our module prereqs into a BEGIN { eval } check so we can pretty-print the missing modules
 #	- add $C{perltarball} that tracks the tarball of "current" perl so we can use it in some places instead of manually hunting it...
-#	- Use ActiveState perl on MSWin32?
+#	- Use ActiveState perl?
+#		- use their binary builds + source build?
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
