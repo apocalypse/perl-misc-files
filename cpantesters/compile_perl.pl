@@ -374,17 +374,19 @@ sub do_config_systemCPANPLUS {
 		}
 	}
 
+# We let CPANPLUS automatically figure it out!
+#	$conf->set_conf( prefer_makefile => 1 );
+
 	# configure the system Config settings
 	my $uconfig = <<'END';
 ###############################################
 ###
-###  Configuration structure for CPANPLUS::Config::User
+###  Configuration for CPANPLUS::Config::User
 ###
 ###############################################
 
-#last changed: Sun Mar  1 10:56:52 2009 GMT
+#last changed: XXXTIMEXXX
 
-### minimal pod, so you can find it with perldoc -l, etc
 =pod
 
 =head1 NAME
@@ -393,8 +395,7 @@ CPANPLUS::Config::User
 
 =head1 DESCRIPTION
 
-This is a CPANPLUS configuration file. Editing this
-config changes the way CPANPLUS will behave
+This is a CPANPLUS configuration file.
 
 =cut
 
@@ -405,16 +406,12 @@ use strict;
 sub setup {
 	my $conf = shift;
 
-	### conf section
 	$conf->set_conf( allow_build_interactivity => 0 );
 	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/.cpanplusXXX' );
-	$conf->set_conf( buildflags => 'uninst=1' );
+	$conf->set_conf( buildflags => 'XXXBUILDFLAGSXXX' );
 	$conf->set_conf( cpantest => 0 );
 	$conf->set_conf( cpantest_mx => '' );
-
-# Make CPANPLUS a bit more verbose, so we help debugging
 	$conf->set_conf( debug => 1 );
-
 	$conf->set_conf( dist_type => '' );
 	$conf->set_conf( email => 'XXXCONFIG-EMAILXXX' );
 	$conf->set_conf( enable_custom_sources => 0 );
@@ -430,19 +427,12 @@ sub setup {
 		},
 	] );
 	$conf->set_conf( lib => [] );
-	$conf->set_conf( makeflags => 'UNINST=1' );
+	$conf->set_conf( makeflags => 'XXXMAKEFLAGSXXX' );
 	$conf->set_conf( makemakerflags => '' );
 	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
-
-# On MSWin32 systems, we cannot use binaries!
-#	$conf->set_conf( prefer_bin => 1 );
 	$conf->set_conf( prefer_bin => XXXPREFERBINXXX );
-
-# We let CPANPLUS automatically figure it out!
-#	$conf->set_conf( prefer_makefile => 1 );
-
 	$conf->set_conf( prereqs => 1 );
 	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
 	$conf->set_conf( show_startup_tip => 0 );
@@ -454,7 +444,6 @@ sub setup {
 	$conf->set_conf( verbose => 1 );
 	$conf->set_conf( write_install_logs => 0 );
 
-	### program section
 	$conf->set_program( editor => 'XXXWHICH-nanoXXX' );
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
 	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
@@ -464,7 +453,6 @@ sub setup {
 
 	return 1;
 }
-
 1;
 END
 
@@ -696,43 +684,8 @@ sub do_config_localCPANPLUS {
 		}
 	}
 
-	# configure the local user Config settings
-	my $uconfig = <<'END';
-###############################################
-###
-###  Configuration structure for CPANPLUS::Config::User
-###
-###############################################
-
-#last changed: Sun Mar  1 10:56:52 2009 GMT
-
-### minimal pod, so you can find it with perldoc -l, etc
-=pod
-
-=head1 NAME
-
-CPANPLUS::Config::User
-
-=head1 DESCRIPTION
-
-This is a CPANPLUS configuration file. Editing this
-config changes the way CPANPLUS will behave
-
-=cut
-
-package CPANPLUS::Config::User;
-
-use strict;
-
-sub setup {
-	my $conf = shift;
-
-	### conf section
-	$conf->set_conf( allow_build_interactivity => 0 );
-	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/.cpanplusXXX' );
-	$conf->set_conf( buildflags => 'uninst=1' );
-	$conf->set_conf( cpantest => 1 );
-	$conf->set_conf( cpantest_mx => '' );
+# We let CPANPLUS automatically figure it out!
+#	$conf->set_conf( prefer_makefile => 1 );
 
 # The HTTPGateway solution via POEGateway
 #	$conf->set_conf( cpantest_reporter_args => {
@@ -749,6 +702,45 @@ sub setup {
 #		],
 #	} );
 
+# We now use CPANIDX to speed up our smoking!
+#	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::Memory' );
+
+	# configure the local user Config settings
+	my $uconfig = <<'END';
+###############################################
+###
+###  Configuration for CPANPLUS::Config::User
+###
+###############################################
+
+#last changed: XXXTIMEXXX
+
+=pod
+
+=head1 NAME
+
+CPANPLUS::Config::User
+
+=head1 DESCRIPTION
+
+This is a CPANPLUS configuration file.
+
+=cut
+
+package CPANPLUS::Config::User;
+
+use strict;
+
+sub setup {
+	my $conf = shift;
+
+	### conf section
+	$conf->set_conf( allow_build_interactivity => 0 );
+	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/.cpanplusXXX' );
+	$conf->set_conf( buildflags => 'XXXBUILDFLAGSXXX' );
+	$conf->set_conf( cpantest => 1 );
+	$conf->set_conf( cpantest_mx => '' );
+
 # The Socket proxied transport, best for my setup - thanks BinGOs!
 	$conf->set_conf( cpantest_reporter_args => {
 		transport => 'Socket',
@@ -758,9 +750,7 @@ sub setup {
 		],
 	} );
 
-# Make CPANPLUS a bit more verbose, so we help debugging
 	$conf->set_conf( debug => 1 );
-
 	$conf->set_conf( dist_type => '' );
 	$conf->set_conf( email => 'XXXCONFIG-EMAILXXX' );
 	$conf->set_conf( enable_custom_sources => 0 );
@@ -776,35 +766,23 @@ sub setup {
 		},
 	] );
 	$conf->set_conf( lib => [] );
-	$conf->set_conf( makeflags => 'UNINST=1' );
+	$conf->set_conf( makeflags => 'XXXMAKEFLAGSXXX' );
 	$conf->set_conf( makemakerflags => '' );
 	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
-
-# On MSWin32 systems, we cannot use binaries!
-#	$conf->set_conf( prefer_bin => 1 );
 	$conf->set_conf( prefer_bin => XXXPREFERBINXXX );
-
-# We let CPANPLUS automatically figure it out!
-#	$conf->set_conf( prefer_makefile => 1 );
-
 	$conf->set_conf( prereqs => 1 );
 	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
 	$conf->set_conf( show_startup_tip => 0 );
 	$conf->set_conf( signature => 0 );
 	$conf->set_conf( skiptest => 0 );
-
-# We now use CPANIDX to speed up our smoking!
-#	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::Memory' );
 	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::CPANIDX' );
-
 	$conf->set_conf( storable => 1 );
 	$conf->set_conf( timeout => 300 );
 	$conf->set_conf( verbose => 1 );
 	$conf->set_conf( write_install_logs => 0 );
 
-	### program section
 	$conf->set_program( editor => 'XXXWHICH-nanoXXX' );
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
 	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
@@ -814,7 +792,6 @@ sub setup {
 
 	return 1;
 }
-
 1;
 END
 
@@ -1405,24 +1382,20 @@ sub do_archive_extract {
 	return 1;
 }
 
-#<Apocalypse> BinGOs: Wondering what you put in the CPANPLUS config on your smoking setup for makemakerflags and buildflags
-#<@BinGOs> s conf makeflags UNINST=1 and s conf buildflags uninst=1
-#<Apocalypse> Why the uninst? You chown root the perl dirs so nothing can instal there, right?
-#<Apocalypse> Or is that for the initial perl build stage, where you want to make sure the modules you install override any core modules and they get deleted?
-#<@BinGOs> habit
-#<@BinGOs> and when I am updating
 sub do_installCPANP_BOXED_config {
+# We let CPANPLUS automatically figure it out!
+#	$conf->set_conf( prefer_makefile => 1 );
+
 	# configure the Boxed Config settings
 	my $boxed = <<'END';
 ##############################################
 ###
-###  Configuration structure for CPANPLUS::Config::Boxed
+###  Configuration for CPANPLUS::Config::Boxed
 ###
 ###############################################
 
-#last changed: Sun Mar  1 10:56:52 2009 GMT
+#last changed: XXXTIMEXXX
 
-### minimal pod, so you can find it with perldoc -l, etc
 =pod
 
 =head1 NAME
@@ -1431,8 +1404,7 @@ CPANPLUS::Config::Boxed
 
 =head1 DESCRIPTION
 
-This is a CPANPLUS configuration file. Editing this
-config changes the way CPANPLUS will behave
+This is a CPANPLUS configuration file.
 
 =cut
 
@@ -1443,17 +1415,13 @@ use strict;
 sub setup {
 	my $conf = shift;
 
-	### conf section
 	$conf->set_conf( allow_build_interactivity => 0 );
 	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/CPANPLUS-XXXCPANPLUSXXX/.cpanplus/XXXUSERXXXXXX' );
-	$conf->set_conf( buildflags => 'uninst=1' );
+	$conf->set_conf( buildflags => 'XXXBUILDFLAGSXXX' );
 	$conf->set_conf( cpantest => 0 );
 	$conf->set_conf( cpantest_mx => '' );
 	$conf->set_conf( cpantest_reporter_args => {} );
-
-# Make CPANPLUS a bit more verbose, so we help debugging
 	$conf->set_conf( debug => 1 );
-
 	$conf->set_conf( dist_type => '' );
 	$conf->set_conf( email => 'XXXCONFIG-EMAILXXX' );
 	$conf->set_conf( enable_custom_sources => 0 );
@@ -1469,19 +1437,12 @@ sub setup {
 		},
 	] );
 	$conf->set_conf( lib => [] );
-	$conf->set_conf( makeflags => 'UNINST=1' );
+	$conf->set_conf( makeflags => 'XXXMAKEFLAGSXXX' );
 	$conf->set_conf( makemakerflags => '' );
 	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
-
-# On MSWin32 systems, we cannot use binaries!
-#	$conf->set_conf( prefer_bin => 1 );
 	$conf->set_conf( prefer_bin => XXXPREFERBINXXX );
-
-# We let CPANPLUS automatically figure it out!
-#	$conf->set_conf( prefer_makefile => 1 );
-
 	$conf->set_conf( prereqs => 1 );
 	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
 	$conf->set_conf( show_startup_tip => 0 );
@@ -1493,7 +1454,6 @@ sub setup {
 	$conf->set_conf( verbose => 1 );
 	$conf->set_conf( write_install_logs => 0 );
 
-	### program section
 	$conf->set_program( editor => 'XXXWHICH-nanoXXX' );
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
 	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
@@ -1503,7 +1463,6 @@ sub setup {
 
 	return 1;
 }
-
 1;
 END
 
@@ -1528,18 +1487,37 @@ sub do_replacements {
 
 	# basic stuff
 	if ( $^O eq 'MSWin32' ) {
+		# On MSWin32, we use USERNAME instead of USER...
 		$str =~ s/XXXUSERXXX/$ENV{USERNAME}/g;
+
+		# We cannot use binaries on MSWin32!
 		$str =~ s/XXXPREFERBINXXX/0/g;
+
+		# Doing uninst=1 causes weird things ( must reboot, etc )
+		$str =~ s/XXXBUILDFLAGSXXX//g;
+		$str =~ s/XXXMAKEFLAGSXXX//g;
+
+		# Naturally, on MSWin32 we need to use the strawberry path...
 		$str =~ s/XXXPERLWRAPPERXXX/C:\\\\strawberry\\\\perl\\\\bin\\\\cpanp-run-perl\.BAT/g;
 	} else {
 		$str =~ s/XXXUSERXXX/$ENV{USER}/g;
 		$str =~ s/XXXPREFERBINXXX/1/g;
 		$str =~ s/XXXPERLWRAPPERXXX/XXXCATDIR-XXXPATHXXX\/perls\/XXXPERLDISTXXX\/bin\/cpanp-run-perlXXX/g;
+
+#<Apocalypse> BinGOs: Wondering what you put in the CPANPLUS config on your smoking setup for makemakerflags and buildflags
+#<@BinGOs> s conf makeflags UNINST=1 and s conf buildflags uninst=1
+#<Apocalypse> Why the uninst? You chown root the perl dirs so nothing can instal there, right?
+#<Apocalypse> Or is that for the initial perl build stage, where you want to make sure the modules you install override any core modules and they get deleted?
+#<@BinGOs> habit
+#<@BinGOs> and when I am updating
+		$str =~ s/XXXBUILDFLAGSXXX/uninst\=1/g;
+		$str =~ s/XXXMAKEFLAGSXXX/UNINST=1/g;
 	}
 	$str =~ s/XXXPATHXXX/do_replacements_slash( $C{home} )/ge;
 
 	$str =~ s/XXXPERLDISTXXX/$C{perldist}/g;
 	$str =~ s/XXXCPANPLUSXXX/$C{cpanp_ver}/g;
+	$str =~ s/XXXTIMEXXX/scalar localtime()/ge;
 
 	# find binary locations
 	$str =~ s/XXXWHICH-([\w\-]+)XXX/do_replacements_slash( get_binary_path( $1 ) )/ge;
@@ -1678,43 +1656,6 @@ sub get_CPANPLUS_toolchain {
 
 # Look at do_installCPANP_BOXED_config for more details
 sub do_installCPANPLUS_config {
-	# configure the CPANPLUS config
-	my $cpanplus = <<'END';
-###############################################
-###
-###  Configuration structure for CPANPLUS::Config::User
-###
-###############################################
-
-#last changed: Sun Mar  1 10:56:52 2009 GMT
-
-### minimal pod, so you can find it with perldoc -l, etc
-=pod
-
-=head1 NAME
-
-CPANPLUS::Config::User
-
-=head1 DESCRIPTION
-
-This is a CPANPLUS configuration file. Editing this
-config changes the way CPANPLUS will behave
-
-=cut
-
-package CPANPLUS::Config::User;
-
-use strict;
-
-sub setup {
-	my $conf = shift;
-
-	### conf section
-	$conf->set_conf( allow_build_interactivity => 0 );
-	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/cpanp_conf/XXXPERLDISTXXX/.cpanplusXXX' );
-	$conf->set_conf( buildflags => 'uninst=1' );
-	$conf->set_conf( cpantest => 1 );
-	$conf->set_conf( cpantest_mx => '' );
 
 # The HTTPGateway solution via POEGateway
 #	$conf->set_conf( cpantest_reporter_args => {
@@ -1731,6 +1672,50 @@ sub setup {
 #		],
 #	} );
 
+# TODO seems like this causes weird caching issues - better to split off the stuff for now...
+#	$conf->set_conf( fetchdir => 'XXXCATDIR-XXXPATHXXX/.cpanplus/authorsXXX' );
+
+# We let CPANPLUS automatically figure it out!
+#	$conf->set_conf( prefer_makefile => 1 );
+
+# We now use CPANIDX to speed up our smoking!
+#	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::Memory' );
+
+	# configure the CPANPLUS config
+	my $cpanplus = <<'END';
+###############################################
+###
+###  Configuration for CPANPLUS::Config::User
+###
+###############################################
+
+#last changed: XXXTIMEXXX
+
+=pod
+
+=head1 NAME
+
+CPANPLUS::Config::User
+
+=head1 DESCRIPTION
+
+This is a CPANPLUS configuration file.
+
+=cut
+
+package CPANPLUS::Config::User;
+
+use strict;
+
+sub setup {
+	my $conf = shift;
+
+	$conf->set_conf( allow_build_interactivity => 0 );
+	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/cpanp_conf/XXXPERLDISTXXX/.cpanplusXXX' );
+	$conf->set_conf( buildflags => 'XXXBUILDFLAGSXXX' );
+	$conf->set_conf( cpantest => 1 );
+	$conf->set_conf( cpantest_mx => '' );
+
 # The Socket proxied transport, best for my setup - thanks BinGOs!
 	$conf->set_conf( cpantest_reporter_args => {
 		transport => 'Socket',
@@ -1740,18 +1725,12 @@ sub setup {
 		],
 	} );
 
-# Make CPANPLUS a bit more verbose, so we help debugging
 	$conf->set_conf( debug => 1 );
-
 	$conf->set_conf( dist_type => '' );
 	$conf->set_conf( email => 'XXXCONFIG-EMAILXXX' );
 	$conf->set_conf( enable_custom_sources => 0 );
 	$conf->set_conf( extractdir => '' );
-
-# TODO seems like this causes weird caching issues - better to split off the stuff for now...
-#	$conf->set_conf( fetchdir => 'XXXCATDIR-XXXPATHXXX/.cpanplus/authorsXXX' );
 	$conf->set_conf( fetchdir => '' );
-
 	$conf->set_conf( flush => 1 );
 	$conf->set_conf( force => 0 );
 	$conf->set_conf( hosts => [
@@ -1762,35 +1741,23 @@ sub setup {
 		},
 	] );
 	$conf->set_conf( lib => [] );
-	$conf->set_conf( makeflags => 'UNINST=1' );
+	$conf->set_conf( makeflags => 'XXXMAKEFLAGSXXX' );
 	$conf->set_conf( makemakerflags => '' );
 	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
-
-# On MSWin32 systems, we cannot use binaries!
-#	$conf->set_conf( prefer_bin => 1 );
 	$conf->set_conf( prefer_bin => XXXPREFERBINXXX );
-
-# We let CPANPLUS automatically figure it out!
-#	$conf->set_conf( prefer_makefile => 1 );
-
 	$conf->set_conf( prereqs => 1 );
 	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
 	$conf->set_conf( show_startup_tip => 0 );
 	$conf->set_conf( signature => 0 );
 	$conf->set_conf( skiptest => 0 );
-
-# We now use CPANIDX to speed up our smoking!
-#	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::Memory' );
 	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::CPANIDX' );
-
 	$conf->set_conf( storable => 1 );
 	$conf->set_conf( timeout => 300 );
 	$conf->set_conf( verbose => 1 );
 	$conf->set_conf( write_install_logs => 0 );
 
-	### program section
 	$conf->set_program( editor => 'XXXWHICH-nanoXXX' );
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
 	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
@@ -1800,7 +1767,6 @@ sub setup {
 
 	return 1;
 }
-
 1;
 END
 
