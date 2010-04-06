@@ -60,8 +60,8 @@ use strict; use warnings;
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
-use Prompt::Timeout;
-use Sort::Versions;
+use Prompt::Timeout qw( prompt );
+use Sort::Versions qw( versioncmp );
 use Sys::Hostname qw( hostname );
 use File::Spec;
 use File::Path::Tiny;
@@ -95,12 +95,7 @@ my @LOGS = ();
 set_titlebar( "Perl-Compiler@" . hostname() );
 
 # Do some basic sanity checks
-# Only do this if we're not root!
-if ( $< != 0 ) {
-	do_sanity_checks();
-} else {
-	print "WARNING you are running this as root! WARNING\n";
-}
+do_sanity_checks();
 
 # What option do we want to do?
 prompt_action();
@@ -129,6 +124,15 @@ sub do_sanity_checks {
 		}
 	}
 
+	# Don't auto-create dirs if we're root
+	if ( $< == 0 ) {
+		do_log( "[SANITYCHECK] You are running this as root! Be careful in what you do!" );
+		my $res = prompt( "Do you want us to auto-create the build dirs", 'n', 120 ); print "\n";
+		if ( lc( $res ) eq 'n' ) {
+			return;
+		}
+	}
+
 	# Create some directories we need
 	foreach my $dir ( qw( build tmp perls cpanp_conf ) ) {
 		my $localdir = File::Spec->catdir( $C{home}, $dir );
@@ -147,7 +151,7 @@ sub do_sanity_checks {
 	# less than 3 entries means only the '.' and '..' entries present..
 	# TODO compare number of entries with mirror and get new dists?
 	if ( @entries < 3 ) {
-		my $res = lc( prompt( "Do you want me to automatically get the perl dists", 'y', 120 ) );
+		my $res = lc( prompt( "Do you want me to automatically get the perl dists", 'y', 120 ) ); print "\n";
 		if ( $res eq 'y' ) {
 			downloadPerlTarballs();
 		} else {
@@ -208,7 +212,7 @@ sub get_directory_contents {
 sub prompt_action {
 	my $res;
 	while ( ! defined $res ) {
-		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/use (d)evel perl/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(r)econfig cpanp/(s)ystem toolchain update/perl (t)arballs/(u)ninstall/cho(w)n/inde(x)]", 'e', 120 ) );
+		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/use (d)evel perl/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(r)econfig cpanp/(s)ystem toolchain update/perl (t)arballs/(u)ninstall/cho(w)n/inde(x)]", 'e', 120 ) ); print "\n";
 		if ( $res eq 'b' ) {
 			# prompt user for perl version to compile
 			$res = prompt_perlver_tarballs();
@@ -258,7 +262,7 @@ sub prompt_action {
 			do_shellcommand( "cpanp x --update_source" );
 		} elsif ( $res eq 'i' ) {
 			# install a specific module
-			my $module = prompt( "What module should we install?", '', 120 );
+			my $module = prompt( "What module should we install?", '', 120 ); print "\n";
 			if ( defined $module and length $module ) {
 				do_log( "[CPANPLUS] Installing '$module' on perls..." );
 				iterate_perls( sub {
@@ -273,7 +277,7 @@ sub prompt_action {
 			}
 		} elsif ( $res eq 'u' ) {
 			# uninstall a specific module
-			my $module = prompt( "What module should we uninstall?", '', 120 );
+			my $module = prompt( "What module should we uninstall?", '', 120 ); print "\n";
 			if ( defined $module and length $module ) {
 				do_log( "[CPANPLUS] Uninstalling '$module' on all perls..." );
 				iterate_perls( sub {
@@ -342,7 +346,7 @@ sub do_config_systemCPANPLUS {
 	# First of all, we need to be root!
 	if ( $< != 0 ) {
 		# Make sure the user knows what they are doing!
-		my $result = prompt( "You are not running as root, execute this action?", "n", 120 );
+		my $result = prompt( "You are not running as root, execute this action?", "n", 120 ); print "\n";
 		if ( ! defined $result or lc( $result ) ne 'y' ) {
 			do_log( '[CPANPLUS] Refusing to configure system CPANPLUS without approval...' );
 			return 0;
@@ -410,7 +414,10 @@ sub setup {
 	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
-	$conf->set_conf( prefer_bin => 1 );
+
+# On MSWin32 systems, we cannot use binaries!
+#	$conf->set_conf( prefer_bin => 1 );
+	$conf->set_conf( prefer_bin => XXXPREFERBINXXX );
 
 # We let CPANPLUS automatically figure it out!
 #	$conf->set_conf( prefer_makefile => 1 );
@@ -561,7 +568,7 @@ sub getReadyPerls {
 
 sub prompt_develperl {
 	do_log( "[COMPILER] Current devel perl status: " . ( $C{devel} ? 'Y' : 'N' ) );
-	my $res = lc( prompt( "Compile/use the devel perls", 'n', 120 ) );
+	my $res = lc( prompt( "Compile/use the devel perls", 'n', 120 ) ); print "\n";
 	if ( $res eq 'y' ) {
 		$C{devel} = 1;
 	} else {
@@ -573,7 +580,7 @@ sub prompt_develperl {
 
 sub prompt_perlmatrix {
 	do_log( "[COMPILER] Current matrix perl status: " . ( $C{matrix} ? 'Y' : 'N' ) );
-	my $res = lc( prompt( "Compile/use the perl matrix", 'n', 120 ) );
+	my $res = lc( prompt( "Compile/use the perl matrix", 'n', 120 ) ); print "\n";
 	if ( $res eq 'y' ) {
 		$C{matrix} = 1;
 	} else {
@@ -658,6 +665,14 @@ sub get_CPANPLUS_tarball_path {
 
 # Look at do_installCPANP_BOXED_config for more details
 sub do_config_localCPANPLUS {
+	# Not needed for MSWin32?
+	if ( $^O eq 'MSWin32' ) {
+		my $res = prompt( "No need to configure local CPANPLUS on MSWin32. Are you sure", 'n', 120 ); print "\n";
+		if ( lc( $res ) ne 'y' ) {
+			return 1;
+		}
+	}
+
 	# configure the local user Config settings
 	my $uconfig = <<'END';
 ###############################################
@@ -743,7 +758,10 @@ sub setup {
 	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
-	$conf->set_conf( prefer_bin => 1 );
+
+# On MSWin32 systems, we cannot use binaries!
+#	$conf->set_conf( prefer_bin => 1 );
+	$conf->set_conf( prefer_bin => XXXPREFERBINXXX );
 
 # We let CPANPLUS automatically figure it out!
 #	$conf->set_conf( prefer_makefile => 1 );
@@ -783,6 +801,7 @@ END
 	# blow away any annoying .cpan directories that remain
 	my $cpan;
 	if ( $^O eq 'MSWin32' ) {
+		# TODO is it always in this path?
 		# commit: wrote 'C:\Documents and Settings\cpan\Local Settings\Application Data\.cpan\CPAN\MyConfig.pm'
 		$cpan = 'C:\\Documents and Settings\\' . $ENV{USERNAME} . '\\Local Settings\\Application Data\\.cpan';
 	} else {
@@ -850,7 +869,7 @@ sub _prompt_perlver {
 
 	my $res;
 	while ( ! defined $res ) {
-		$res = prompt( "Which perl version to use [ver/(d)isplay/(a)ll/(e)xit]", $perls->[-1], 120 );
+		$res = prompt( "Which perl version to use [ver/(d)isplay/(a)ll/(e)xit]", $perls->[-1], 120 ); print "\n";
 		if ( lc( $res ) eq 'd' ) {
 			# display available versions
 			do_log( "[PERLS] Available Perls[" . ( scalar @$perls ) . "]: " . join( ' ', @$perls ) );
@@ -1388,7 +1407,10 @@ sub setup {
 	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
-	$conf->set_conf( prefer_bin => 1 );
+
+# On MSWin32 systems, we cannot use binaries!
+#	$conf->set_conf( prefer_bin => 1 );
+	$conf->set_conf( prefer_bin => XXXPREFERBINXXX );
 
 # We let CPANPLUS automatically figure it out!
 #	$conf->set_conf( prefer_makefile => 1 );
@@ -1443,8 +1465,10 @@ sub do_replacements {
 	# basic stuff
 	if ( $^O eq 'MSWin32' ) {
 		$str =~ s/XXXUSERXXX/$ENV{USERNAME}/g;
+		$str =~ s/XXXPREFERBINXXX/0/g;
 	} else {
 		$str =~ s/XXXUSERXXX/$ENV{USER}/g;
+		$str =~ s/XXXPREFERBINXXX/1/g;
 	}
 	$str =~ s/XXXPATHXXX/do_replacements_slash( $C{home} )/ge;
 
@@ -1578,6 +1602,11 @@ sub get_CPANPLUS_toolchain {
 	# Add other useful toolchain modules
 	push( @toolchain_modules, qw( File::Temp ) );
 
+	# On MSWin32 systems, we cannot use binaries so we have to install this!
+	if ( $^O eq 'MSWin32' ) {
+		push( @toolchain_modules, qw( Archive::Zip Archive::Tar ) );
+	}
+
 	return \@toolchain_modules;
 }
 
@@ -1672,7 +1701,10 @@ sub setup {
 	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
 	$conf->set_conf( passive => 1 );
-	$conf->set_conf( prefer_bin => 1 );
+
+# On MSWin32 systems, we cannot use binaries!
+#	$conf->set_conf( prefer_bin => 1 );
+	$conf->set_conf( prefer_bin => XXXPREFERBINXXX );
 
 # We let CPANPLUS automatically figure it out!
 #	$conf->set_conf( prefer_makefile => 1 );
