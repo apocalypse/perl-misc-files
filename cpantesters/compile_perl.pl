@@ -121,8 +121,13 @@ sub do_sanity_checks {
 
 	foreach my $bin ( @binaries ) {
 		if ( ! length get_binary_path( $bin ) ) {
-			die "ERROR: The binary '$bin' was not found, please rectify this and re-run this script!\n";
+			die "[SANITYCHECK] The binary '$bin' was not found, please rectify this and re-run this script!";
 		}
+	}
+
+	# Sanity check strawberry on win32
+	if ( $^O eq 'MSWin32' and $ENV{PATH} =~ /strawberry/ ) {
+		die '[SANITYCHECK] Detected Strawberry Perl in $ENV{PATH}, please fix it!';
 	}
 
 	# Don't auto-create dirs if we're root
@@ -511,7 +516,7 @@ sub iterate_perls {
 		foreach my $p ( reverse @$res ) {
 			# move this perl to c:\strawberry
 			if ( -d "C:\\strawberry" ) {
-				die "Old strawberry perl found in C:\\strawberry, please fix it!";
+				die '[ITERATOR] Old strawberry perl found in C:\\strawberry, please fix it!';
 			}
 			my $perlpath = File::Spec->catdir( $C{home}, 'perls', $p );
 			mv( $perlpath, "C:\\strawberry" ) or die "Unable to mv: $!";
@@ -577,7 +582,7 @@ sub getReadyPerls {
 
 sub prompt_develperl {
 	do_log( "[COMPILER] Current devel perl status: " . ( $C{devel} ? 'Y' : 'N' ) );
-	my $res = lc( do_prompt( "Compile/use the devel perls", 'n' ) );
+	my $res = lc( do_prompt( "Compile/use the devel perls?", 'n' ) );
 	if ( $res eq 'y' ) {
 		$C{devel} = 1;
 	} else {
@@ -589,7 +594,7 @@ sub prompt_develperl {
 
 sub prompt_perlmatrix {
 	do_log( "[COMPILER] Current matrix perl status: " . ( $C{matrix} ? 'Y' : 'N' ) );
-	my $res = lc( do_prompt( "Compile/use the perl matrix", 'n' ) );
+	my $res = lc( do_prompt( "Compile/use the perl matrix?", 'n' ) );
 	if ( $res eq 'y' ) {
 		$C{matrix} = 1;
 	} else {
@@ -676,7 +681,7 @@ sub get_CPANPLUS_tarball_path {
 sub do_config_localCPANPLUS {
 	# Not needed for MSWin32?
 	if ( $^O eq 'MSWin32' ) {
-		my $res = lc( do_prompt( "[CPANPLUS] No need to configure local CPANPLUS on MSWin32. Are you sure", 'n' ) );
+		my $res = lc( do_prompt( "[CPANPLUS] No need to configure local CPANPLUS on MSWin32. Are you sure?", 'n' ) );
 		if ( $res ne 'y' ) {
 			return 1;
 		}
@@ -878,7 +883,7 @@ sub _prompt_perlver {
 
 	my $res;
 	while ( ! defined $res ) {
-		$res = do_prompt( "Which perl version to use [ver/(d)isplay/(a)ll/(e)xit]", $perls->[-1] );
+		$res = do_prompt( "Which perl version to use? [ver/(d)isplay/(a)ll/(e)xit]", $perls->[-1] );
 		if ( lc( $res ) eq 'd' ) {
 			# display available versions
 			do_log( "[PERLS] Perls[" . ( scalar @$perls ) . "]: " . join( ' ', @$perls ) );
@@ -1074,7 +1079,7 @@ sub install_perl_win32 {
 		$C{perlopts} = 'default';
 		$C{perldist} = "strawberry_perl_$C{perlver}_$C{perlopts}";
 	} else {
-		die "Unknown Strawberry Perl version: $perl";
+		die "[PERLBUILDER] Unknown Strawberry Perl version: $perl";
 	}
 
 	# Okay, is this perl installed?
@@ -1094,7 +1099,7 @@ sub install_perl_win32 {
 
 	# move this perl to c:\strawberry
 	if ( -d "C:\\strawberry" ) {
-		die "Old strawberry perl found in C:\\strawberry, please fix it!";
+		die '[PERLBUILDER] Old strawberry perl found in C:\\strawberry, please fix it!';
 	}
 	mv( $path, "C:\\strawberry" ) or die "Unable to mv: $!";
 
@@ -1516,7 +1521,7 @@ sub do_replacements_config {
 	if ( exists $C{ $str } and defined $C{ $str } ) {
 		return $C{ $str };
 	} else {
-		die "Unknown config key: $str";
+		die "[CPANPLUS] Unknown config key: $str";
 	}
 }
 
