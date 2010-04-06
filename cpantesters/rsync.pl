@@ -3,7 +3,7 @@ use strict; use warnings;
 
 use POE;
 use POE::Component::SmokeBox::Uploads::Rsync;
-use POE::Component::IRC::State;
+use POE::Component::IRC::State 6.18;			# 6.18 depends on POE::Filter::IRCD 2.42 to shutup warnings about 005 numerics
 use POE::Component::IRC::Plugin::AutoJoin;
 use POE::Component::IRC::Plugin::Connector;
 use POE::Component::IRC::Plugin::BotCommand;

@@ -16,7 +16,7 @@ use base 'POE::Session::AttributeBased';
 
 use Sys::Hostname qw( hostname );
 use Time::Duration qw( duration_exact );
-use Filesys::DfPortable;
+use Filesys::DfPortable qw( dfportable );
 use File::Spec;
 use File::Path::Tiny;
 use Number::Bytes::Human qw( format_bytes );
@@ -26,6 +26,10 @@ my $ircnick = hostname();
 my $ircserver = '192.168.0.200';
 my $freespace = 1024 * 1024 * 1024 * 5;	# set it to 5GB - in bytes before we auto-purge CPAN files
 my $delay = 60;				# set delay in seconds between jobs/smokers to "throttle"
+my $HOME = $ENV{HOME};			# home path to search for perls/etc
+if ( $^O eq 'MSWin32' ) {
+	$HOME = "C:\\cpansmoke";
+}
 
 # Set our system info
 my %VMs = (
@@ -69,25 +73,29 @@ sub create_smokebox : State {
 	);
 
 	# Add system perl...
-	# Configuration successfully saved to CPANPLUS::Config::User
-	#    (/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm)
-	my $perl = `which perl`; chomp $perl;
-	my $smoker = POE::Component::SmokeBox::Smoker->new(
-		perl => $perl,
-		env => {
-			'APPDATA'		=> $ENV{HOME},
-			'PERL5_YACSMOKE_BASE'	=> $ENV{HOME},
-			'TMPDIR'		=> File::Spec->catdir( $ENV{HOME}, 'tmp' ),
-			'PERL_CPANSMOKER_HOST'	=> $perl . ' / ' . $VMs{ $ircnick },
-			'PERL5_CPANIDX_URL'	=> 'http://' . $ircserver . ':11110/CPANIDX/',	# TODO fix this hardcoded path
-		},
-	);
-	$_[HEAP]->{'SMOKEBOX'}->add_smoker( $smoker );
+	if ( $^O ne 'MSWin32' ) {
+		# Configuration successfully saved to CPANPLUS::Config::User
+		#    (/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm)
+		my $perl = `which perl`; chomp $perl;
+		my $smoker = POE::Component::SmokeBox::Smoker->new(
+			perl => $perl,
+			env => {
+				'APPDATA'		=> $HOME,
+				'PERL5_YACSMOKE_BASE'	=> $HOME,
+				'TMPDIR'		=> File::Spec->catdir( $HOME, 'tmp' ),
+				'PERL_CPANSMOKER_HOST'	=> $perl . ' / ' . $VMs{ $ircnick },
+				'PERL5_CPANIDX_URL'	=> 'http://' . $ircserver . ':11110/CPANIDX/',	# TODO fix this hardcoded path
+			},
+		);
+		$_[HEAP]->{'SMOKEBOX'}->add_smoker( $smoker );
 
-	# Store the local perls we built
-	$_[HEAP]->{'PERLS'} = {
-		$perl => undef,
-	};
+		# Store the local perls we built
+		$_[HEAP]->{'PERLS'} = {
+			$perl => undef,
+		};
+	} else {
+		$_[HEAP]->{'PERLS'} = {};
+	}
 
 	# Do the first pass over our perls
 	$_[KERNEL]->yield( 'check_perls' );
@@ -112,12 +120,14 @@ sub check_perls : State {
 
 	# add them!
 	foreach my $p ( @newones ) {
+		# TODO strawberry method?
+
 		$_[HEAP]->{'SMOKEBOX'}->add_smoker( POE::Component::SmokeBox::Smoker->new(
-			perl => File::Spec->catfile( $ENV{HOME}, 'perls', $p, 'bin', 'perl' ),
+			perl => File::Spec->catfile( $HOME, 'perls', $p, 'bin', 'perl' ),
 			env => {
-				'APPDATA'		=> File::Spec->catdir( $ENV{HOME}, 'cpanp_conf', $p ),
-				'PERL5_YACSMOKE_BASE'	=> File::Spec->catdir( $ENV{HOME}, 'cpanp_conf', $p ),
-				'TMPDIR'		=> File::Spec->catdir( $ENV{HOME}, 'tmp' ),
+				'APPDATA'		=> File::Spec->catdir( $HOME, 'cpanp_conf', $p ),
+				'PERL5_YACSMOKE_BASE'	=> File::Spec->catdir( $HOME, 'cpanp_conf', $p ),
+				'TMPDIR'		=> File::Spec->catdir( $HOME, 'tmp' ),
 				'PERL_CPANSMOKER_HOST'	=> $p . ' / ' . $VMs{ $ircnick },
 				'PERL5_CPANIDX_URL'	=> 'http://' . $ircserver . ':11110/CPANIDX/',	# TODO fix this hardcoded path
 			},
@@ -200,11 +210,9 @@ sub _stop : State {
 
 # gets the perls
 sub getPerlVersions {
-	# TODO fix the path to be compatible with MSWin32
-
 	# look for ready perls only
-	opendir( PERLS, File::Spec->catdir( $ENV{HOME}, 'perls' ) ) or die "Unable to opendir: $!";
-	my @perls = grep { /^perl\_[\d\.]+/ && -d File::Spec->catdir( $ENV{HOME}, 'perls', $_ ) && -e File::Spec->catfile( $ENV{HOME}, 'perls', $_, 'ready.smoke' ) } readdir( PERLS );
+	opendir( PERLS, File::Spec->catdir( $HOME, 'perls' ) ) or die "Unable to opendir: $!";
+	my @perls = grep { /perl\_[\d\.\w\-]+\_/ && -d File::Spec->catdir( $HOME, 'perls', $_ ) && -e File::Spec->catfile( $HOME, 'perls', $_, 'ready.smoke' ) } readdir( PERLS );
 	closedir( PERLS ) or die "Unable to closedir: $!";
 
 	return \@perls;
@@ -244,7 +252,7 @@ sub irc_botcmd_df : State {
 	my $nick = (split '!', $_[ARG0])[0];
 	my ($where, $arg) = @_[ARG1, ARG2];
 
-	my $df = dfportable( $ENV{HOME} );
+	my $df = dfportable( $HOME );
 	if ( defined $df ) {
 		my $free = format_bytes( $df->{'bavail'}, si => 1 );
 		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Df: $free" );
@@ -434,7 +442,7 @@ sub check_free_space : State {
 #	<Apocalypse> I'll re-create this situation and see if rebuilding the indexes fixed it
 #	<Apocalypse> Thanks again kane!
 
-	my $df = dfportable( $ENV{HOME} );
+	my $df = dfportable( $HOME );
 	if ( defined $df ) {
 		# Do we need to wipe?
 		if ( $df->{'bavail'} < $freespace or $do_purge ) {
@@ -443,13 +451,13 @@ sub check_free_space : State {
 			exit;
 
 			# cpan@ubuntu-server64:~$ rm -rf /home/cpan/.cpanplus/authors/*						# downloaded tarballs
-			my $dir = File::Spec->catdir( $ENV{HOME}, '.cpanplus', 'authors' );
+			my $dir = File::Spec->catdir( $HOME, '.cpanplus', 'authors' );
 			if ( -d $dir ) {
 				File::Path::Tiny::rm( $dir ) or die "Unable to rmdir ($dir): $!";
 			}
 
 			# cpan@ubuntu-server64:~$ rm -rf /home/cpan/.cpanplus/5.8.9/build/*					# extracted builds
-			$dir = File::Spec->catdir( $ENV{HOME}, '.cpanplus' );
+			$dir = File::Spec->catdir( $HOME, '.cpanplus' );
 			opendir( DIR, $dir ) or die "Unable to opendir ($dir): $!";
 			foreach my $d ( readdir( DIR ) ) {
 				if ( $d =~ /^[\d\.]+$/ ) {
@@ -462,10 +470,10 @@ sub check_free_space : State {
 			closedir( DIR ) or die "Unable to closedir ($dir): $!";
 
 			# cpan@ubuntu-server64:~$ rm -rf /home/cpan/cpanp_conf/perl-5.10.0-default/.cpanplus/5.10.0/build/*	# extracted builds
-			$dir = File::Spec->catdir( $ENV{HOME}, 'cpanp_conf' );
+			$dir = File::Spec->catdir( $HOME, 'cpanp_conf' );
 			opendir( DIR, $dir ) or die "Unable to opendir ($dir): $!";
 			foreach my $d ( readdir( DIR ) ) {
-				if ( $d =~ /^perl\-([\d\.]+)\-/ ) {
+				if ( $d =~ /perl\_([\d\.\w\-]+)\_/ ) {
 					$d = File::Spec->catdir( $dir, $d, '.cpanplus', $1 );
 					if ( -d $d ) {
 						File::Path::Tiny::rm( $d ) or die "Unable to rmdir ($d): $!";
@@ -475,7 +483,7 @@ sub check_free_space : State {
 			closedir( DIR ) or die "Unable to closedir ($dir): $!";
 
 			# cpan@ubuntu-server64:~$ rm -rf /home/cpan/tmp/*							# temporary space for builds
-			$dir = File::Spec->catdir( $ENV{HOME}, 'tmp' );
+			$dir = File::Spec->catdir( $HOME, 'tmp' );
 			File::Path::Tiny::rm( $dir ) or die "Unable to rmdir ($dir): $!";
 			mkdir( $dir ) or die "Unable to mkdir ($dir): $!";
 		}
