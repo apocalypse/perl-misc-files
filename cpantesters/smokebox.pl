@@ -78,7 +78,7 @@ sub create_smokebox : State {
 			'APPDATA'		=> $ENV{HOME},
 			'PERL5_YACSMOKE_BASE'	=> $ENV{HOME},
 			'TMPDIR'		=> File::Spec->catdir( $ENV{HOME}, 'tmp' ),
-			'PERL_CPANSMOKER_HOST'	=> $VMs{ $ircnick },
+			'PERL_CPANSMOKER_HOST'	=> $perl . ' / ' . $VMs{ $ircnick },
 			'PERL5_CPANIDX_URL'	=> 'http://' . $ircserver . ':11110/CPANIDX/',	# TODO fix this hardcoded path
 		},
 	);
@@ -118,7 +118,7 @@ sub check_perls : State {
 				'APPDATA'		=> File::Spec->catdir( $ENV{HOME}, 'cpanp_conf', $p ),
 				'PERL5_YACSMOKE_BASE'	=> File::Spec->catdir( $ENV{HOME}, 'cpanp_conf', $p ),
 				'TMPDIR'		=> File::Spec->catdir( $ENV{HOME}, 'tmp' ),
-				'PERL_CPANSMOKER_HOST'	=> $VMs{ $ircnick },
+				'PERL_CPANSMOKER_HOST'	=> $p . ' / ' . $VMs{ $ircnick },
 				'PERL5_CPANIDX_URL'	=> 'http://' . $ircserver . ':11110/CPANIDX/',	# TODO fix this hardcoded path
 			},
 		) );

@@ -794,3 +794,40 @@ nano /etc/postfix/access
 postmap /etc/postfix/access
 
 /etc/init.d/postfix restart
+
+
+
+
+
+
+
+planned mirror archives
+-----------------------
+
+CPAN: 5.6gb		[http://www.cpan.org/misc/cpan-faq.html#How_mirror_CPAN]
+buildaperl: 1gb		[http://search.cpan.org/~andk/Perl-Repository-APC-2.002/scripts/buildaperl]
+Gentoo: 10gb		[portage only... http://www.gentoo.org/doc/en/rsync.xml]
+Ubuntu: 10gb		[cache builds up over time... https://help.ubuntu.com/community/AptProxy?action=show&redirect=AptProxyHowTo]
+kernel.org: 70gb	[linux+software bzip2 only! http://www.kernel.org/mirrors/storage.shtml]
+Debian: ~10gb		[cache builds up over time... http://apt-proxy.sourceforge.net/]
+CD/DVD: ~50gb		[cd+dvd archive of releases of distros (gentoo/ubuntu/etc)]
+
+
+
+
+the "big master" server
+-----------------------
+
+runs all of the "services" we need
+	- http: apache+php+mod_perl+etc
+	- ftp: glftpd+custom scripts
+	- svn: svnserve+webdav
+	- irc: ngircd
+	- rsync: rsyncd
+	- db: mysql+postgres+couchdb ( yes, 3 dbs! )
+	- nfs: nfsd
+	- p2p: rtorrent ( needs more work to automatically get torrents for CD/DVDs )
+	- apt: apt-proxy ( for debian/ubuntu/etc )
+	- emerge: http-replicator? ( http://www.gentoo-wiki.info/HOWTO_Download_Cache_for_LAN-Http-Replicator )
+		- also run cronjob to rsync the portage
+	- ntpd that synch with pool.ntp.org
