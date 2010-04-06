@@ -131,8 +131,8 @@ sub do_sanity_checks {
 		if ( $ENV{PATH} =~ /strawberry/ ) {
 			die '[SANITYCHECK] Detected Strawberry Perl in $ENV{PATH}, please fix it!';
 		}
-		if ( -d File::Spec->catdir( 'strawberry' ) ) {
-			die '[SANITYCHECK] Detected Old Strawberry Perl in C:\strawberry, please fix it!';
+		if ( -d "C:\\strawberry" ) {
+			die "[SANITYCHECK] Detected Old Strawberry Perl in C:\\strawberry, please fix it!";
 		}
 	}
 
@@ -149,8 +149,7 @@ sub do_sanity_checks {
 	foreach my $dir ( qw( build tmp perls cpanp_conf ) ) {
 		my $localdir = File::Spec->catdir( $C{home}, $dir );
 		if ( ! -d $localdir ) {
-			do_log( "[SANITYCHECK] Executing mkdir($localdir)" );
-			mkdir( $localdir ) or die "Unable to mkdir ($localdir): $!";
+			do_mkdir( $localdir );
 		}
 	}
 
@@ -206,7 +205,7 @@ sub downloadPerlTarballs {
 
 		my $localpath = File::Spec->catfile( $C{home}, 'build', $f );
 		if ( -f $localpath ) {
-			unlink( $localpath ) or die "Unable to unlink ($localpath): $!";
+			do_unlink( $localpath );
 		}
 		do_shellcommand( "lwp-mirror $ftpdir/$f $localpath" );
 	}
@@ -833,13 +832,11 @@ END
 	}
 
 	if ( -d $cpan ) {
-		do_log( "[CPANPLUS] Sanitizing the '$cpan' directory..." );
-		File::Path::Tiny::rm( $cpan ) or die "Unable to rm ($cpan): $!";
+		do_rmdir( $cpan );
 	}
 
 	# thanks to BinGOs for the idea to prevent rogue module installs via CPAN
-	do_log( "[CPANPLUS] Executing mkdir($cpan)" );
-	mkdir( $cpan ) or die "Unable to mkdir ($cpan): $!";
+	do_mkdir( $cpan );
 	if ( $^O eq 'MSWin32' ) {
 		# TODO use cacls.exe or something?
 	} else {
@@ -855,8 +852,7 @@ sub do_config_CPANPLUS_actions {
 	# blow away the old cpanplus dir if it's there
 	my $cpanplus = File::Spec->catdir( $C{home}, '.cpanplus' );
 	if ( -d $cpanplus ) {
-		do_log( "[CPANPLUS] Removing old CPANPLUS conf directory in '$cpanplus'" );
-		File::Path::Tiny::rm( $cpanplus ) or die "Unable to rm ($cpanplus): $!";
+		do_rmdir( $cpanplus );
 	}
 
 	# overwrite any old config, just in case...
@@ -867,9 +863,8 @@ sub do_config_CPANPLUS_actions {
 
 	# save it!
 	my $path = File::Spec->catdir( $cpanplus, 'lib', 'CPANPLUS', 'Config' );
-	File::Path::Tiny::mk( $path ) or die "Unable to mk ($path): $!";
-	$path = File::Spec->catfile( $path, 'User.pm' );
-	do_replacefile( $path, $uconfig );
+	do_mkdir( $path );
+	do_replacefile( File::Spec->catfile( $path, 'User.pm' ), $uconfig );
 
 	return 1;
 }
@@ -1151,9 +1146,7 @@ sub build_perl_opts {
 		my $ret = do_build();
 
 		# cleanup the build dir ( lots of space! )
-		$path = File::Spec->catdir( $C{home}, 'build', $C{perldist} );
-		do_log( "[PERLBUILDER] Executing rmdir($path)" );
-		File::Path::Tiny::rm( $path ) or die "Unable to rm ($path): $!";
+		do_rmdir( File::Spec->catdir( $C{home}, 'build', $C{perldist} ) );
 
 		if ( ! $ret ) {
 			# failed something during compiling, move on!
@@ -1202,16 +1195,14 @@ sub finalize_perl {
 	my $path = File::Spec->catdir( $C{home}, 'perls', $C{perldist} );
 	my $mandir = File::Spec->catdir( $path, 'man' );
 	if ( -d $mandir ) {
-		do_log( "[FINALIZER] Executing rmdir($mandir)" );
-		File::Path::Tiny::rm( $mandir ) or die "Unable to rm ($mandir): $!";
+		do_rmdir( $mandir );
 	}
 
 	# Win32 places stuff in different paths!
 	# C:\cpansmoke\perls\strawberry_perl_5.10.1.1_default\perl\lib\pods
 	my $poddir = File::Spec->catdir( $path, 'perl', 'lib', 'pods' );
 	if ( -d $poddir ) {
-		do_log( "[FINALIZER] Executing rmdir($poddir)" );
-		File::Path::Tiny::rm( $poddir ) or die "Unable to rm ($poddir): $!";
+		do_rmdir( $poddir );
 	}
 
 	# get rid of the default pod...
@@ -1223,21 +1214,17 @@ sub finalize_perl {
 	$perlver =~ s/\-.+$//;	# Get rid of the 5.12.0-RC0 stuff
 	$poddir = File::Spec->catdir( $path, 'lib', $perlver, 'pod' );
 	if ( -d $poddir ) {
-		do_log( "[FINALIZER] Executing rmdir($poddir)" );
-		File::Path::Tiny::rm( $poddir ) or die "Unable to rm ($poddir): $!";
+		do_rmdir( $poddir );
 	}
 
 	# Kill all pod files
 	my @podfiles = File::Find::Rule->file()->name( '*.pod' )->in( $path );
 	foreach my $pod ( @podfiles ) {
-		do_log( "[FINALIZER] Executing unlink($pod)" );
-		unlink( $pod ) or die "Unable to unlink ($pod): $!";
+		do_unlink( $pod );
 	}
 
 	# we're really done!
-	my $readysmoke = File::Spec->catfile( $path, 'ready.smoke' );
-	do_log( "[FINALIZER] Creating ready.smoke for '$path'" );
-	do_replacefile( $readysmoke, "$C{perldist}\n" );
+	do_replacefile( File::Spec->catfile( $path, 'ready.smoke' ), "$C{perldist}\n" );
 
 	return 1;
 }
@@ -1246,8 +1233,7 @@ sub do_prebuild {
 	# remove the old dir so we have a consistent build process
 	my $build_dir = File::Spec->catdir( $C{home}, 'build', $C{perldist} );
 	if ( -d $build_dir ) {
-		do_log( "[PERLBUILDER] Executing rmdir($build_dir)" );
-		File::Path::Tiny::rm( $build_dir ) or die "Unable to rm ($build_dir): $!";
+		do_rmdir( $build_dir );
 	}
 
 #	[PERLBUILDER] Firing up the perl-5.11.5-default installer...
@@ -1260,8 +1246,7 @@ sub do_prebuild {
 	# Just remove any old dir that was there ( script exited in the middle so it was not cleaned up )
 	my $extract_dir = File::Spec->catdir( $C{home}, 'build', "perl-$C{perlver}" );
 	if ( -d $extract_dir ) {
-		do_log( "[PERLBUILDER] Executing rmdir($extract_dir)" );
-		File::Path::Tiny::rm( $extract_dir ) or die "Unable to rm ($extract_dir): $!";
+		do_rmdir( $extract_dir );
 	}
 
 	# Argh, we need to figure out the tarball - tar.gz or tar.bz2 or what??? ( thanks to perl-5.11.3 which didn't have a tar.gz file heh )
@@ -1313,8 +1298,7 @@ sub do_prebuild {
 	foreach my $t ( @fails ) {
 		my $testpath = File::Spec->catfile( $build_dir, @$t );
 		if ( -f $testpath ) {
-			do_log( "[PERLBUILDER] Removing problematic '" . join( '/', @$t ) . "' test" );
-			unlink( $testpath ) or die "Unable to unlink ($testpath): $!";
+			do_unlink( $testpath );
 
 			# argh, we have to munge MANIFEST
 			do_shellcommand( "perl -nli -e 'print if ! /^" . quotemeta( join( '/', @$t ) ) . "/' $manipath" );
@@ -1322,6 +1306,39 @@ sub do_prebuild {
 	}
 
 	return 1;
+}
+
+sub do_rmdir {
+	my $dir = shift;
+	my $quiet = shift;
+
+	do_log( "[COMPILER] Executing rmdir($dir)" ) if ! $quiet;
+
+	File::Path::Tiny::rm( $dir ) or die "Unable to rm '$dir': $!";
+
+	return;
+}
+
+sub do_mkdir {
+	my $dir = shift;
+	my $quiet = shift;
+
+	do_log( "[COMPILER] Executing mkdir($dir)" ) if ! $quiet;
+
+	File::Path::Tiny::mk( $dir ) or die "Unable to mk '$dir': $!";
+
+	return;
+}
+
+sub do_unlink {
+	my $file = shift;
+	my $quiet = shift;
+
+	do_log( "[COMPILER] Executing unlink($file)" ) if ! $quiet;
+
+	unlink( $file ) or die "Unable to unlink '$file': $!";
+
+	return;
 }
 
 sub do_initCPANP_BOXED {
@@ -1334,8 +1351,7 @@ sub do_initCPANP_BOXED {
 	# do we have CPANPLUS already extracted?
 	my $cpandir = File::Spec->catdir( $C{home}, "CPANPLUS-$C{cpanp_ver}" );
 	if ( -d $cpandir ) {
-		do_log( "[CPANPLUS] Executing rmdir($cpandir)" );
-		File::Path::Tiny::rm( $cpandir ) or die "Unable to rm ($cpandir): $!";
+		do_rmdir( $cpandir );
 	}
 
 	# do we have the tarball?
@@ -1501,11 +1517,8 @@ END
 	} else {
 		$cpanp_dir = File::Spec->catdir( $C{home}, "CPANPLUS-$C{cpanp_ver}", '.cpanplus', $ENV{USER}, 'lib', 'CPANPLUS', 'Config' );
 	}
-	do_log( "[CPANPLUS] Executing mkdir($cpanp_dir)" );
-	File::Path::Tiny::mk( $cpanp_dir ) or die "Unable to mkdir ($cpanp_dir): $!";
-
-	$cpanp_dir = File::Spec->catfile( $cpanp_dir, 'Boxed.pm' );
-	do_replacefile( $cpanp_dir, $boxed );
+	do_mkdir( $cpanp_dir );
+	do_replacefile( File::Spec->catfile( $cpanp_dir, 'Boxed.pm' ), $boxed );
 
 	return;
 }
@@ -1799,17 +1812,13 @@ END
 	# blow away the old cpanplus dir if it's there
 	my $oldcpanplus = File::Spec->catdir( $C{home}, 'cpanp_conf', $C{perldist} );
 	if ( -d $oldcpanplus ) {
-		do_log( "[CPANPLUS] Removing old CPANPLUS conf directory in '$oldcpanplus'" );
-		File::Path::Tiny::rm( $oldcpanplus ) or die "Unable to rm ($oldcpanplus): $!";
+		do_rmdir( $oldcpanplus );
 	}
 
 	# save it!
 	my $cpanp_dir = File::Spec->catdir( $oldcpanplus, '.cpanplus', 'lib', 'CPANPLUS', 'Config' );
-	do_log( "[CPANPLUS] Executing mkdir($cpanp_dir)" );
-	File::Path::Tiny::mk( $cpanp_dir ) or die "Unable to mkdir ($cpanp_dir): $!";
-
-	$cpanp_dir = File::Spec->catfile( $cpanp_dir, 'User.pm' );
-	do_replacefile( $cpanp_dir, $cpanplus );
+	do_mkdir( $cpanp_dir );
+	do_replacefile( File::Spec->catfile( $cpanp_dir, 'User.pm' ), $cpanplus );
 
 	return;
 }
@@ -3043,21 +3052,15 @@ EOP
 sub do_replacefile {
 	my( $file, $data, $quiet ) = @_;
 	if ( ! $quiet ) {
-		do_log( "[PERLBUILDER] Replacing file '$file' with new data" );
+		do_log( "[COMPILER] Replacing file '$file' with new data" );
 		do_log( "--------------------------------------------------" );
-		if ( ref $data ) {
-			foreach my $l ( @$data ) {
-				do_log( $l );
-			}
-		} else {
-			do_log( $data );
-		}
+		do_log( $data );
 		do_log( "--------------------------------------------------" );
 	}
 
 	# for starters, we delete the file
 	if ( -f $file ) {
-		unlink( $file ) or die "Unable to unlink '$file': $!";
+		do_unlink( $file, $quiet );
 	}
 	open( my $f, '>', $file ) or die "Unable to open '$file' for writing: $!";
 	print $f $data;
