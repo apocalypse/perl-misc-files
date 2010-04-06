@@ -57,6 +57,7 @@ use strict; use warnings;
 #	- we should run 2 CPANPLUS configs per perl - "prefer_makefile" true and false...
 #	- consider "perl-5.12.0-RC1.tar.gz" and "perl-5.6.1-TRIAL1.tar.gz" devel releases and skip them?
 #	- put all our module prereqs into a BEGIN { eval } check so we can pretty-print the missing modules
+#	- add $C{perltarball} that tracks the tarball of "current" perl so we can use it in some places instead of manually hunting it...
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
@@ -127,8 +128,8 @@ sub do_sanity_checks {
 	# Don't auto-create dirs if we're root
 	if ( $< == 0 ) {
 		do_log( "[SANITYCHECK] You are running this as root! Be careful in what you do!" );
-		my $res = prompt( "Do you want us to auto-create the build dirs", 'n', 120 ); print "\n";
-		if ( lc( $res ) eq 'n' ) {
+		my $res = lc( do_prompt( "Do you want us to auto-create the build dirs?", 'n' ) );
+		if ( $res eq 'n' ) {
 			return;
 		}
 	}
@@ -151,13 +152,28 @@ sub do_sanity_checks {
 	# less than 3 entries means only the '.' and '..' entries present..
 	# TODO compare number of entries with mirror and get new dists?
 	if ( @entries < 3 ) {
-		my $res = lc( prompt( "Do you want me to automatically get the perl dists", 'y', 120 ) ); print "\n";
+		my $res = lc( do_prompt( "Do you want me to automatically get the perl dists?", 'y' ) );
 		if ( $res eq 'y' ) {
 			downloadPerlTarballs();
 		} else {
 			do_log( "[SANITYCHECK] No perl dists available..." );
 			exit;
 		}
+	}
+}
+
+sub do_prompt {
+	my ( $str, $default ) = @_;
+	my $res = prompt( $str, $default, 120 );
+
+	# Print a newline so we have a nice console
+	print "\n\n";
+
+	# We don't like handling undefined values...
+	if ( ! defined $res ) {
+		return '';
+	} else {
+		return $res;
 	}
 }
 
@@ -212,7 +228,7 @@ sub get_directory_contents {
 sub prompt_action {
 	my $res;
 	while ( ! defined $res ) {
-		$res = lc( prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/use (d)evel perl/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(r)econfig cpanp/(s)ystem toolchain update/perl (t)arballs/(u)ninstall/cho(w)n/inde(x)]", 'e', 120 ) ); print "\n";
+		$res = lc( do_prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/use (d)evel perl/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(r)econfig cpanp/(s)ystem toolchain update/perl (t)arballs/(u)ninstall/cho(w)n/inde(x)]", 'e' ) );
 		if ( $res eq 'b' ) {
 			# prompt user for perl version to compile
 			$res = prompt_perlver_tarballs();
@@ -262,8 +278,8 @@ sub prompt_action {
 			do_shellcommand( "cpanp x --update_source" );
 		} elsif ( $res eq 'i' ) {
 			# install a specific module
-			my $module = prompt( "What module should we install?", '', 120 ); print "\n";
-			if ( defined $module and length $module ) {
+			my $module = do_prompt( "What module should we install?", '' );
+			if ( length $module ) {
 				do_log( "[CPANPLUS] Installing '$module' on perls..." );
 				iterate_perls( sub {
 					if ( do_cpanp_action( $C{perldist}, "i $module" ) ) {
@@ -277,8 +293,8 @@ sub prompt_action {
 			}
 		} elsif ( $res eq 'u' ) {
 			# uninstall a specific module
-			my $module = prompt( "What module should we uninstall?", '', 120 ); print "\n";
-			if ( defined $module and length $module ) {
+			my $module = do_prompt( "What module should we uninstall?", '' );
+			if ( length $module ) {
 				do_log( "[CPANPLUS] Uninstalling '$module' on all perls..." );
 				iterate_perls( sub {
 					# use --force so we skip the prompt
@@ -346,8 +362,8 @@ sub do_config_systemCPANPLUS {
 	# First of all, we need to be root!
 	if ( $< != 0 ) {
 		# Make sure the user knows what they are doing!
-		my $result = prompt( "You are not running as root, execute this action?", "n", 120 ); print "\n";
-		if ( ! defined $result or lc( $result ) ne 'y' ) {
+		my $res = lc( do_prompt( "You are not running as root, execute this action?", "n" ) );
+		if ( $res ne 'y' ) {
 			do_log( '[CPANPLUS] Refusing to configure system CPANPLUS without approval...' );
 			return 0;
 		}
@@ -450,26 +466,19 @@ END
 	# actually config CPANPLUS!
 	do_config_CPANPLUS_actions( $uconfig );
 
-	# use default answer to prompts
-	local $ENV{PERL_MM_USE_DEFAULT} = 1;
-	local $ENV{PERL_EXTUTILS_AUTOINSTALL} = '--defaultdeps';
-	local $ENV{TMPDIR} = File::Spec->catdir( $C{home}, 'tmp' );
-	local $ENV{APPDATA} = $C{home};
-
-	# force an update
-	# we don't use do_cpanp_action() here because we need to use the local user's CPANPLUS config not the perl's one...
-	if ( ! analyze_cpanp_install( "x --update_source", do_shellcommand( "cpanp x --update_source" ) ) ) {
+	# update the indexes
+	if ( ! do_cpanp_action( undef, 'x --update_source' ) ) {
 		return 0;
 	}
 
 	# Now, get it to update everything
-	if ( ! analyze_cpanp_install( "s selfupdate all", do_shellcommand( "cpanp s selfupdate all" ) ) ) {
+	if ( ! do_cpanp_action( undef, 's selfupdate all' ) ) {
 		return 0;
 	}
 
 	# Okay, now the rest of the toolchain...
 	my $cpanp_action = 'i ' . join( ' ', @{ get_CPANPLUS_toolchain() } );
-	if ( ! analyze_cpanp_install( $cpanp_action, do_shellcommand( 'cpanp ' . $cpanp_action ) ) ) {
+	if ( ! do_cpanp_action( undef, $cpanp_action ) ) {
 		return 0;
 	}
 
@@ -503,6 +512,7 @@ sub iterate_perls {
 	if ( $^O eq 'MSWin32' ) {
 		# alternate method, we have to swap perls...
 		local $ENV{PATH} = cleanse_strawberry_path();
+
 		foreach my $p ( reverse @$res ) {
 			# move this perl to c:\strawberry
 			if ( -d "C:\\strawberry" ) {
@@ -511,7 +521,9 @@ sub iterate_perls {
 			my $perlpath = File::Spec->catdir( $C{home}, 'perls', $p );
 			mv( $perlpath, "C:\\strawberry" ) or die "Unable to mv: $!";
 
-			# TODO add split_perl stuff here
+			# Okay, set the 3 perl variables we need
+			( $C{perlver}, $C{perlopts} ) = split_perl( $p );
+			$C{perldist} = $p;
 
 			# execute action
 			$sub->();
@@ -560,6 +572,8 @@ sub getReadyPerls {
 			}
 		}
 
+		do_log( "[READYPERLS] Ready Perls: " . scalar @ready );
+
 		return \@ready;
 	} else {
 		return [];
@@ -568,7 +582,7 @@ sub getReadyPerls {
 
 sub prompt_develperl {
 	do_log( "[COMPILER] Current devel perl status: " . ( $C{devel} ? 'Y' : 'N' ) );
-	my $res = lc( prompt( "Compile/use the devel perls", 'n', 120 ) ); print "\n";
+	my $res = lc( do_prompt( "Compile/use the devel perls", 'n' ) );
 	if ( $res eq 'y' ) {
 		$C{devel} = 1;
 	} else {
@@ -580,7 +594,7 @@ sub prompt_develperl {
 
 sub prompt_perlmatrix {
 	do_log( "[COMPILER] Current matrix perl status: " . ( $C{matrix} ? 'Y' : 'N' ) );
-	my $res = lc( prompt( "Compile/use the perl matrix", 'n', 120 ) ); print "\n";
+	my $res = lc( do_prompt( "Compile/use the perl matrix", 'n' ) );
 	if ( $res eq 'y' ) {
 		$C{matrix} = 1;
 	} else {
@@ -667,8 +681,8 @@ sub get_CPANPLUS_tarball_path {
 sub do_config_localCPANPLUS {
 	# Not needed for MSWin32?
 	if ( $^O eq 'MSWin32' ) {
-		my $res = prompt( "No need to configure local CPANPLUS on MSWin32. Are you sure", 'n', 120 ); print "\n";
-		if ( lc( $res ) ne 'y' ) {
+		my $res = lc( do_prompt( "[CPANPLUS] No need to configure local CPANPLUS on MSWin32. Are you sure", 'n' ) );
+		if ( $res ne 'y' ) {
 			return 1;
 		}
 	}
@@ -869,10 +883,10 @@ sub _prompt_perlver {
 
 	my $res;
 	while ( ! defined $res ) {
-		$res = prompt( "Which perl version to use [ver/(d)isplay/(a)ll/(e)xit]", $perls->[-1], 120 ); print "\n";
+		$res = do_prompt( "Which perl version to use [ver/(d)isplay/(a)ll/(e)xit]", $perls->[-1] );
 		if ( lc( $res ) eq 'd' ) {
 			# display available versions
-			do_log( "[PERLS] Available Perls[" . ( scalar @$perls ) . "]: " . join( ' ', @$perls ) );
+			do_log( "[PERLS] Perls[" . ( scalar @$perls ) . "]: " . join( ' ', @$perls ) );
 		} elsif ( lc( $res ) eq 'a' ) {
 			return $perls;
 		} elsif ( lc( $res ) eq 'e' ) {
@@ -904,13 +918,15 @@ sub _prompt_perlver {
 		opendir( PERLS, $path ) or die "Unable to opendir ($path): $!";
 		$perls = [ sort versioncmp
 
-			# TODO this is a fragile regex and will not work if we have perl-5.12.0.bz2 for example...
-			map { $_ =~ /^perl\-([\d\.\w\-]+)\.(?:t|z)/; $_ = $1; }
-			grep { /^perl\-[\d\.\w\-]+?\.(?:zip|tar\.(?:gz|bz2))$/ &&
+			# TODO this is a fragile regex
+			map { $_ =~ /perl\-([\d\.\w\-]+)\.(?:zip|tar\.(?:gz|bz2))$/; $_ = $1; }
+			grep { /perl/ &&
 			-f File::Spec->catfile( $path, $_ ) }
 			readdir( PERLS )
 		];
 		closedir( PERLS ) or die "Unable to closedir ($path): $!";
+
+		do_log( "[AVAILABLEPERLS] Available Perls: " . scalar @$perls );
 
 		return $perls;
 	}
@@ -1058,18 +1074,19 @@ sub install_perl_win32 {
 	my $perl = shift;
 
 	# Strawberry tacks on an extra digit for it's build number
-	if ( $perl =~ /^(\d+\.\d+\.\d+)\.\d+$/ ) {
-		$C{perlver} = $1;
+	if ( $perl =~ /^(\d+\.\d+\.\d+\.\d+)$/ ) {
+		$C{perlver} = $perl;
 		$C{perlopts} = 'default';
-		$C{perldist} = "perl_$C{perlver}_$C{perlopts}";
+		$C{perldist} = "strawberry_perl_$C{perlver}_$C{perlopts}";
 	} else {
-		die "Unknown strawberry perl version: $perl";
+		die "Unknown Strawberry Perl version: $perl";
 	}
 
 	# Okay, is this perl installed?
 	my $path = File::Spec->catdir( $C{home}, 'perls', $C{perldist} );
 	if ( ! -d $path ) {
-		# TODO Okay, unzip the archive
+		# Okay, unzip the archive
+		do_archive_extract( File::Spec->catfile( $C{home}, 'build', 'strawberry-perl-' . $C{perlver} . '.zip' ), $path );
 	} else {
 		# all done with configuring?
 		if ( -e File::Spec->catfile( $path, 'ready.smoke' ) ) {
@@ -1466,9 +1483,11 @@ sub do_replacements {
 	if ( $^O eq 'MSWin32' ) {
 		$str =~ s/XXXUSERXXX/$ENV{USERNAME}/g;
 		$str =~ s/XXXPREFERBINXXX/0/g;
+		$str =~ s/XXXPERLWRAPPERXXX/C:\\\\strawberry\\\\perl\\\\bin\\\\cpanp-run-perl/g;
 	} else {
 		$str =~ s/XXXUSERXXX/$ENV{USER}/g;
 		$str =~ s/XXXPREFERBINXXX/1/g;
+		$str =~ s/XXXPERLWRAPPERXXX/XXXCATDIR-XXXPATHXXX\/perls\/XXXPERLDISTXXX\/bin\/cpanp-run-perlXXX/g;
 	}
 	$str =~ s/XXXPATHXXX/do_replacements_slash( $C{home} )/ge;
 
@@ -1728,7 +1747,7 @@ sub setup {
 	$conf->set_program( editor => 'XXXWHICH-nanoXXX' );
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
 	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
-	$conf->set_program( perlwrapper => 'XXXCATDIR-XXXPATHXXX/perls/XXXPERLDISTXXX/bin/cpanp-run-perlXXX' );
+	$conf->set_program( perlwrapper => 'XXXPERLWRAPPERXXX' );
 	$conf->set_program( shell => 'XXXWHICH-bashXXX' );
 	$conf->set_program( sudo => undef );
 
@@ -1769,7 +1788,15 @@ sub do_cpanpboxed_action {
 	local $ENV{PERL_EXTUTILS_AUTOINSTALL} = '--defaultdeps';
 	local $ENV{TMPDIR} = File::Spec->catdir( $C{home}, 'tmp' );
 
-	return analyze_cpanp_install( $action, do_shellcommand( File::Spec->catfile( $C{home}, 'perls', $C{perldist}, 'bin', 'perl' ) . " " . File::Spec->catfile( $C{home}, "CPANPLUS-$C{cpanp_ver}", 'bin', 'cpanp-boxed' ) . " $action" ) );
+	# Special way for win32
+	if ( $^O eq 'MSWin32' ) {
+		# Make sure we have the proper path
+		local $ENV{PATH} = cleanse_strawberry_path();
+
+		return analyze_cpanp_install( $action, do_shellcommand( "perl " . File::Spec->catfile( $C{home}, "CPANPLUS-$C{cpanp_ver}", 'bin', 'cpanp-boxed' ) . " $action" ) );
+	} else {
+		return analyze_cpanp_install( $action, do_shellcommand( File::Spec->catfile( $C{home}, 'perls', $C{perldist}, 'bin', 'perl' ) . " " . File::Spec->catfile( $C{home}, "CPANPLUS-$C{cpanp_ver}", 'bin', 'cpanp-boxed' ) . " $action" ) );
+	}
 }
 
 sub analyze_cpanp_install {
@@ -1915,11 +1942,14 @@ sub analyze_cpanp_install {
 sub do_cpanp_action {
 	my( $perl, $action ) = @_;
 
+	# If perl is undef, we use the system perl!
+	local $ENV{APPDATA} = File::Spec->catdir( $C{home}, 'cpanp_conf', $perl ) if defined $perl;
+	local $ENV{APPDATA} = $C{home} if ! defined $perl;
+
 	# use default answer to prompts
 	local $ENV{PERL_MM_USE_DEFAULT} = 1;
 	local $ENV{PERL_EXTUTILS_AUTOINSTALL} = '--defaultdeps';
 	local $ENV{TMPDIR} = File::Spec->catdir( $C{home}, 'tmp' );
-	local $ENV{APPDATA} = File::Spec->catdir( $C{home}, 'cpanp_conf', $perl );
 	local $ENV{PERL5_CPANIDX_URL} = 'http://' . $C{server} . ':11110/CPANIDX/';	# TODO fix this hardcoded stuff
 
 	# special way for MSWin32...
@@ -1927,7 +1957,11 @@ sub do_cpanp_action {
 		local $ENV{PATH} = cleanse_strawberry_path();
 		return analyze_cpanp_install( $action, do_shellcommand( "cpanp $action" ) );
 	} else {
-		return analyze_cpanp_install( $action, do_shellcommand( File::Spec->catfile( $C{home}, 'perls', $perl, 'bin', 'perl' ) . " " . File::Spec->catfile( $C{home}, 'perls', $perl, 'bin', 'cpanp' ) . " $action" ) );
+		if ( defined $perl ) {
+			return analyze_cpanp_install( $action, do_shellcommand( File::Spec->catfile( $C{home}, 'perls', $perl, 'bin', 'perl' ) . " " . File::Spec->catfile( $C{home}, 'perls', $perl, 'bin', 'cpanp' ) . " $action" ) );
+		} else {
+			return analyze_cpanp_install( $action, do_shellcommand( "perl " . File::Spec->catfile( $C{home}, 'perls', $perl, 'bin', 'cpanp' ) . " $action" ) );
+		}
 	}
 }
 
