@@ -69,6 +69,7 @@ use File::Path::Tiny;
 use File::Which qw( which );
 use Term::Title qw( set_titlebar );
 use Shell::Command qw( mv );
+use File::Find::Rule;
 
 # Global config hash
 my %C = (
@@ -126,8 +127,13 @@ sub do_sanity_checks {
 	}
 
 	# Sanity check strawberry on win32
-	if ( $^O eq 'MSWin32' and $ENV{PATH} =~ /strawberry/ ) {
-		die '[SANITYCHECK] Detected Strawberry Perl in $ENV{PATH}, please fix it!';
+	if ( $^O eq 'MSWin32' ) {
+		if ( $ENV{PATH} =~ /strawberry/ ) {
+			die '[SANITYCHECK] Detected Strawberry Perl in $ENV{PATH}, please fix it!';
+		}
+		if ( -d File::Spec->catdir( 'strawberry' ) ) {
+			die '[SANITYCHECK] Detected Old Strawberry Perl in C:\strawberry, please fix it!';
+		}
 	}
 
 	# Don't auto-create dirs if we're root
@@ -632,6 +638,8 @@ sub get_CPANPLUS_ver {
 
 	return $C{cpanp_ver} if defined $C{cpanp_ver};
 
+	# TODO argh, win32 needs different quoting schematics!
+
 	# Spawn a shell to find the answer
 	my $output = do_shellcommand( $^X . ' -MCPANPLUS::Backend -e \'$cb=CPANPLUS::Backend->new;$mod=$cb->module_tree("CPANPLUS");$ver=defined $mod ? $mod->package_version : undef; print "VER: " . ( defined $ver ? $ver : "UNDEF" ) . "\n";\'' );
 	if ( $output->[-1] =~ /^VER\:\s+(.+)$/ ) {
@@ -662,6 +670,8 @@ sub get_CPANPLUS_tarball_path {
 	# TODO fix hardcoded path - it's nice as a backup but...
 
 	return $C{cpanp_path} if defined $C{cpanp_path};
+
+	# TODO argh, win32 needs different quoting schematics!
 
 	# Spawn a shell to find the answer
 	my $output = do_shellcommand( $^X . ' -MCPANPLUS::Backend -e \'$cb=CPANPLUS::Backend->new;$mod=$cb->module_tree("CPANPLUS");$ver=defined $mod ? $mod->path . "/" . $mod->package : undef; print "TARBALL: " . ( defined $ver ? $ver : "UNDEF" ) . "\n";\'' );
@@ -1099,7 +1109,7 @@ sub install_perl_win32 {
 
 	# move this perl to c:\strawberry
 	if ( -d "C:\\strawberry" ) {
-		die '[PERLBUILDER] Old strawberry perl found in C:\\strawberry, please fix it!';
+		die '[PERLBUILDER] Old Strawberry Perl found in C:\\strawberry, please fix it!';
 	}
 	mv( $path, "C:\\strawberry" ) or die "Unable to mv: $!";
 
@@ -1196,6 +1206,14 @@ sub finalize_perl {
 		File::Path::Tiny::rm( $mandir ) or die "Unable to rm ($mandir): $!";
 	}
 
+	# Win32 places stuff in different paths!
+	# C:\cpansmoke\perls\strawberry_perl_5.10.1.1_default\perl\lib\pods
+	my $poddir = File::Spec->catdir( $path, 'perl', 'lib', 'pods' );
+	if ( -d $poddir ) {
+		do_log( "[FINALIZER] Executing rmdir($poddir)" );
+		File::Path::Tiny::rm( $poddir ) or die "Unable to rm ($poddir): $!";
+	}
+
 	# get rid of the default pod...
 #	/home/cpan/perls/perl-5.10.1-default/lib/5.10.1/pod/perlwin32.pod
 #	/home/cpan/perls/perl-5.10.1-default/lib/5.10.1/pod/perlxs.pod
@@ -1203,10 +1221,17 @@ sub finalize_perl {
 #	/home/cpan/perls/perl-5.10.1-default/lib/5.10.1/pod/a2p.pod
 	my $perlver = $C{perlver};
 	$perlver =~ s/\-.+$//;	# Get rid of the 5.12.0-RC0 stuff
-	my $poddir = File::Spec->catdir( $path, 'lib', $perlver, 'pod' );
+	$poddir = File::Spec->catdir( $path, 'lib', $perlver, 'pod' );
 	if ( -d $poddir ) {
 		do_log( "[FINALIZER] Executing rmdir($poddir)" );
 		File::Path::Tiny::rm( $poddir ) or die "Unable to rm ($poddir): $!";
+	}
+
+	# Kill all pod files
+	my @podfiles = File::Find::Rule->file()->name( '*.pod' )->in( $path );
+	foreach my $pod ( @podfiles ) {
+		do_log( "[FINALIZER] Executing unlink($pod)" );
+		unlink( $pod ) or die "Unable to unlink ($pod): $!";
 	}
 
 	# we're really done!
