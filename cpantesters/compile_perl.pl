@@ -37,15 +37,15 @@ use strict; use warnings;
 
 # this script does everything, but we need some layout to be specified ( this is the win32 variant )
 # You need to install bootstrap perl first!
-# c:\cpansmoke						<-- the main directory
-# c:\cpansmoke\tmp					<-- tmp directory for cpan/perl/etc cruft
-# c:\cpansmoke\build					<-- where we store our perl builds + zips
-# c:\cpansmoke\build\strawberry-perl-5.8.9.3.zip	<-- one perl zip
-# c:\cpansmoke\perls					<-- the perl installation directory
-# c:\cpansmoke\perls\strawberry-perl-5.8.9		<-- finalized perl install
-# c:\cpansmoke\cpanp_conf				<-- where we store the CPANPLUS configs
-# c:\cpansmoke\cpanp_conf\strawberry-perl-5.8.9		<-- CPANPLUS config location for a specific perl
-# c:\cpansmoke\compile_perl.pl				<-- where this script should be
+# c:\cpansmoke							<-- the main directory
+# c:\cpansmoke\tmp						<-- tmp directory for cpan/perl/etc cruft
+# c:\cpansmoke\build						<-- where we store our perl builds + zips
+# c:\cpansmoke\build\strawberry-perl-5.8.9.3.zip		<-- one perl zip
+# c:\cpansmoke\perls						<-- the perl installation directory
+# c:\cpansmoke\perls\strawberry_perl_5.8.9.3_default		<-- finalized perl install
+# c:\cpansmoke\cpanp_conf					<-- where we store the CPANPLUS configs
+# c:\cpansmoke\cpanp_conf\strawberry_perl_5.8.9.3_default	<-- CPANPLUS config location for a specific perl
+# c:\cpansmoke\compile_perl.pl					<-- where this script should be
 
 # TODO LIST
 #	- create "hints" file that sets operating system, 64bit, etc
@@ -58,6 +58,7 @@ use strict; use warnings;
 #	- consider "perl-5.12.0-RC1.tar.gz" and "perl-5.6.1-TRIAL1.tar.gz" devel releases and skip them?
 #	- put all our module prereqs into a BEGIN { eval } check so we can pretty-print the missing modules
 #	- add $C{perltarball} that tracks the tarball of "current" perl so we can use it in some places instead of manually hunting it...
+#	- Use ActiveState perl on MSWin32?
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
@@ -1493,16 +1494,14 @@ sub do_replacements {
 		# We cannot use binaries on MSWin32!
 		$str =~ s/XXXPREFERBINXXX/0/g;
 
-		# Doing uninst=1 causes weird things ( must reboot, etc )
-		$str =~ s/XXXBUILDFLAGSXXX//g;
-		$str =~ s/XXXMAKEFLAGSXXX//g;
-
 		# Naturally, on MSWin32 we need to use the strawberry path...
 		$str =~ s/XXXPERLWRAPPERXXX/C:\\\\strawberry\\\\perl\\\\bin\\\\cpanp-run-perl\.BAT/g;
 	} else {
 		$str =~ s/XXXUSERXXX/$ENV{USER}/g;
 		$str =~ s/XXXPREFERBINXXX/1/g;
 		$str =~ s/XXXPERLWRAPPERXXX/XXXCATDIR-XXXPATHXXX\/perls\/XXXPERLDISTXXX\/bin\/cpanp-run-perlXXX/g;
+	}
+	$str =~ s/XXXPATHXXX/do_replacements_slash( $C{home} )/ge;
 
 #<Apocalypse> BinGOs: Wondering what you put in the CPANPLUS config on your smoking setup for makemakerflags and buildflags
 #<@BinGOs> s conf makeflags UNINST=1 and s conf buildflags uninst=1
@@ -1510,10 +1509,8 @@ sub do_replacements {
 #<Apocalypse> Or is that for the initial perl build stage, where you want to make sure the modules you install override any core modules and they get deleted?
 #<@BinGOs> habit
 #<@BinGOs> and when I am updating
-		$str =~ s/XXXBUILDFLAGSXXX/uninst\=1/g;
-		$str =~ s/XXXMAKEFLAGSXXX/UNINST=1/g;
-	}
-	$str =~ s/XXXPATHXXX/do_replacements_slash( $C{home} )/ge;
+	$str =~ s/XXXBUILDFLAGSXXX/uninst=1/g;
+	$str =~ s/XXXMAKEFLAGSXXX/UNINST=1/g;
 
 	$str =~ s/XXXPERLDISTXXX/$C{perldist}/g;
 	$str =~ s/XXXCPANPLUSXXX/$C{cpanp_ver}/g;

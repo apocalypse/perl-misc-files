@@ -538,9 +538,6 @@ also use -Ui_db argument to sh Configure so we disable DB_File
 <Bram> In Configure (on 5.6.1): replace the first  $sort -n +1  with:  ($sort -n -k 2 2>/dev/null || $sort -n +1) |\  and the second with  $sort -n
 	do that to fix signal problem
 
-on windows, hack Test::Harness to use Win32::Autoglob for t/*.t goodness!
-
-
 generic steps
 -------------
 	extract tarball
