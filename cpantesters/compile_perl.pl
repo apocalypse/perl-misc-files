@@ -253,7 +253,6 @@ sub prompt_action {
 		} elsif ( $res eq 'p' ) {
 			# Print out ready perls
 			my $perls = getReadyPerls();
-			do_log( "[COMPILER] Available perls(" . scalar @$perls . ") ready for smoking" );
 			foreach my $p ( @$perls ) {
 				do_log( "\t$p" );
 			}
@@ -1392,9 +1391,6 @@ sub do_archive_extract {
 }
 
 sub do_installCPANP_BOXED_config {
-# We let CPANPLUS automatically figure it out!
-#	$conf->set_conf( prefer_makefile => 1 );
-
 	# configure the Boxed Config settings
 	my $boxed = <<'END';
 ##############################################
@@ -1462,6 +1458,9 @@ sub setup {
 	$conf->set_conf( timeout => 300 );
 	$conf->set_conf( verbose => 1 );
 	$conf->set_conf( write_install_logs => 0 );
+
+# Because we're bootstrapping, Module::Build and friends often aren't "ready"
+	$conf->set_conf( prefer_makefile => 1 );
 
 	$conf->set_program( editor => 'XXXWHICH-nanoXXX' );
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
