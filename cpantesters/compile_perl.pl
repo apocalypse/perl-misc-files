@@ -61,6 +61,7 @@ use strict; use warnings;
 #	- Use ActiveState perl?
 #		- use their binary builds + source build?
 #	- Some areas of the code print "\n" but maybe we need a portable way for that? use $/ ?
+#	- What is "pager" really for in CPANPLUS config? Can we undef it?
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
