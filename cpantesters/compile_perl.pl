@@ -240,7 +240,7 @@ sub get_directory_contents {
 sub prompt_action {
 	my $res;
 	while ( ! defined $res ) {
-		$res = lc( do_prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/use (d)evel perl/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(r)econfig cpanp/(s)ystem toolchain update/perl (t)arballs/(u)ninstall/cho(w)n]", 'e' ) );
+		$res = lc( do_prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/use (d)evel perl/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(p)rint ready perls/(r)econfig cpanp/(s)ystem toolchain update/perl (t)arballs/(u)ninstall/cho(w)n]", 'e' ) );
 		if ( $res eq 'b' ) {
 			# prompt user for perl version to compile
 			$res = prompt_perlver_tarballs();
@@ -249,6 +249,13 @@ sub prompt_action {
 				foreach my $p ( reverse @$res ) {
 					install_perl( $p );
 				}
+			}
+		} elsif ( $res eq 'p' ) {
+			# Print out ready perls
+			my $perls = getReadyPerls();
+			do_log( "[COMPILER] Available perls(" . scalar @$perls . ") ready for smoking" );
+			foreach my $p ( @$perls ) {
+				do_log( "\t$p" );
 			}
 		} elsif ( $res eq 's' ) {
 			# configure the system for smoking!
@@ -551,9 +558,9 @@ sub getReadyPerls {
 		# find the ready ones
 		my %ready = ();
 		foreach my $p ( @list ) {
-			if ( $p =~ /^perl\_/ and -d File::Spec->catdir( $path, $p ) and -e File::Spec->catfile( $path, $p, 'ready.smoke' ) ) {
+			if ( $p =~ /perl\_/ and -d File::Spec->catdir( $path, $p ) and -e File::Spec->catfile( $path, $p, 'ready.smoke' ) ) {
 				# rip out the version
-				if ( $p =~ /^perl\_(.+)\_/ ) {
+				if ( $p =~ /perl\_([\d\.\w\-]+)\_/ ) {
 					push( @{ $ready{ $1 } }, $p );
 				}
 			}
