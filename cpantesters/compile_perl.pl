@@ -1183,8 +1183,8 @@ sub finalize_perl {
 	if ( $^O eq 'MSWin32' ) {
 		# Strawberry Perl places stuff in different paths!
 		# C:\cpansmoke\perls\strawberry_perl_5.10.1.1_default\perl\lib\pods
-		foreach my $dir ( qw( man html lib\\pods ) ) {
-			$dir = File::Spec->catdir( $path, 'perl', $dir );
+		foreach my $d ( qw( man html lib\\pods ) ) {
+			my $dir = File::Spec->catdir( $path, 'perl', $d );
 			if ( -d $dir ) {
 				do_rmdir( $dir );
 			}
