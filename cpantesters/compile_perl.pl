@@ -1216,6 +1216,7 @@ sub finalize_perl {
 	}
 
 	# we're really done, dump the log into the ready.smoke file!
+	do_log( "[FINALIZER] All done with $C{perldist}..." );
 	do_replacefile( File::Spec->catfile( $path, 'ready.smoke' ), join( "\n", @LOGS ) );
 
 	return 1;
