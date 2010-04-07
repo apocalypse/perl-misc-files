@@ -60,6 +60,7 @@ use strict; use warnings;
 #	- add $C{perltarball} that tracks the tarball of "current" perl so we can use it in some places instead of manually hunting it...
 #	- Use ActiveState perl?
 #		- use their binary builds + source build?
+#	- Some areas of the code print "\n" but maybe we need a portable way for that? use $/ ?
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
@@ -940,9 +941,6 @@ sub install_perl {
 	# build a default build
 	if ( ! build_perl_opts( $perl, 'default' ) ) {
 		save_logs( 'fail' );
-	} else {
-		# TODO do we need to save OK logs?
-#		save_logs( 'ok' );
 	}
 	reset_logs();
 
@@ -957,9 +955,6 @@ sub install_perl {
 						foreach my $bitness ( qw( 32 64i 64a ) ) {
 							if ( ! build_perl_opts( $perl, $thr . '-' . $multi . '-' . $long . '-' . $malloc . '-' . $bitness ) ) {
 								save_logs( 'fail' );
-							} else {
-								# TODO do we need to save OK logs?
-#								save_logs( 'ok' );
 							}
 
 							reset_logs();
@@ -1183,11 +1178,22 @@ sub finalize_perl {
 		do_rmdir( $mandir );
 	}
 
-	# Win32 places stuff in different paths!
-	# C:\cpansmoke\perls\strawberry_perl_5.10.1.1_default\perl\lib\pods
-	my $poddir = File::Spec->catdir( $path, 'perl', 'lib', 'pods' );
-	if ( -d $poddir ) {
-		do_rmdir( $poddir );
+	# Special actions for Strawberry Perl on win
+	if ( $^O eq 'MSWin32' ) {
+		# Strawberry Perl places stuff in different paths!
+		# C:\cpansmoke\perls\strawberry_perl_5.10.1.1_default\perl\lib\pods
+		foreach my $dir ( qw( man html lib\\pods ) ) {
+			$dir = File::Spec->catdir( $path, 'perl', $dir );
+			if ( -d $dir ) {
+				do_rmdir( $dir );
+			}
+		}
+
+		# Strawberry Perl adds "licenses" directory that can be safely removed
+		my $licdir = File::Spec->catdir( $path, 'licenses' );
+		if ( -d $licdir ) {
+			do_rmdir( $licdir );
+		}
 	}
 
 	# get rid of the default pod...
@@ -1197,7 +1203,7 @@ sub finalize_perl {
 #	/home/cpan/perls/perl-5.10.1-default/lib/5.10.1/pod/a2p.pod
 	my $perlver = $C{perlver};
 	$perlver =~ s/\-.+$//;	# Get rid of the 5.12.0-RC0 stuff
-	$poddir = File::Spec->catdir( $path, 'lib', $perlver, 'pod' );
+	my $poddir = File::Spec->catdir( $path, 'lib', $perlver, 'pod' );
 	if ( -d $poddir ) {
 		do_rmdir( $poddir );
 	}
@@ -1208,8 +1214,8 @@ sub finalize_perl {
 		do_unlink( $pod );
 	}
 
-	# we're really done!
-	do_replacefile( File::Spec->catfile( $path, 'ready.smoke' ), "$C{perldist}\n" );
+	# we're really done, dump the log into the ready.smoke file!
+	do_replacefile( File::Spec->catfile( $path, 'ready.smoke' ), join( "\n", @LOGS ) );
 
 	return 1;
 }
