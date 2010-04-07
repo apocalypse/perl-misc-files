@@ -452,7 +452,7 @@ sub setup {
 	$conf->set_conf( verbose => 1 );
 	$conf->set_conf( write_install_logs => 0 );
 
-	$conf->set_program( editor => 'XXXWHICH-nanoXXX' );
+	$conf->set_program( editor => undef );
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
 	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
 	$conf->set_program( perlwrapper => 'XXXWHICH-cpanp-run-perlXXX' );
@@ -791,7 +791,7 @@ sub setup {
 	$conf->set_conf( verbose => 1 );
 	$conf->set_conf( write_install_logs => 0 );
 
-	$conf->set_program( editor => 'XXXWHICH-nanoXXX' );
+	$conf->set_program( editor => undef );
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
 	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
 	$conf->set_program( perlwrapper => 'XXXWHICH-cpanp-run-perlXXX' );
@@ -1462,7 +1462,7 @@ sub setup {
 # Because we're bootstrapping, Module::Build and friends often aren't "ready"
 	$conf->set_conf( prefer_makefile => 1 );
 
-	$conf->set_program( editor => 'XXXWHICH-nanoXXX' );
+	$conf->set_program( editor => undef );
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
 	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
 	$conf->set_program( perlwrapper => 'XXXCATDIR-XXXPATHXXX/CPANPLUS-XXXCPANPLUSXXX/bin/cpanp-run-perlXXX' );
@@ -1762,7 +1762,7 @@ sub setup {
 	$conf->set_conf( verbose => 1 );
 	$conf->set_conf( write_install_logs => 0 );
 
-	$conf->set_program( editor => 'XXXWHICH-nanoXXX' );
+	$conf->set_program( editor => undef );
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
 	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
 	$conf->set_program( perlwrapper => 'XXXPERLWRAPPERXXX' );
