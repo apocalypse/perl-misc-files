@@ -59,6 +59,8 @@ sub _start : State {
 		print $logfh $_[0];
 	};
 
+	$_[HEAP]->{'PERLS'} = {};
+
 	# setup our stuff
 	$_[KERNEL]->yield( 'create_smokebox' );
 	$_[KERNEL]->yield( 'create_irc' );
@@ -73,10 +75,11 @@ sub create_smokebox : State {
 	);
 
 	# Add system perl...
+	# TODO, we can actually smoke bootperl, eh?
 	if ( $^O ne 'MSWin32' ) {
 		# Configuration successfully saved to CPANPLUS::Config::User
 		#    (/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm)
-		my $perl = `which perl`; chomp $perl;
+		my $perl = $^X; chomp $perl;
 		my $smoker = POE::Component::SmokeBox::Smoker->new(
 			perl => $perl,
 			env => {
@@ -86,15 +89,12 @@ sub create_smokebox : State {
 				'PERL_CPANSMOKER_HOST'	=> $perl . ' / ' . $VMs{ $ircnick },
 				'PERL5_CPANIDX_URL'	=> 'http://' . $ircserver . ':11110/CPANIDX/',	# TODO fix this hardcoded path
 			},
+			do_callback => $_[SESSION]->callback( 'smokebox_callback', 'SYSTEM' ),
 		);
 		$_[HEAP]->{'SMOKEBOX'}->add_smoker( $smoker );
 
-		# Store the local perls we built
-		$_[HEAP]->{'PERLS'} = {
-			$perl => undef,
-		};
-	} else {
-		$_[HEAP]->{'PERLS'} = {};
+		# Store the system perl
+		$_[HEAP]->{'PERLS'}->{ $perl } = undef;
 	}
 
 	# Do the first pass over our perls
@@ -102,6 +102,33 @@ sub create_smokebox : State {
 
 	# Do cleanup of cruft
 	$_[KERNEL]->yield( 'check_free_space' );
+
+	return;
+}
+
+sub smokebox_callback : State {
+	my( $myarg, $smokearg ) = @_[ARG0, ARG1];
+
+	use Data::Dumper;
+	print Dumper( $myarg, $smokearg );
+
+	# Check tmp dir for droppings - thanks to BinGOs for the idea!
+	if ( $smokearg->[0] eq 'AFTER' ) {
+		# TODO do this!
+		#check_tmp_directory( $_[HEAP], $myarg, $smokearg );
+	}
+
+	# Do special actions for win32
+	if ( $^O eq 'MSWin32' ) {
+		# We need to move the custom perls to strawberry dir and back to the home dir
+		if ( $myarg->[0] ne 'SYSTEM' ) {
+			if ( $smokearg->[0] eq 'BEGIN' ) {
+				# TODO move the perl to C:\strawberry!
+			} else {
+				# TODO move the perl back to C:\$home\perls\$dist
+			}
+		}
+	}
 
 	return;
 }
@@ -131,6 +158,7 @@ sub check_perls : State {
 				'PERL_CPANSMOKER_HOST'	=> $p . ' / ' . $VMs{ $ircnick },
 				'PERL5_CPANIDX_URL'	=> 'http://' . $ircserver . ':11110/CPANIDX/',	# TODO fix this hardcoded path
 			},
+			do_callback => $_[SESSION]->callback( 'smokebox_callback', $p ),
 		) );
 
 		# save the smoker
@@ -410,9 +438,6 @@ sub smokeresult : State {
 	# report this to IRC
 	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module " . ( scalar @fails ? '(FAIL: ' . join( ' ', @fails ) . ') ' : '' ) . "in ${duration}." );
 
-	# TODO inspect the tmp dir for droppings and report it!
-	# this would require proper callbacks in SmokeBox
-
 	# We always do this after smoking
 	$_[KERNEL]->yield( 'check_free_space' );
 
@@ -549,8 +574,8 @@ sub irc_botcmd_perls : State {
 	my ($where, $arg) = @_[ARG1, ARG2];
 
 	# get the available versions
-	my $perls = keys %{ $_[HEAP]->{'PERLS'} };
-	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Available Perls: $perls" );
+	my $msg = "Available Perls(" . ( scalar keys %{ $_[HEAP]->{'PERLS'} } ) . "): " . join( ' ', keys %{ $_[HEAP]->{'PERLS'} } );
+	$_[HEAP]->{'IRC'}->yield( privmsg => $where, $msg );
 
 	return;
 }
