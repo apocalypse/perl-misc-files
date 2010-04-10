@@ -501,6 +501,16 @@ sub split_perl {
 	}
 }
 
+sub do_mv {
+	my( $src, $dst, $quiet ) = @_;
+
+	do_log( "[COMPILER] Executing mv( $src => $dst )" ) if ! $quiet;
+
+	mv( $src, $dst ) or die "Unable to mv '$src => $dst': $!";
+
+	return;
+}
+
 sub iterate_perls {
 	my $sub = shift;
 
@@ -522,7 +532,7 @@ sub iterate_perls {
 				die '[ITERATOR] Old strawberry perl found in C:\\strawberry, please fix it!';
 			}
 			my $perlpath = File::Spec->catdir( $C{home}, 'perls', $p );
-			mv( $perlpath, "C:\\strawberry" ) or die "Unable to mv: $!";
+			do_mv( $perlpath, "C:\\strawberry" );
 
 			# Okay, set the 3 perl variables we need
 			( $C{perlver}, $C{perlopts} ) = split_perl( $p );
@@ -532,7 +542,7 @@ sub iterate_perls {
 			$sub->();
 
 			# move this perl back to original place
-			mv( "C:\\strawberry", $perlpath ) or die "Unable to mv: $!";
+			do_mv( "C:\\strawberry", $perlpath );
 		}
 	} else {
 		# Loop through all versions, starting from newest to oldest
@@ -1087,12 +1097,12 @@ sub install_perl_win32 {
 	if ( -d "C:\\strawberry" ) {
 		die '[PERLBUILDER] Old Strawberry Perl found in C:\\strawberry, please fix it!';
 	}
-	mv( $path, "C:\\strawberry" ) or die "Unable to mv: $!";
+	do_mv( $path, "C:\\strawberry" );
 
 	my $ret = customize_perl();
 
 	# Move the strawberry install to it's regular place
-	mv( "C:\\strawberry", $path ) or die "Unable to mv: $!";
+	do_mv( "C:\\strawberry", $path );
 
 	# finalize the perl install!
 	# This needs to be done because customize_perl calls it while the dir is still in c:\strawberry!
@@ -1258,7 +1268,7 @@ sub do_prebuild {
 	}
 
 	# Move the extracted tarball to our "custom" build dir
-	mv( $extract_dir, $build_dir ) or die "Unable to mv: $!";
+	do_mv( $extract_dir, $build_dir );
 
 	# reset the patch counter
 	do_patch_reset();
@@ -1302,32 +1312,29 @@ sub do_prebuild {
 }
 
 sub do_rmdir {
-	my $dir = shift;
-	my $quiet = shift;
+	my( $dir, $quiet ) = @_;
 
-	do_log( "[COMPILER] Executing rmdir($dir)" ) if ! $quiet;
+	do_log( "[COMPILER] Executing rmdir( $dir )" ) if ! $quiet;
 
-	File::Path::Tiny::rm( $dir ) or die "Unable to rm '$dir': $!";
+	File::Path::Tiny::rm( $dir ) or die "Unable to rmdir '$dir': $!";
 
 	return;
 }
 
 sub do_mkdir {
-	my $dir = shift;
-	my $quiet = shift;
+	my( $dir, $quiet ) = @_;
 
-	do_log( "[COMPILER] Executing mkdir($dir)" ) if ! $quiet;
+	do_log( "[COMPILER] Executing mkdir( $dir )" ) if ! $quiet;
 
-	File::Path::Tiny::mk( $dir ) or die "Unable to mk '$dir': $!";
+	File::Path::Tiny::mk( $dir ) or die "Unable to mkdir '$dir': $!";
 
 	return;
 }
 
 sub do_unlink {
-	my $file = shift;
-	my $quiet = shift;
+	my( $file, $quiet ) = @_;
 
-	do_log( "[COMPILER] Executing unlink($file)" ) if ! $quiet;
+	do_log( "[COMPILER] Executing unlink( $file )" ) if ! $quiet;
 
 	unlink( $file ) or die "Unable to unlink '$file': $!";
 

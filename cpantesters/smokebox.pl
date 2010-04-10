@@ -19,6 +19,7 @@ use Time::Duration qw( duration_exact );
 use Filesys::DfPortable qw( dfportable );
 use File::Spec;
 use File::Path::Tiny;
+use Shell::Command qw( mv );
 use Number::Bytes::Human qw( format_bytes );
 
 # set some handy variables
@@ -37,7 +38,7 @@ my %VMs = (
 	'ubuntu-server64'	=> 'Ubuntu 9.10 server 64bit (192.168.0.202)',
 	'freebsd64.0ne.us'	=> 'FreeBSD 7.2-RELEASE amd64 (192.168.0.203)',
 	'netbsd64'		=> 'NetBSD 5.0.1 amd64 (192.168.0.205)',
-	'opensolaris64'		=> 'OpenSolaris 2009.06 amd64 (192.168.0.207)',
+	'opensolaris64'		=> 'OpenSolaris 2009.6 amd64 (192.168.0.207)',
 );
 
 POE::Session->create(
@@ -122,15 +123,39 @@ sub smokebox_callback : State {
 	if ( $^O eq 'MSWin32' ) {
 		# We need to move the custom perls to strawberry dir and back to the home dir
 		if ( $myarg->[0] ne 'SYSTEM' ) {
+			my $path = File::Spec->catdir( $HOME, 'perls', $myarg->[0] );
+			my $straw = File::Spec->catdir( 'C:', 'strawberry' );
+
 			if ( $smokearg->[0] eq 'BEGIN' ) {
-				# TODO move the perl to C:\strawberry!
+				# Move the perl to C:\strawberry!
+
+				# Sanity checks
+				if ( -d $straw ) {
+					die "Old Strawberry Perl found in '$straw' - please fix it!";
+				}
+				if ( ! -d $path ) {
+					die "Strawberry Perl not found in '$path' - please fix it!";
+				}
+
+				mv( $path, $straw ) or die "Unable to mv: $!";
 			} else {
-				# TODO move the perl back to C:\$home\perls\$dist
+				# move the perl back to C:\$home\perls\$dist
+
+				# Sanity checks
+				if ( ! -d $straw ) {
+					die "Strawberry Perl not found in '$straw' - please fix it!";
+				}
+				if ( -d $path ) {
+					die "Old Strawberry Perl found in '$path' - please fix it!";
+				}
+
+				mv( $straw, $path ) or die "Unable to mv: $!";
 			}
 		}
 	}
 
-	return;
+	# Always return 1 so BEGIN callback is happy :)
+	return 1;
 }
 
 sub check_perls : State {
@@ -147,10 +172,11 @@ sub check_perls : State {
 
 	# add them!
 	foreach my $p ( @newones ) {
-		# TODO strawberry method?
-
 		$_[HEAP]->{'SMOKEBOX'}->add_smoker( POE::Component::SmokeBox::Smoker->new(
-			perl => File::Spec->catfile( $HOME, 'perls', $p, 'bin', 'perl' ),
+			# perl binary is different for strawberry perl!
+			( $^O eq 'MSWin32' ? ( perl => File::Spec->catfile( 'C:', 'strawberry', 'perl', 'bin', 'perl' ) ) :
+				( perl => File::Spec->catfile( $HOME, 'perls', $p, 'bin', 'perl' ) ) ),
+
 			env => {
 				'APPDATA'		=> File::Spec->catdir( $HOME, 'cpanp_conf', $p ),
 				'PERL5_YACSMOKE_BASE'	=> File::Spec->catdir( $HOME, 'cpanp_conf', $p ),
