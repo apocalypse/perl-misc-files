@@ -39,6 +39,7 @@ my %VMs = (
 	'freebsd64.0ne.us'	=> 'FreeBSD 7.2-RELEASE amd64 (192.168.0.203)',
 	'netbsd64'		=> 'NetBSD 5.0.1 amd64 (192.168.0.205)',
 	'opensolaris64'		=> 'OpenSolaris 2009.6 amd64 (192.168.0.207)',
+	'satellite'		=> 'Windows XP 32bit',	# TODO blah, get a real VM! :)
 );
 
 POE::Session->create(
@@ -56,8 +57,10 @@ sub _start : State {
 	my $logfile = 'smokebox.log.' . time();
 	open( my $logfh, '>', $logfile ) or die "Unable to open '$logfile': $!";
 	$SIG{'__WARN__'} = sub {
-		print STDOUT $_[0];
-		print $logfh $_[0];
+		my $l = $_[0];
+		chomp $l;	# Needed so we get consistent newline output on MSWin32
+		print STDOUT $l, "\n";
+		print $logfh $l, "\n";
 	};
 
 	$_[HEAP]->{'PERLS'} = {};
@@ -110,9 +113,6 @@ sub create_smokebox : State {
 sub smokebox_callback : State {
 	my( $myarg, $smokearg ) = @_[ARG0, ARG1];
 
-	use Data::Dumper;
-	print Dumper( $myarg, $smokearg );
-
 	# Check tmp dir for droppings - thanks to BinGOs for the idea!
 	if ( $smokearg->[0] eq 'AFTER' ) {
 		# TODO do this!
@@ -126,7 +126,7 @@ sub smokebox_callback : State {
 			my $path = File::Spec->catdir( $HOME, 'perls', $myarg->[0] );
 			my $straw = File::Spec->catdir( 'C:', 'strawberry' );
 
-			if ( $smokearg->[0] eq 'BEGIN' ) {
+			if ( $smokearg->[0] eq 'BEFORE' ) {
 				# Move the perl to C:\strawberry!
 
 				# Sanity checks
@@ -138,6 +138,12 @@ sub smokebox_callback : State {
 				}
 
 				mv( $path, $straw ) or die "Unable to mv: $!";
+
+				# TODO wtf? Shell::Command::mv didn't return FAIL on win32 and it actually failed to move
+				# the directory one time...
+				if ( ! -d $straw ) {
+					die "Unable to mv - system is problematic!";
+				}
 			} else {
 				# move the perl back to C:\$home\perls\$dist
 
@@ -150,6 +156,11 @@ sub smokebox_callback : State {
 				}
 
 				mv( $straw, $path ) or die "Unable to mv: $!";
+
+				# Same problem as above...
+				if ( ! -d $path ) {
+					die "Unable to mv - system is problematic!";
+				}
 			}
 		}
 	}
@@ -174,7 +185,7 @@ sub check_perls : State {
 	foreach my $p ( @newones ) {
 		$_[HEAP]->{'SMOKEBOX'}->add_smoker( POE::Component::SmokeBox::Smoker->new(
 			# perl binary is different for strawberry perl!
-			( $^O eq 'MSWin32' ? ( perl => File::Spec->catfile( 'C:', 'strawberry', 'perl', 'bin', 'perl' ) ) :
+			( $^O eq 'MSWin32' ? ( perl => File::Spec->catfile( 'C:', 'strawberry', 'perl', 'bin', 'perl.exe' ) ) :
 				( perl => File::Spec->catfile( $HOME, 'perls', $p, 'bin', 'perl' ) ) ),
 
 			env => {
