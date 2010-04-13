@@ -208,6 +208,9 @@ sub check_perls : State {
 				( perl => File::Spec->catfile( $HOME, 'perls', $p, 'bin', 'perl' ) ) ),
 
 			env => {
+				# Goddamnit C:\bootperl\c\bin is in the PATH so it ends up executing dmake.EXE from there not Strawberry!
+				( $^O eq 'MSWin32' ? ( 'PATH' => cleanse_strawberry_path() ) : () ),
+
 				'APPDATA'		=> File::Spec->catdir( $HOME, 'cpanp_conf', $p ),
 				'PERL5_YACSMOKE_BASE'	=> File::Spec->catdir( $HOME, 'cpanp_conf', $p ),
 				'TMPDIR'		=> File::Spec->catdir( $HOME, 'tmp' ),
@@ -225,6 +228,19 @@ sub check_perls : State {
 	$_[KERNEL]->delay_add( 'check_perls' => 60 * 60 );
 
 	return;
+}
+
+sub cleanse_strawberry_path {
+	my @path = split( ';', $ENV{PATH} );
+	my @newpath;
+	foreach my $p ( @path ) {
+		if ( $p !~ /bootperl/ and $p !~ /strawberry/ ) {
+			push( @newpath, $p );
+		}
+	}
+	push( @newpath, "C:\\strawberry\\c\\bin" );
+	push( @newpath, "C:\\strawberry\\perl\\bin" );
+	return join( ';', @newpath );
 }
 
 sub create_irc : State {
