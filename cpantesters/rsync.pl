@@ -19,6 +19,11 @@ my $ircnick = 'CPAN';
 my $ircserver = '192.168.0.200';
 my $rsyncserver = 'cpan.dagolden.com::CPAN';
 
+# Goddamn stupid distros made me do this!
+my @banned = (
+	qr/Router\-Generic/,		# Always crashes SmokeBox with OOM ( but not on freebsd/OpenSolaris... mmm )
+);
+
 POE::Session->create(
 	__PACKAGE__->inline_states(),
 );
@@ -180,7 +185,17 @@ sub pwr_child : State {
 }
 
 sub upload : State {
-	$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "!smoke $_[ARG0]" );
+	my $dist = $_[ARG0];
+
+	# Goddamn it! I don't want to setup distroprefs or futz with configs on N VMs so I'm doing it here!
+	foreach my $d ( @banned ) {
+		if ( $dist =~ $d ) {
+			$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "BANNED Smoking dist: $dist" );
+			return;
+		}
+	}
+
+	$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "!smoke $dist" );
 	return;
 }
 

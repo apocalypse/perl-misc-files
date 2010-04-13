@@ -4,6 +4,10 @@ use strict; use warnings;
 # This script should be used after you've compiled all the perls
 # Please run compile_perl.pl first!
 
+# TODO list:
+#
+#	- enable irc control of which perls to smoke ( i.e. !perls 5.12.0 # will enable only 5.12.0 perl, bla bla )
+
 use POE;
 use POE::Component::SmokeBox 0.36;		# must be > 0.32 for the delay stuff + 0.36 for loop bug fix
 use POE::Component::SmokeBox::Smoker;
@@ -26,7 +30,7 @@ use Number::Bytes::Human qw( format_bytes );
 my $ircnick = hostname();
 my $ircserver = '192.168.0.200';
 my $freespace = 1024 * 1024 * 1024 * 5;	# set it to 5GB - in bytes before we auto-purge CPAN files
-my $delay = 60;				# set delay in seconds between jobs/smokers to "throttle"
+my $delay = 0;				# set delay in seconds between jobs/smokers to "throttle"
 my $HOME = $ENV{HOME};			# home path to search for perls/etc
 if ( $^O eq 'MSWin32' ) {
 	$HOME = "C:\\cpansmoke";
@@ -74,8 +78,7 @@ sub _start : State {
 
 sub create_smokebox : State {
 	$_[HEAP]->{'SMOKEBOX'} = POE::Component::SmokeBox->spawn(
-# TODO disable delay so we smoke CT2.0 full blast for testing
-#		'delay'	=> $delay,
+		'delay'	=> $delay,
 	);
 
 	# Add system perl...
@@ -199,7 +202,7 @@ sub check_perls : State {
 		) );
 
 		# save the smoker
-		$_[HEAP]->{'PERLS'}->{ $p } = undef;
+		$_[HEAP]->{'PERLS'}->{ $p } = 1;
 	}
 
 	# Every hour we re-check the perls so we can add new ones
@@ -224,7 +227,6 @@ sub create_irc : State {
 		Commands 	=> {
 			'queue'		=> 'Returns information about the smoker job queue. Takes no arguments.',
 			'smoke'		=> 'Adds the specified module to the smoke queue. Takes one argument: the module name.',
-#			'index'		=> 'Updates the CPANPLUS source index. Takes no arguments.',
 			'status'	=> 'Enables/disables the smoker. Takes one optional argument: a boolean.',
 			'perls'		=> 'Lists the available perl versions to smoke. Takes no arguments.',
 			'uname'		=> 'Returns the uname of the machine. Takes no arguments.',
@@ -440,9 +442,7 @@ sub irc_botcmd_smoke : State {
 			module => $arg,
 			type => 'CPANPLUS::YACSmoke',
 			no_log => 1,
-
-# TODO smoke full blast for CT2.0 testing
-#			delay => $delay,
+			delay => $delay,
 		),
 	);
 
@@ -555,56 +555,6 @@ sub check_free_space : State {
 
 	return;
 }
-
-#sub irc_botcmd_index : State {
-#	my $nick = (split '!', $_[ARG0])[0];
-#	my ($where, $arg) = @_[ARG1, ARG2];
-#
-#	# Send off the job!
-#	$_[HEAP]->{'SMOKEBOX'}->submit( event => 'indexresult',
-#		job => POE::Component::SmokeBox::Job->new(
-#			command => 'index',
-#			type => 'CPANPLUS::YACSmoke',
-#			no_log => 1,
-#
-## TODO smoke full blast for CT2.0 testing
-##			delay => $delay,
-#		),
-#	);
-#
-#	# hack: ignore the CPAN bot!
-#	if ( $nick ne 'CPAN' ) {
-#		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Added CPAN index to the job queue." );
-#	}
-#
-#	return;
-#}
-
-#sub indexresult : State {
-#	# extract some useful data
-#	my $starttime = 0;
-#	my $endtime = time;
-#	my @fails;
-#
-#	foreach my $r ( $_[ARG0]->{'result'}->results() ) {
-#		if ( $r->{'status'} != 0 ) {
-#			push( @fails, $r->{'perl'} );
-#		}
-#
-#		if ( $starttime == 0 or $r->{'start_time'} < $starttime ) {
-#			$starttime = $r->{'start_time'};
-#		}
-#	}
-#	my $duration = duration_exact( $endtime - $starttime );
-#
-#	# report this to IRC
-#	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Updated the CPANPLUS index " . ( scalar @fails ? '(FAIL: ' . join( ' ', @fails ) . ') ' : '' ) . "in ${duration}." );
-#
-#	# We always do this after indexing
-#	$_[KERNEL]->yield( 'check_free_space' );
-#
-#	return;
-#}
 
 sub irc_botcmd_perls : State {
 	my $nick = (split '!', $_[ARG0])[0];

@@ -10,7 +10,8 @@ use strict; use warnings;
 
 # We skip 5.6.0 and 5.8.0 because they are problematic builds
 
-# You may see MSWin32 code here but it's untested!
+# The MSWin32 code in here cheats - it doesn't actually "compile" perl, it just
+# uses Strawberries and bootstraps everything from there...
 
 # We have successfully compiled perl on those OSes:
 # x86_64/x64/amd64 (64bit) OSes:
@@ -62,6 +63,9 @@ use strict; use warnings;
 #		- use their binary builds + source build?
 #	- Some areas of the code print "\n" but maybe we need a portable way for that? use $/ ?
 #	- What is "pager" really for in CPANPLUS config? Can we undef it?
+#	- on some systems with the possibility of different compilers, can we use them all?
+#		- i.e. OpenSolaris - Sun's cc and gcc?
+#	- make the perl tarball downloader skip local tarballs that is OK ( size comparison with ftpd? )
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
@@ -88,7 +92,7 @@ my %C = (
 	'server'	=> '192.168.0.200',	# our local CPAN server ( used for mirror/cpantesters upload/etc )
 	'serverctport'	=> '11111',		# our local CPAN server CT2.0 socket/httpgateway port
 	'serverftpdir'	=> '/CPAN/',		# our local CPAN server ftp dir
-	'email'		=> 'apocal@cpan.org'	# the email address to use for CPANPLUS config
+	'email'		=> 'apocal@cpan.org',	# the email address to use for CPANPLUS config
 );
 if ( $^O eq 'MSWin32' ) {
 	$C{home} = "C:\\cpansmoke";
@@ -1254,7 +1258,7 @@ sub do_prebuild {
 
 	# Argh, we need to figure out the tarball - tar.gz or tar.bz2 or what??? ( thanks to perl-5.11.3 which didn't have a tar.gz file heh )
 	opendir( PERLDIR, File::Spec->catdir( $C{home}, 'build' ) ) or die "Unable to opendir: $!";
-	my @tarballs = grep { /^perl\-$C{perlver}.+/ } readdir( PERLDIR );
+	my @tarballs = grep { /^perl\-$C{perlver}\..+/ } readdir( PERLDIR );
 	closedir( PERLDIR ) or die "Unable to closedir: $!";
 	if ( scalar @tarballs != 1 ) {
 		# hmpf!
