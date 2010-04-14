@@ -2066,6 +2066,15 @@ sub do_build {
 		return 0;
 	}
 
+	# We start with the standard Configure options
+	my $stdoptions = "-des -Dprefix=$C{home}/perls/$C{perldist}";
+
+	# Prohibit man/html to be built, saving us time and disk space
+	# TODO doesn't work?
+#	foreach my $d ( qw( installman1dir installman3dir installhtml1dir installhtml3dir ) ) {
+#		$stdoptions .= " -D$d=none";
+#	}
+
 	# we start off with the Configure step
 	my $extraoptions = '';
 	if ( $C{perlver} =~ /^5\.(\d+)\./ ) {
@@ -2116,7 +2125,7 @@ sub do_build {
 	}
 
 	# actually do the configure!
-	do_shellcommand( "cd $C{home}/build/$C{perldist}; sh Configure -des -Dprefix=$C{home}/perls/$C{perldist} $extraoptions" );
+	do_shellcommand( "cd $C{home}/build/$C{perldist}; sh Configure $stdoptions $extraoptions" );
 
 	# generate dependencies - not needed because Configure -des defaults to automatically doing it
 	#do_shellcommand( "cd build/$C{perldist}; make depend" );
