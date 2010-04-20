@@ -582,7 +582,10 @@ sub irc_botcmd_perls : State {
 	my ($where, $arg) = @_[ARG1, ARG2];
 
 	# get the available versions
-	my $msg = "Available Perls(" . ( scalar keys %{ $_[HEAP]->{'PERLS'} } ) . "): " . join( ' ', keys %{ $_[HEAP]->{'PERLS'} } );
+#	my $msg = "Available Perls(" . ( scalar keys %{ $_[HEAP]->{'PERLS'} } ) . "): " . join( ' ', keys %{ $_[HEAP]->{'PERLS'} } );
+
+	# Don't show all perls because... it overflows the IRCd length limit hah
+	my $msg = "Available Perls: " . ( scalar keys %{ $_[HEAP]->{'PERLS'} } );
 	$_[HEAP]->{'IRC'}->yield( privmsg => $where, $msg );
 
 	return;
