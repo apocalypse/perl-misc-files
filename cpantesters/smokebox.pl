@@ -46,22 +46,6 @@ my %VMs = (
 	'satellite'		=> 'Windows XP 32bit',	# TODO blah, get a real VM! :)
 );
 
-# TODO port this to SmokeBox?
-# MSWin32: Disable critical error popups
-# Thanks to https://rt.cpan.org/Public/Bug/Display.html?id=56547
-if ( $^O eq 'MSWin32' ) {
-	# Call kernel32.SetErrorMode(SEM_FAILCRITICALERRORS):
-	# "The system does not display the critical-error-handler message box.
-	# Instead, the system sends the error to the calling process." and
-	# "A child process inherits the error mode of its parent process."
-	if ( eval { require Win32API::File } ) {
-		Win32API::File->import( qw( SetErrorMode SEM_FAILCRITICALERRORS SEM_NOGPFAULTERRORBOX ) );
-		SetErrorMode( SEM_FAILCRITICALERRORS() | SEM_NOGPFAULTERRORBOX() );
-	} else {
-		die "Unable to use Win32API::File -> $@";
-	}
-}
-
 POE::Session->create(
 	__PACKAGE__->inline_states(),
 );
@@ -78,7 +62,7 @@ sub _start : State {
 	open( my $logfh, '>', $logfile ) or die "Unable to open '$logfile': $!";
 	$SIG{'__WARN__'} = sub {
 		my $l = $_[0];
-		chomp $l;	# Needed so we get consistent newline output on MSWin32
+		$l =~ s/(?:\r|\n)+$//;	# Needed so we get consistent newline output on MSWin32
 		print STDOUT $l, "\n";
 		print $logfh $l, "\n";
 	};
@@ -475,6 +459,9 @@ sub irc_botcmd_smoke : State {
 			type => 'CPANPLUS::YACSmoke',
 			no_log => 1,
 			delay => $delay,
+
+			# disable use of String::Perl::Warnings which sometimes blows up rt.perl.org #74484
+			check_warnings => 0,
 		),
 	);
 
@@ -535,6 +522,8 @@ sub check_free_space : State {
 #	<Apocalypse> Lots of modules thought their deps were "installed" but I actually wiped them out...
 #	<Apocalypse> I'll re-create this situation and see if rebuilding the indexes fixed it
 #	<Apocalypse> Thanks again kane!
+
+	# TODO Hmm, now that I'm using CPANIDX do we need to do anything "special" for it?
 
 	my $df = dfportable( $HOME );
 	if ( defined $df ) {

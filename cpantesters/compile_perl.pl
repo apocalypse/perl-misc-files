@@ -66,6 +66,7 @@ use strict; use warnings;
 #	- on some systems with the possibility of different compilers, can we use them all?
 #		- i.e. OpenSolaris - Sun's cc and gcc?
 #	- make the perl tarball downloader skip local tarballs that is OK ( size comparison with ftpd? )
+#	- don't store perl tarballs in a "custom" directory - just use the CPAN/src/ directory??
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
