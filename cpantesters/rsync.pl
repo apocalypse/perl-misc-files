@@ -1,8 +1,19 @@
 #!/usr/bin/perl
 use strict; use warnings;
 
+# This script is the main "rsync" script that controls the smokers
+# Every hour it runs the rsync
+#	- after the rsync is done, it updates the local CPANIDX db
+#	- each new dist is echoed to the irc channel, telling the smokers to go smoke it
+# Also, you can tell it to smoke custom dists, using the !search option
+
+# TODO list
+#
+#	- add the CPAN::WWW::Top100::Retrieve stuff ( need a POE wrapper for it, ha! )
+
 use POE;
 use POE::Component::SmokeBox::Uploads::Rsync;
+use POE::Component::SmokeBox::Dists;
 use POE::Component::IRC::State 6.18;			# 6.18 depends on POE::Filter::IRCD 2.42 to shutup warnings about 005 numerics
 use POE::Component::IRC::Plugin::AutoJoin;
 use POE::Component::IRC::Plugin::Connector;
@@ -17,7 +28,8 @@ use Filesys::DfPortable;
 # Set some handy variables
 my $ircnick = 'CPAN';
 my $ircserver = '192.168.0.200';
-my $rsyncserver = 'cpan.dagolden.com::CPAN';
+my $rsyncserver = 'cpan.dagolden.com::CPAN';	# Our favorite fast mirror
+my $interval = 60 * 60;				# rsync every hour
 
 POE::Session->create(
 	__PACKAGE__->inline_states(),
@@ -41,7 +53,7 @@ sub create_rsync : State {
 	POE::Component::SmokeBox::Uploads::Rsync->spawn(
 		'rsync_src'	=> $rsyncserver,
 		'rsyncdone'	=> 'rsyncdone',
-		'interval'	=> 3600,
+		'interval'	=> $interval,
 	) or die "Unable to spawn the poco-rsync!";
 
 	return;
@@ -64,6 +76,7 @@ sub create_irc : State {
 			'uname'		=> 'Returns the uname of the machine. Takes no arguments.',
 			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
 			'df'		=> 'Returns the free space of the machine. Takes no arguments.',
+			'search'	=> 'Searches for dists matching a criteria and uses them for smoking. Takes 2 arguments: type + regex.',
 		},
 		Addressed	=> 0,
 		Ignore_unknown	=> 1,
@@ -242,6 +255,71 @@ sub irc_botcmd_queue : State {
 	}
 
 	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Duration until the next run: $duration" );
+
+	return;
+}
+
+sub irc_botcmd_search : State {
+	my $nick = (split '!', $_[ARG0])[0];
+	my ($where, $arg) = @_[ARG1, ARG2];
+
+	# We get 2 arguments: type and regex
+	my( $type, $regex ) = split( ' ', $arg, 2 );
+	$type = lc( $type );
+
+	# TODO add "deps" type that will list $dist's requires/recommends prereqs for easier smoking
+	# TODO also... "rdeps" ? that would rock! :)
+	if ( $type !~ /^(?:author|distro|phalanx)$/ ) {
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Invalid type, allowed searches are: author distro phalanx' );
+	} else {
+		# Do we need a regex?
+		if ( $type ne 'phalanx' ) {
+			if ( ! defined $regex or ! length $regex ) {
+				$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Please supply a regex for the search' );
+			} else {
+				# Is the regex valid?
+				eval { my $r = qr/$regex/ };
+				if ( $@ ) {
+					$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Please supply a valid regex for the search' );
+				} else {
+					# Send it off!
+					POE::Component::SmokeBox::Dists->$type(
+						'search'	=> $regex,
+						'event'		=> 'search_results',
+						'url'		=> "ftp://$ircserver/CPAN/",
+#						'pkg_time'	=> $interval,	# TODO wait for updated version of smokebox::dists
+						'_where'	=> $where,
+						'_arg'		=> $arg,
+					);
+				}
+			}
+		} else {
+			# Send it off!
+			POE::Component::SmokeBox::Dists->phalanx(
+				'event'		=> 'search_results',
+				'url'		=> "ftp://$ircserver/CPAN/",
+#				'pkg_time'	=> $interval,	# TODO wait for updated version of smokebox::dists
+				'_where'	=> $where,
+				'_arg'		=> $arg,
+			);
+		}
+	}
+
+	return;
+}
+
+sub search_results : State {
+	my $r = $_[ARG0];
+
+	# Was there an error?
+	if ( exists $r->{error} ) {
+		$_[HEAP]->{'IRC'}->yield( privmsg => $r->{_where}, 'Error searching for(' . $r->{_arg} . '): ' . $r->{error} );
+	} else {
+		$_[HEAP]->{'IRC'}->yield( privmsg => $r->{_where}, 'Results for(' . $r->{_arg} . '): ' . scalar @{ $r->{dists} } . ' dists' );
+		foreach my $dist ( @{ $r->{dists} } ) {
+			$_[HEAP]->{'IRC'}->yield( privmsg => $r->{_where}, "!smoke $dist" );
+		}
+	}
 
 	return;
 }

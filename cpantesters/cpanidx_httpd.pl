@@ -14,7 +14,7 @@ use App::CPANIDX::Queries;
 use Config::Tiny;
 use Getopt::Long;
 
-my $debug = 1;
+my $debug = 0;
 my $config = 'cpanidx.ini';
 
 GetOptions( 'config=s', \$config, );
@@ -84,7 +84,7 @@ sub HTTPD_CPANIDX {
 	# ARG0 = HTTP::Request object, ARG1 = HTTP::Response object, ARG2 = the DIR that matched
 	my( $request, $response, $dirmatch ) = @_[ ARG0 .. ARG2 ];
 
-#warn "New CPANIDX request: " . $request->uri->path . "\n" if $debug;
+warn "New CPANIDX request: " . $request->uri->path . "\n" if $debug;
 
 	my( $root, $enc, $type, $search ) = grep { $_ } split m#/#, $request->uri->path;
 	$search = '0' if $type =~ /^next/ and !$search;
@@ -108,7 +108,7 @@ sub HTTPD_ERROR {
 	# ARG0 = HTTP::Request object, ARG1 = HTTP::Response object, ARG2 = the DIR that matched
 	my( $request, $response, $dirmatch ) = @_[ ARG0 .. ARG2 ];
 
-#warn "New error: " . $request->uri->path . "\n" if $debug;
+warn "Erroneous request: " . $request->uri->path . "\n" if $debug;
 
 	# Check for errors
 	if ( ! defined $request ) {
