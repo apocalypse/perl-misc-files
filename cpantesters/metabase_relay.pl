@@ -55,6 +55,8 @@ sub create_relay : State {
 		dsn	=> $metabase_dsn,
 		uri	=> $metabase_uri,
 		debug	=> 1,
+		multiple=> 1,
+		no_relay=> 1,
 	);
 
 	$_[HEAP]->{'relayd'} = $test_httpd;
