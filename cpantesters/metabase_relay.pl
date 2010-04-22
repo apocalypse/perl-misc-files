@@ -79,6 +79,7 @@ sub create_irc : State {
 			'uname'		=> 'Returns the uname of the machine. Takes no arguments.',
 			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
 			'df'		=> 'Returns the free space of the machine. Takes no arguments.',
+			'relaying'	=> 'Returns the status of the relayd. Takes one optional argument: a bool value.',
 		},
 		Addressed	=> 0,
 		Ignore_unknown	=> 1,
@@ -152,8 +153,9 @@ sub irc_botcmd_queue : State {
 
 	# TODO ugly code here
 	$_[HEAP]->{'relayd'}->queue->_easydbi->arrayhash(
-		sql => 'SELECT count(*) from queue',
+		sql => 'SELECT count(*) AS count from queue',
 		event => '_got_queuecount',
+		_where => $where,
 	);
 
 	return;
@@ -163,21 +165,56 @@ sub _got_queuecount : State {
 	my $result = $_[ARG0];
 
 #	$VAR1 = {
-#          'sql' => 'SELECT count(*) from queue',
+#          'sql' => 'SELECT count(*) AS count from queue',
 #          'rows' => 1,
 #          'event' => '_got_queuecount',
 #          'placeholders' => [],
 #          'session' => 2,
 #          'action' => 'arrayhash',
 #          'id' => 1,
+#          '_where' => '#smoke',
 #          'result' => [
 #                        {
-#                          'count(*)' => 117
+#                          'count' => 117
 #                        }
 #                      ]
 #        };
 
-	$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "Number of entries in the queue: " . $result->{result}->[0]->{'count(*)'} );
+	my $status = $_[HEAP]->{'relayd'}->no_relay ? 'DISABLED' : 'ENABLED';
+	$_[HEAP]->{'IRC'}->yield( privmsg => $result->{'_where'}, "RELAYING $status - Number of entries in the queue: " . $result->{result}->[0]->{'count'} );
+
+	return;
+}
+
+sub irc_botcmd_relaying : State {
+	my $nick = (split '!', $_[ARG0])[0];
+	my ($where, $arg) = @_[ARG1, ARG2];
+
+	if ( defined $arg ) {
+		if ( $arg =~ /^(?:0|1)$/ ) {
+			# semantics is reversed from relayd, ha!
+			if ( $_[HEAP]->{'relayd'}->no_relay ) {
+				if ( $arg ) {
+					$_[HEAP]->{'relayd'}->no_relay( 0 );
+					$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Enabling the relayer...' );
+				} else {
+					$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Relaying was already disabled!' );
+				}
+			} else {
+				if ( $arg ) {
+					$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Relaying was already enabled!' );
+				} else {
+					$_[HEAP]->{'relayd'}->no_relay( 1 );
+					$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Disabling the relayer...' );
+				}
+			}
+		} else {
+			$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Invalid argument - it must be 0 or 1' );
+		}
+	} else {
+		my $status = $_[HEAP]->{'relayd'}->no_relay ? 'DISABLED' : 'ENABLED';
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Relayd status: $status" );
+	}
 
 	return;
 }
