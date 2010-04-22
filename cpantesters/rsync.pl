@@ -30,6 +30,7 @@ my $ircnick = 'CPAN';
 my $ircserver = '192.168.0.200';
 my $rsyncserver = 'cpan.dagolden.com::CPAN';	# Our favorite fast mirror
 my $interval = 60 * 60;				# rsync every hour
+my $do_rsync = 1;				# enable rsyncing
 
 POE::Session->create(
 	__PACKAGE__->inline_states(),
@@ -42,7 +43,7 @@ sub _start : State {
 	$_[KERNEL]->alias_set( 'CPAN' );
 
 	# setup our stuff
-	$_[KERNEL]->yield( 'create_rsync' );
+	$_[KERNEL]->yield( 'create_rsync' ) if $do_rsync;
 	$_[KERNEL]->yield( 'create_irc' );
 
 	return;
@@ -54,6 +55,7 @@ sub create_rsync : State {
 		'rsync_src'	=> $rsyncserver,
 		'rsyncdone'	=> 'rsyncdone',
 		'interval'	=> $interval,
+		'alias'		=> 'rsyncd',
 	) or die "Unable to spawn the poco-rsync!";
 
 	return;
@@ -77,6 +79,7 @@ sub create_irc : State {
 			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
 			'df'		=> 'Returns the free space of the machine. Takes no arguments.',
 			'search'	=> 'Searches for dists matching a criteria and uses them for smoking. Takes 2 arguments: type + regex.',
+			'rsync'		=> 'Returns the rsync status. Takes one optional argument: a bool value.',
 		},
 		Addressed	=> 0,
 		Ignore_unknown	=> 1,
@@ -242,19 +245,23 @@ sub irc_botcmd_queue : State {
 	my $nick = (split '!', $_[ARG0])[0];
 	my ($where, $arg) = @_[ARG1, ARG2];
 
-	# Calculate the time left
-	my $nowts = time;
-	my $rsyncts = defined $_[HEAP]->{'RSYNCTS'} ? $_[HEAP]->{'RSYNCTS'} + 3600 : 0;
-	my $duration;
-	if ( $rsyncts == 0 ) {
-		$duration = 'FIRST TIME';
-	} elsif ( $rsyncts < $nowts ) {
-		$duration = 'RUNNING';
-	} else {
-		$duration = duration_exact( $rsyncts - $nowts );
-	}
+	if ( $do_rsync ) {
+		# Calculate the time left
+		my $nowts = time;
+		my $rsyncts = defined $_[HEAP]->{'RSYNCTS'} ? $_[HEAP]->{'RSYNCTS'} + 3600 : 0;
+		my $duration;
+		if ( $rsyncts == 0 ) {
+			$duration = 'FIRST TIME';
+		} elsif ( $rsyncts < $nowts ) {
+			$duration = 'RUNNING';
+		} else {
+			$duration = duration_exact( $rsyncts - $nowts );
+		}
 
-	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Duration until the next run: $duration" );
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Duration until the next rsync run: $duration" );
+	} else {
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Rsyncd is disabled" );
+	}
 
 	return;
 }
@@ -319,6 +326,40 @@ sub search_results : State {
 		foreach my $dist ( @{ $r->{dists} } ) {
 			$_[HEAP]->{'IRC'}->yield( privmsg => $r->{_where}, "!smoke $dist" );
 		}
+	}
+
+	return;
+}
+
+sub irc_botcmd_rsync : State {
+	my $nick = (split '!', $_[ARG0])[0];
+	my ($where, $arg) = @_[ARG1, ARG2];
+
+	if ( defined $arg ) {
+		if ( $arg =~ /^(?:0|1)$/ ) {
+			if ( $arg ) {
+				if ( $do_rsync ) {
+					$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Rsyncd was already enabled!' );
+				} else {
+					$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Enabling the rsyncd...' );
+					$_[KERNEL]->yield( 'create_rsync' );
+					$do_rsync = 1;
+				}
+			} else {
+				if ( $do_rsync ) {
+					$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Disabling the rsyncd...' );
+					$_[KERNEL]->post( 'rsyncd', 'shutdown' );
+					$do_rsync = 0;
+				} else {
+					$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Rsyncd was already disabled!' );
+				}
+			}
+		} else {
+			$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Invalid argument - it must be 0 or 1' );
+		}
+	} else {
+		my $status = $do_rsync ? 'ENABLED' : 'DISABLED';
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Rsyncd status: $status" );
 	}
 
 	return;
