@@ -271,6 +271,11 @@ sub irc_botcmd_search : State {
 	my ($where, $arg) = @_[ARG1, ARG2];
 
 	# We get 2 arguments: type and regex
+	if ( ! defined $arg ) {
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Please supply some parameters: !search type regex' );
+		return;
+	}
+
 	my( $type, $regex ) = split( ' ', $arg, 2 );
 	$type = lc( $type );
 
