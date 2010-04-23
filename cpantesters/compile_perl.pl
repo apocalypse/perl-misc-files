@@ -67,6 +67,9 @@ use strict; use warnings;
 #		- i.e. OpenSolaris - Sun's cc and gcc?
 #	- make the perl tarball downloader skip local tarballs that is OK ( size comparison with ftpd? )
 #	- don't store perl tarballs in a "custom" directory - just use the CPAN/src/ directory??
+#	- URI tests always hang on my fbsd smoker - "freebsd64.0ne.us" somehow hangs it... for now I'm forcing install it on all perls
+#		- maybe I need to investigate a better DNS setup for my VMs? freebsd64.smoking.0ne.us
+#		- then set my dns config for all VMs in *.smoking.0ne.us?
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );

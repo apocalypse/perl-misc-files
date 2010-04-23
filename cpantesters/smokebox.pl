@@ -7,6 +7,7 @@ use strict; use warnings;
 # TODO list:
 #
 #	- enable irc control of which perls to smoke ( i.e. !perls 5.12.0 # will enable only 5.12.0 perl, bla bla )
+#	- use symlinks for windows? ( to avoid costly mv's ) http://shell-shocked.org/article.php?id=284
 
 use POE;
 use POE::Component::SmokeBox 0.36;		# must be > 0.32 for the delay stuff + 0.36 for loop bug fix
