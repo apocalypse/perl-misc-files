@@ -13,7 +13,7 @@ use strict; use warnings;
 
 use POE;
 use POE::Component::SmokeBox::Uploads::Rsync;
-use POE::Component::SmokeBox::Dists;
+use POE::Component::SmokeBox::Dists 1.02;		# include the pkg_time param
 use POE::Component::IRC::State 6.18;			# 6.18 depends on POE::Filter::IRCD 2.42 to shutup warnings about 005 numerics
 use POE::Component::IRC::Plugin::AutoJoin;
 use POE::Component::IRC::Plugin::Connector;
@@ -298,8 +298,8 @@ sub irc_botcmd_search : State {
 					POE::Component::SmokeBox::Dists->$type(
 						'search'	=> $regex,
 						'event'		=> 'search_results',
-						'url'		=> "ftp://$ircserver/CPAN/",
-#						'pkg_time'	=> $interval,	# TODO wait for updated version of smokebox::dists
+						'url'		=> "ftp://$ircserver/CPAN/",	# TODO this is hardcoded...
+						'pkg_time'	=> $interval,
 						'_where'	=> $where,
 						'_arg'		=> $arg,
 					);
@@ -309,8 +309,8 @@ sub irc_botcmd_search : State {
 			# Send it off!
 			POE::Component::SmokeBox::Dists->phalanx(
 				'event'		=> 'search_results',
-				'url'		=> "ftp://$ircserver/CPAN/",
-#				'pkg_time'	=> $interval,	# TODO wait for updated version of smokebox::dists
+				'url'		=> "ftp://$ircserver/CPAN/",	# TODO this is hardcoded...
+				'pkg_time'	=> $interval,
 				'_where'	=> $where,
 				'_arg'		=> $arg,
 			);

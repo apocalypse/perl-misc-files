@@ -193,6 +193,7 @@ sub check_perls : State {
 
 			env => {
 				# Goddamnit C:\bootperl\c\bin is in the PATH so it ends up executing dmake.EXE from there not Strawberry!
+				# TODO this doesn't work all the time... weird!
 				( $^O eq 'MSWin32' ? ( 'PATH' => cleanse_strawberry_path() ) : () ),
 
 				'APPDATA'		=> File::Spec->catdir( $HOME, 'cpanp_conf', $p ),
@@ -222,8 +223,8 @@ sub cleanse_strawberry_path {
 			push( @newpath, $p );
 		}
 	}
-	push( @newpath, "C:\\strawberry\\c\\bin" );
-	push( @newpath, "C:\\strawberry\\perl\\bin" );
+	push( @newpath, File::Spec->catdir( 'C:', 'strawberry', 'c', 'bin' ) );
+	push( @newpath, File::Spec->catdir( 'C:', 'strawberry', 'perl', 'bin' ) );
 	return join( ';', @newpath );
 }
 
