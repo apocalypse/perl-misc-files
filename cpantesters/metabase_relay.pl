@@ -57,7 +57,7 @@ sub create_relay : State {
 		debug		=> 1,
 		multiple	=> 1,
 		no_relay	=> 1,
-		submissions	=> 15,	# TODO for stress-testing Metabase, the default of 10 is sufficient
+		submissions	=> 10,	# This is the default value, we set it just in case it changes upstream :)
 	);
 
 	$_[HEAP]->{'relayd'} = $test_httpd;
@@ -83,6 +83,7 @@ sub create_irc : State {
 			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
 			'df'		=> 'Returns the free space of the machine. Takes no arguments.',
 			'relay'		=> 'Get/Set the status of the relayd. Takes one optional argument: a bool value.',
+			'parallel'	=> 'Get/Set the number of parallel HTTP clients for report uploads. Takes one optional argument: an int value.',
 		},
 		Addressed	=> 0,
 		Ignore_unknown	=> 1,
@@ -221,6 +222,24 @@ sub irc_botcmd_relay : State {
 	} else {
 		my $status = $_[HEAP]->{'relayd'}->no_relay ? 'DISABLED' : 'ENABLED';
 		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Relayd status: $status" );
+	}
+
+	return;
+}
+
+sub irc_botcmd_parallel : State {
+	my $nick = (split '!', $_[ARG0])[0];
+	my ($where, $arg) = @_[ARG1, ARG2];
+
+	if ( defined $arg ) {
+		if ( $arg =~ /^\d+$/ ) {
+			$_[HEAP]->{'relayd'}->submissions( $arg );
+			$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Setting parallel HTTP clients to: $arg" );
+		} else {
+			$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Invalid argument - it must be an integer' );
+		}
+	} else {
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Relayd parallel HTTP clients: " . $_[HEAP]->{'relayd'}->submissions );
 	}
 
 	return;
