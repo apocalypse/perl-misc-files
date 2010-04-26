@@ -53,7 +53,8 @@ sub create_rsync : State {
 	# Tell the poco to start it's stuff!
 	POE::Component::SmokeBox::Uploads::Rsync->spawn(
 		'rsync_src'	=> $rsyncserver,
-		'rsyncdone'	=> 'rsyncdone',
+		'rsyncdone'	=> 'rsyncd_done',
+		'event'		=> 'rsyncd_upload',
 		'interval'	=> $interval,
 		'alias'		=> 'rsyncd',
 	) or die "Unable to spawn the poco-rsync!";
@@ -118,15 +119,13 @@ sub _stop : State {
 	return;
 }
 
-sub rsyncdone : State {
+sub rsyncd_done : State {
 	my $r = $_[ARG0];
 
 	if ( $r->{'status'} ) {
 		$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "Rsync run done in " . duration_exact( $r->{'stoptime'} - $r->{'starttime'} ) . " with $r->{'dists'} new dists!" );
 		if ( $r->{'dists'} > 0 ) {
 			# start an index run!
-#			$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "!index" );
-
 			$_[KERNEL]->yield( 'run_cpanidx' );
 		}
 	} else {
@@ -180,8 +179,6 @@ sub pwr_close : State {
 
 #warn "Got PWR:CLOSE";
 
-	undef $_[HEAP]->{'CPANIDX'} if defined $_[HEAP]->{'CPANIDX'};
-
 	return;
 }
 
@@ -191,14 +188,31 @@ sub pwr_child : State {
 #warn "Got PWR:CHILD";
 
 	undef $_[HEAP]->{'CPANIDX'} if defined $_[HEAP]->{'CPANIDX'};
+	$_[HEAP]->{'CPANIDXTS'} = time;
+
+	# Do we have any buffered dists?
+	if ( exists $_[HEAP]->{'DISTS'} and scalar @{ $_[HEAP]->{'DISTS'} } ) {
+		foreach my $dist ( @{ $_[HEAP]->{'DISTS'} } ) {
+			$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "!smoke $dist" );
+		}
+
+		delete $_[HEAP]->{'DISTS'};
+	}
 
 	return;
 }
 
-sub upload : State {
+sub rsyncd_upload : State {
 	my $dist = $_[ARG0];
 
-	$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "!smoke $dist" );
+	# We need to make sure that CPANIDX has finished running the latest rsync
+	if ( exists $_[HEAP]->{'CPANIDXTS'} and $_[HEAP]->{'CPANIDXTS'} > $_[HEAP]->{'RSYNCTS'} ) {
+		$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "!smoke $dist" );
+	} else {
+		# Argh, we buffer it...
+		push( @{ $_[HEAP]->{'DISTS'} }, $dist );
+	}
+
 	return;
 }
 
@@ -248,7 +262,7 @@ sub irc_botcmd_status : State {
 	if ( $do_rsync ) {
 		# Calculate the time left
 		my $nowts = time;
-		my $rsyncts = defined $_[HEAP]->{'RSYNCTS'} ? $_[HEAP]->{'RSYNCTS'} + 3600 : 0;
+		my $rsyncts = exists $_[HEAP]->{'RSYNCTS'} ? $_[HEAP]->{'RSYNCTS'} + 3600 : 0;
 		my $duration;
 		if ( $rsyncts == 0 ) {
 			$duration = 'FIRST TIME';

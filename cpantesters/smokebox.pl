@@ -108,9 +108,6 @@ sub create_smokebox : State {
 	# Do the first pass over our perls
 	$_[KERNEL]->yield( 'check_perls' );
 
-	# Do cleanup of cruft
-	$_[KERNEL]->yield( 'check_free_space' );
-
 	return;
 }
 
@@ -119,8 +116,11 @@ sub smokebox_callback : State {
 
 	# Check tmp dir for droppings - thanks to BinGOs for the idea!
 	if ( $smokearg->[0] eq 'AFTER' ) {
+		# We need to check disk space for sanity
+		$_[KERNEL]->call( $_[SESSION], 'check_free_space' );
+
 		# TODO do this!
-		#check_tmp_directory( $_[HEAP], $myarg, $smokearg );
+		#$_[KERNEL]->call( $_[SESSION], 'check_tmp_dir', $myarg, $smokearg );
 	}
 
 	# Do special actions for win32
@@ -490,7 +490,7 @@ sub smokeresult : State {
 
 	foreach my $r ( $_[ARG0]->{'result'}->results() ) {
 		if ( $r->{'status'} != 0 ) {
-			push( @fails, $r->{'perl'} );
+			push( @fails, $r );
 		}
 
 		if ( $starttime == 0 or $r->{'start_time'} < $starttime ) {
@@ -500,10 +500,18 @@ sub smokeresult : State {
 	my $duration = duration_exact( $endtime - $starttime );
 
 	# report this to IRC
-	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module " . ( scalar @fails ? '(FAIL: ' . join( ' ', @fails ) . ') ' : '' ) . "in ${duration}." );
+	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module in ${duration}." );
+	foreach my $r ( @fails ) {
+		my $fail;
+		foreach my $failtype ( qw( idle excess term ) ) {
+			if ( exists $r->{ $failtype . '_kill' } ) {
+				$fail = $failtype;
+				last;
+			}
+		}
 
-	# We always do this after smoking
-	$_[KERNEL]->yield( 'check_free_space' );
+		$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "FAIL $module reason:$fail exit:" . $r->{'status'} );
+	}
 
 	return;
 }
