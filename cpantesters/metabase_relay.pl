@@ -50,13 +50,14 @@ sub _stop : State {
 
 sub create_relay : State {
 	my $test_httpd = POE::Component::Metabase::Relay::Server->spawn(
-		port	=> $relayd_port,
-		id_file	=> $metabase_id,
-		dsn	=> $metabase_dsn,
-		uri	=> $metabase_uri,
-		debug	=> 1,
-		multiple=> 1,
-		no_relay=> 1,
+		port		=> $relayd_port,
+		id_file		=> $metabase_id,
+		dsn		=> $metabase_dsn,
+		uri		=> $metabase_uri,
+		debug		=> 1,
+		multiple	=> 1,
+		no_relay	=> 1,
+		submissions	=> 15,	# TODO for stress-testing Metabase, the default of 10 is sufficient
 	);
 
 	$_[HEAP]->{'relayd'} = $test_httpd;
@@ -77,11 +78,11 @@ sub create_irc : State {
 	$_[HEAP]->{'IRC'}->plugin_add( 'Connector', POE::Component::IRC::Plugin::Connector->new() );
 	$_[HEAP]->{'IRC'}->plugin_add( 'BotCommand', POE::Component::IRC::Plugin::BotCommand->new(
 		Commands	=> {
-			'queue'		=> 'Returns information about the relayd queue. Takes no arguments.',
+			'status'	=> 'Returns information about the relayd queue. Takes no arguments.',
 			'uname'		=> 'Returns the uname of the machine. Takes no arguments.',
 			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
 			'df'		=> 'Returns the free space of the machine. Takes no arguments.',
-			'relaying'	=> 'Returns the status of the relayd. Takes one optional argument: a bool value.',
+			'relay'		=> 'Get/Set the status of the relayd. Takes one optional argument: a bool value.',
 		},
 		Addressed	=> 0,
 		Ignore_unknown	=> 1,
@@ -149,21 +150,21 @@ sub irc_botcmd_uname : State {
 	return;
 }
 
-sub irc_botcmd_queue : State {
+sub irc_botcmd_status : State {
 	my $nick = (split '!', $_[ARG0])[0];
 	my ($where, $arg) = @_[ARG1, ARG2];
 
 	# TODO ugly code here
 	$_[HEAP]->{'relayd'}->queue->_easydbi->arrayhash(
 		sql => 'SELECT count(*) AS count from queue',
-		event => '_got_queuecount',
+		event => '_got_status',
 		_where => $where,
 	);
 
 	return;
 }
 
-sub _got_queuecount : State {
+sub _got_status : State {
 	my $result = $_[ARG0];
 
 #	$VAR1 = {
@@ -183,12 +184,16 @@ sub _got_queuecount : State {
 #        };
 
 	my $status = $_[HEAP]->{'relayd'}->no_relay ? 'DISABLED' : 'ENABLED';
-	$_[HEAP]->{'IRC'}->yield( privmsg => $result->{'_where'}, "RELAYING $status - Number of entries in the queue: " . $result->{result}->[0]->{'count'} );
+	if ( exists $result->{error} ) {
+		$_[HEAP]->{'IRC'}->yield( privmsg => $result->{'_where'}, "RELAYING $status: Error in getting queued reports: " . $result->{error} );
+	} else {
+		$_[HEAP]->{'IRC'}->yield( privmsg => $result->{'_where'}, "RELAYING $status: Number of reports in the queue: " . $result->{result}->[0]->{'count'} );
+	}
 
 	return;
 }
 
-sub irc_botcmd_relaying : State {
+sub irc_botcmd_relay : State {
 	my $nick = (split '!', $_[ARG0])[0];
 	my ($where, $arg) = @_[ARG1, ARG2];
 

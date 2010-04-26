@@ -243,14 +243,14 @@ sub create_irc : State {
 	$_[HEAP]->{'IRC'}->plugin_add( 'Connector', POE::Component::IRC::Plugin::Connector->new() );
 	$_[HEAP]->{'IRC'}->plugin_add( 'BotCommand', POE::Component::IRC::Plugin::BotCommand->new(
 		Commands 	=> {
-			'queue'		=> 'Returns information about the smoker job queue. Takes no arguments.',
+			'status'	=> 'Returns information about the smoker job queue. Takes no arguments.',
 			'smoke'		=> 'Adds the specified module to the smoke queue. Takes one argument: the module name.',
-			'status'	=> 'Enables/disables the smoker. Takes one optional argument: a boolean.',
+			'smoking'	=> 'Get/Set the status of the smoker. Takes one optional argument: a bool value.',
 			'perls'		=> 'Lists the available perl versions to smoke. Takes no arguments.',
 			'uname'		=> 'Returns the uname of the machine. Takes no arguments.',
 			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
 			'df'		=> 'Returns the free space of the machine. Takes no arguments.',
-			'delay'		=> 'Sets the delay for PoCo-SmokeBox. Takes one optional argument: number of seconds.',
+			'delay'		=> 'Get/Set the delay for PoCo-SmokeBox. Takes one optional argument: number of seconds.',
 		},
 		Addressed 	=> 0,
 		Ignore_unknown	=> 1,
@@ -361,7 +361,7 @@ sub irc_botcmd_uname : State {
 	return;
 }
 
-sub irc_botcmd_queue : State {
+sub irc_botcmd_status : State {
 	my $nick = (split '!', $_[ARG0])[0];
 	my ($where, $arg) = @_[ARG1, ARG2];
 
@@ -410,37 +410,43 @@ sub irc_botcmd_queue : State {
 		$currjob = $current;
 	}
 
-	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Number of jobs in the queue: ${numjobs}." . ( defined $currjob ? " Current job: $currjob" : '' ) );
+	my $status = $queue->queue_paused ? 'DISABLED' : 'ENABLED';
+	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "SMOKING $status: Number of jobs in the queue: ${numjobs}." . ( defined $currjob ? " Current job: $currjob" : '' ) );
 
 	return;
 }
 
-sub irc_botcmd_status : State {
+sub irc_botcmd_smoking : State {
 	my $nick = (split '!', $_[ARG0])[0];
 	my ($where, $arg) = @_[ARG1, ARG2];
 
 	my $queue = [ $_[HEAP]->{'SMOKEBOX'}->queues ]->[0];
 
 	if ( defined $arg ) {
-		if ( $arg ) {
-			if ( ! $queue->queue_paused ) {
-				$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Job queue was already running!" );
-			} else {
-				$queue->resume_queue();
+		if ( $arg =~ /^(?:0|1)$/ ) {
+			if ( $arg ) {
+				if ( ! $queue->queue_paused ) {
+					$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Smoker was already enabled!" );
+				} else {
+					$queue->resume_queue();
 
-				$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Resumed the job queue." );
+					$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Enabling the smoker..." );
+				}
+			} else {
+				if ( $queue->queue_paused ) {
+					$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Smoker was already disabled!" );
+				} else {
+					$queue->pause_queue();
+
+					$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Disabling the smoker..." );
+				}
 			}
 		} else {
-			if ( $queue->queue_paused ) {
-				$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Job queue was already paused!" );
-			} else {
-				$queue->pause_queue();
-
-				$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Paused the job queue." );
-			}
+			$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Invalid argument - it must be 0 or 1' );
 		}
 	} else {
-		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Status of job queue: " . ( $queue->queue_paused() ? "PAUSED" : "RUNNING" ) );
+		my $status = $queue->queue_paused() ? 'DISABLED' : 'ENABLED';
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Smoker status: $status" );
 	}
 
 	return;

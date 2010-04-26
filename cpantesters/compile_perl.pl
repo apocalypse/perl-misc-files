@@ -20,6 +20,7 @@ use strict; use warnings;
 #
 
 # This compiler builds each perl with a matrix of 49 possible combinations.
+# The options are: threads multiplicity longdouble mymalloc 32/64bitness
 # Compiling the entire perl suite listed above will result in: 931 perls!
 # Each perl averages 40M with all the necessary modules to smoke CPAN preinstalled. ( ~37GB total! )
 

@@ -74,12 +74,12 @@ sub create_irc : State {
 	$_[HEAP]->{'IRC'}->plugin_add( 'Connector', POE::Component::IRC::Plugin::Connector->new() );
 	$_[HEAP]->{'IRC'}->plugin_add( 'BotCommand', POE::Component::IRC::Plugin::BotCommand->new(
 		Commands	=> {
-			'queue'		=> 'Returns information about the rsync queue. Takes no arguments.',
+			'status'	=> 'Returns information about the rsync run. Takes no arguments.',
 			'uname'		=> 'Returns the uname of the machine. Takes no arguments.',
 			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
 			'df'		=> 'Returns the free space of the machine. Takes no arguments.',
 			'search'	=> 'Searches for dists matching a criteria and uses them for smoking. Takes 2 arguments: type + regex.',
-			'rsync'		=> 'Returns the rsync status. Takes one optional argument: a bool value.',
+			'rsync'		=> 'Get/Set the status of the rsyncd. Takes one optional argument: a bool value.',
 		},
 		Addressed	=> 0,
 		Ignore_unknown	=> 1,
@@ -241,7 +241,7 @@ sub irc_botcmd_uname : State {
 	return;
 }
 
-sub irc_botcmd_queue : State {
+sub irc_botcmd_status : State {
 	my $nick = (split '!', $_[ARG0])[0];
 	my ($where, $arg) = @_[ARG1, ARG2];
 
@@ -258,9 +258,9 @@ sub irc_botcmd_queue : State {
 			$duration = duration_exact( $rsyncts - $nowts );
 		}
 
-		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Duration until the next rsync run: $duration" );
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Rsyncd ENABLED: Duration until the next rsync run: $duration" );
 	} else {
-		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Rsyncd is disabled" );
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Rsyncd DISABLED" );
 	}
 
 	return;
@@ -325,9 +325,9 @@ sub search_results : State {
 
 	# Was there an error?
 	if ( exists $r->{error} ) {
-		$_[HEAP]->{'IRC'}->yield( privmsg => $r->{_where}, 'Error searching for(' . $r->{_arg} . '): ' . $r->{error} );
+		$_[HEAP]->{'IRC'}->yield( privmsg => $r->{_where}, 'Error searching for( ' . $r->{_arg} . ' ): ' . $r->{error} );
 	} else {
-		$_[HEAP]->{'IRC'}->yield( privmsg => $r->{_where}, 'Results for(' . $r->{_arg} . '): ' . scalar @{ $r->{dists} } . ' dists' );
+		$_[HEAP]->{'IRC'}->yield( privmsg => $r->{_where}, 'Results for( ' . $r->{_arg} . ' ): ' . scalar @{ $r->{dists} } . ' dists' );
 		foreach my $dist ( @{ $r->{dists} } ) {
 			$_[HEAP]->{'IRC'}->yield( privmsg => $r->{_where}, "!smoke $dist" );
 		}
