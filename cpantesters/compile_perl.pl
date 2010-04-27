@@ -72,6 +72,9 @@ use strict; use warnings;
 #		- maybe I need to investigate a better DNS setup for my VMs? freebsd64.smoking.0ne.us
 #		- then set my dns config for all VMs in *.smoking.0ne.us?
 #	- <@rafl> i wonder if running a smoker with parallel testing would be useful
+#	- figure out a way to have VMs running with no internet access
+#		- one VM with inet, another VM without
+#		- that way, we can stab authors who blindly assume the inet is available :)
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
