@@ -71,6 +71,7 @@ use strict; use warnings;
 #	- URI tests always hang on my fbsd smoker - "freebsd64.0ne.us" somehow hangs it... for now I'm forcing install it on all perls
 #		- maybe I need to investigate a better DNS setup for my VMs? freebsd64.smoking.0ne.us
 #		- then set my dns config for all VMs in *.smoking.0ne.us?
+#	- <@rafl> i wonder if running a smoker with parallel testing would be useful
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
