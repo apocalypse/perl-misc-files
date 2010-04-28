@@ -68,6 +68,7 @@ use strict; use warnings;
 #		- i.e. OpenSolaris - Sun's cc and gcc?
 #		- <@TonyC> http://software.intel.com/en-us/articles/non-commercial-software-development/ # free icc for linux!
 #		- <@TonyC> opencc: http://developer.amd.com/cpu/open64/Pages/default.aspx # free amd 64bit compiler
+#		- <TonyC> Apocalypse: http://www.thefreecountry.com/compilers/cpp.shtml # a nice page with lots of compilers
 #	- make the perl tarball downloader skip local tarballs that is OK ( size comparison with ftpd? )
 #	- don't store perl tarballs in a "custom" directory - just use the CPAN/src/ directory??
 #	- URI tests always hang on my fbsd smoker - "freebsd64.0ne.us" somehow hangs it... for now I'm forcing install it on all perls
