@@ -10,7 +10,7 @@ use strict; use warnings;
 #	- use symlinks for windows? ( to avoid costly mv's ) http://shell-shocked.org/article.php?id=284
 
 use POE;
-use POE::Component::SmokeBox 0.36;		# must be > 0.32 for the delay stuff + 0.36 for loop bug fix
+use POE::Component::SmokeBox 0.38;		# must be > 0.32 for the delay stuff + 0.36 for loop bug fix + 0.38 for the name
 use POE::Component::SmokeBox::Smoker;
 use POE::Component::SmokeBox::Job;
 use POE::Component::IRC::State 6.18;		# 6.18 depends on POE::Filter::IRCD 2.42 to shutup warnings about 005 numerics
@@ -98,6 +98,7 @@ sub create_smokebox : State {
 				'PERL5_CPANIDX_URL'	=> 'http://' . $ircserver . ':11110/CPANIDX/',	# TODO fix this hardcoded path
 			},
 			do_callback => $_[SESSION]->callback( 'smokebox_callback', 'SYSTEM' ),
+			name => 'SYSTEM',
 		);
 		$_[HEAP]->{'SMOKEBOX'}->add_smoker( $smoker );
 
@@ -204,6 +205,7 @@ sub check_perls : State {
 				'PERL5_CPANIDX_URL'	=> 'http://' . $ircserver . ':11110/CPANIDX/',	# TODO fix this hardcoded path
 			},
 			do_callback => $_[SESSION]->callback( 'smokebox_callback', $p ),
+			name => $p,
 		) );
 
 		# save the smoker
@@ -502,7 +504,7 @@ sub smokeresult : State {
 	# report this to IRC
 	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module in ${duration}." );
 	foreach my $r ( @fails ) {
-		my $fail;
+		my $fail = 'UNKNOWN';
 		foreach my $failtype ( qw( idle excess term ) ) {
 			if ( exists $r->{ $failtype . '_kill' } ) {
 				$fail = $failtype;

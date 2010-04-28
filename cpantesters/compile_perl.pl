@@ -6,7 +6,7 @@ use strict; use warnings;
 # 5.8.1, 5.8.2, 5.8.3, 5.8.4, 5.8.5, 5.8.6, 5.8.7, 5.8.8, 5.8.9
 # 5.10.0, 5.10.1
 # 5.11.0, 5.11.1, 5.11.2, 5.11.3, 5.11.4, 5.11.5
-# 5.12.0-RC0, 5.12.0-RC1
+# 5.12.0
 
 # We skip 5.6.0 and 5.8.0 because they are problematic builds
 
@@ -66,6 +66,8 @@ use strict; use warnings;
 #	- What is "pager" really for in CPANPLUS config? Can we undef it?
 #	- on some systems with the possibility of different compilers, can we use them all?
 #		- i.e. OpenSolaris - Sun's cc and gcc?
+#		- <@TonyC> http://software.intel.com/en-us/articles/non-commercial-software-development/ # free icc for linux!
+#		- <@TonyC> opencc: http://developer.amd.com/cpu/open64/Pages/default.aspx # free amd 64bit compiler
 #	- make the perl tarball downloader skip local tarballs that is OK ( size comparison with ftpd? )
 #	- don't store perl tarballs in a "custom" directory - just use the CPAN/src/ directory??
 #	- URI tests always hang on my fbsd smoker - "freebsd64.0ne.us" somehow hangs it... for now I'm forcing install it on all perls
