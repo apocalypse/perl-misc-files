@@ -3,7 +3,7 @@
 use strict; use warnings;
 
 use POE;
-use POE::Component::Metabase::Relay::Server 0.06;	# Needed to fix numerous SQL bugs
+use POE::Component::Metabase::Relay::Server 0.10;	# Needed to fix numerous SQL bugs + 0.08 for no_relay
 use POE::Component::IRC::State 6.18;			# 6.18 depends on POE::Filter::IRCD 2.42 to shutup warnings about 005 numerics
 use POE::Component::IRC::Plugin::AutoJoin;
 use POE::Component::IRC::Plugin::Connector;
