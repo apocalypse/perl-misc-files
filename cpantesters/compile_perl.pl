@@ -75,6 +75,8 @@ use strict; use warnings;
 #		- maybe I need to investigate a better DNS setup for my VMs? freebsd64.smoking.0ne.us
 #		- then set my dns config for all VMs in *.smoking.0ne.us?
 #	- <@rafl> i wonder if running a smoker with parallel testing would be useful
+#		- <@Tux> I'm wondering how big a percentage of CPAN actually fails under prove --shuffle -j4
+#		- we need to do that kind of insanity!
 #	- figure out a way to have VMs running with no internet access
 #		- one VM with inet, another VM without
 #		- that way, we can stab authors who blindly assume the inet is available :)
