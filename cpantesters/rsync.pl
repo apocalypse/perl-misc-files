@@ -262,7 +262,7 @@ sub irc_botcmd_status : State {
 	if ( $do_rsync ) {
 		# Calculate the time left
 		my $nowts = time;
-		my $rsyncts = exists $_[HEAP]->{'RSYNCTS'} ? $_[HEAP]->{'RSYNCTS'} + 3600 : 0;
+		my $rsyncts = exists $_[HEAP]->{'RSYNCTS'} ? $_[HEAP]->{'RSYNCTS'} + $interval : 0;
 		my $duration;
 		if ( $rsyncts == 0 ) {
 			$duration = 'FIRST TIME';
