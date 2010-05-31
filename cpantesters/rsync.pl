@@ -205,6 +205,14 @@ sub pwr_child : State {
 sub rsyncd_upload : State {
 	my $dist = $_[ARG0];
 
+	# Skip certain uploads
+
+	# <CPAN> !smoke F/FI/FIBO/PNI-Node-Tk-0.02-withoutworldwriteables.tar.gz
+	# <CPAN> !smoke F/FI/FIBO/PNI-Node-Tk-0.02.tar.gz
+	if ( $dist =~ /withoutworldwriteables/ ) {
+		return;
+	}
+
 	# We need to make sure that CPANIDX has finished running the latest rsync
 	if ( exists $_[HEAP]->{'CPANIDXTS'} and $_[HEAP]->{'CPANIDXTS'} > $_[HEAP]->{'RSYNCTS'} ) {
 		$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "!smoke $dist" );
