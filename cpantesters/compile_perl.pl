@@ -80,6 +80,9 @@ use strict; use warnings;
 #	- figure out a way to have VMs running with no internet access
 #		- one VM with inet, another VM without
 #		- that way, we can stab authors who blindly assume the inet is available :)
+#	- look at BinGOs' excellent work in CPAN smoking
+#		- http://github.com/bingos/cpan-smoke-tools
+#		- App::Smokebrew
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
