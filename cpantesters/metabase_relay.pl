@@ -17,9 +17,10 @@ use Filesys::DfPortable;
 my $ircnick = 'relayd';
 my $ircserver = '192.168.0.200';
 my $relayd_port = 11_111;
-my $metabase_id = '/home/cpan/.metabase/id.json';
+my $metabase_id = '/home/cpan/.metabase/id.json';	# TODO why doesn't ~/.metabase work?
 my $metabase_dsn = 'dbi:SQLite:dbname=/home/cpan/CPANTesters.db';
-my $metabase_uri = 'https://metabase.cpantesters.org/beta/';
+my $metabase_uri = 'https://metabase.cpantesters.org/api/v1/';
+my $metabase_norelay = 1;
 
 POE::Session->create(
 	__PACKAGE__->inline_states(),
@@ -56,7 +57,7 @@ sub create_relay : State {
 		uri		=> $metabase_uri,
 		debug		=> 1,
 		multiple	=> 1,
-		no_relay	=> 1,
+		no_relay	=> $metabase_norelay,
 		submissions	=> 10,	# This is the default value, we set it just in case it changes upstream :)
 	);
 

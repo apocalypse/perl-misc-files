@@ -30,7 +30,8 @@ my $ircnick = 'CPAN';
 my $ircserver = '192.168.0.200';
 my $rsyncserver = 'cpan.dagolden.com::CPAN';	# Our favorite fast mirror
 my $interval = 60 * 60;				# rsync every hour
-my $do_rsync = 0;				# don't auto-rsync on startup...
+#my $interval = 60 * 60 * 24;			# or rsync every day...
+my $do_rsync = 1;				# auto-rsync on startup...
 
 POE::Session->create(
 	__PACKAGE__->inline_states(),

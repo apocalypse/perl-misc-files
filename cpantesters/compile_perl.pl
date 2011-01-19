@@ -416,7 +416,7 @@ sub do_config_systemCPANPLUS {
 ###
 ###############################################
 
-#last changed: XXXTIMEXXX
+# Last changed: XXXTIMEXXX
 
 =pod
 
@@ -942,7 +942,7 @@ sub _prompt_perlver {
 		$perls = [ sort versioncmp
 
 			# TODO this is a fragile regex
-			map { $_ =~ /perl\-([\d\.\w\-]+)\.(?:zip|tar\.(?:gz|bz2))$/; $_ = $1; }
+			map { $_ =~ /perl\-([\d\.\w\-]+)\.(?:zip|tar\.(?:gz|bz2|lzma))$/; $_ = $1; }
 			grep { /perl/ &&
 			-f File::Spec->catfile( $path, $_ ) }
 			readdir( PERLS )

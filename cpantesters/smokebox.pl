@@ -32,6 +32,7 @@ my $ircnick = hostname();
 my $ircserver = '192.168.0.200';
 my $freespace = 1024 * 1024 * 1024 * 5;	# set it to 5GB - in bytes before we auto-purge CPAN files
 my $delay = 0;				# set delay in seconds between jobs/smokers to "throttle"
+my $use_system = 0;			# use the system perl binary too?
 my $HOME = $ENV{HOME};			# home path to search for perls/etc
 if ( $^O eq 'MSWin32' ) {
 	$HOME = "C:\\cpansmoke";
@@ -40,11 +41,7 @@ if ( $^O eq 'MSWin32' ) {
 # Set our system info
 my %VMs = (
 	# hostname => full text
-	'ubuntu-server64'	=> 'Ubuntu 9.10 server 64bit (192.168.0.202)',
-	'freebsd64.0ne.us'	=> 'FreeBSD 7.2-RELEASE amd64 (192.168.0.203)',
-	'netbsd64'		=> 'NetBSD 5.0.1 amd64 (192.168.0.205)',
-	'opensolaris64'		=> 'OpenSolaris 2009.6 amd64 (192.168.0.207)',
-	'satellite'		=> 'Windows XP 32bit',	# TODO blah, get a real VM! :)
+	'ubuntu32'		=> 'Ubuntu 10.10 server 32bit (192.168.0.201)',
 );
 
 POE::Session->create(
@@ -59,7 +56,7 @@ sub _start : State {
 
 	# Always enable SmokeBox debugging so we can dump output to a log
 	$ENV{PERL5_SMOKEBOX_DEBUG} = 1;
-	my $logfile = 'smokebox.log.' . time();
+	my $logfile = 'smokebox.log';
 	open( my $logfh, '>', $logfile ) or die "Unable to open '$logfile': $!";
 	$SIG{'__WARN__'} = sub {
 		my $l = $_[0];
@@ -84,7 +81,7 @@ sub create_smokebox : State {
 
 	# Add system perl...
 	# TODO, we can actually smoke bootperl, eh?
-	if ( $^O ne 'MSWin32' ) {
+	if ( $use_system and $^O ne 'MSWin32' ) {
 		# Configuration successfully saved to CPANPLUS::Config::User
 		#    (/home/apoc/.cpanplus/lib/CPANPLUS/Config/User.pm)
 		my $perl = $^X; chomp $perl;
@@ -512,7 +509,7 @@ sub smokeresult : State {
 			}
 		}
 
-		$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "FAIL $module reason:$fail exit:" . $r->{'status'} );
+		$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "FAIL $module perl:$r->{'perl'} reason:$fail" );
 	}
 
 	return;

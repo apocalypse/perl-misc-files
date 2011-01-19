@@ -122,6 +122,7 @@ To setup ubuntu 9.10 as smoking host:
 			3. sudo vi /etc/pam.d/su && sudo groupadd wheel && sudo usermod -a -G wheel apoc
 			3. sudo apt-get update && sudo apt-get upgrade
 			3. sudo apt-get install build-essential ssh nano wget ftp ntp libssl-dev unzip
+				3.0 TODO ?? I saw it didn't include flex/bison/autotool/etc in 10.10 server??
 			4. sudo nano /etc/network/interfaces # to set static IP
 				iface eth0 inet static
 					address 192.168.0.200
@@ -357,7 +358,7 @@ To setup ubuntu 9.10 as smoking host:
 
 
 	Once OS is installed:
-		- "sudo" cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased Filesys::DfPortable File::Path::Tiny Number::Bytes::Human File::Which Term::Title Archive::Tar Archive::Zip Archive::Extract Shell::Command
+		- "sudo" cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased Filesys::DfPortable File::Path::Tiny Number::Bytes::Human File::Which Term::Title Archive::Tar Archive::Zip Archive::Extract Shell::Command File::Find::Rule
 		- copy compile_perl.pl # into the $PATH - $ENV{HOME} for unixy systems, C:\cpansmoke for mswin32
 		- chmod +x compile_perl.pl && perl -c compile_perl.pl
 		- start compiling perls!

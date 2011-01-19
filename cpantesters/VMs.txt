@@ -9,3 +9,29 @@ my $host_aliases = {
 	'192.168.0.208'	=> 'OpenSolaris 2009.06 x86',
 	'192.168.0.209' => 'Windows XP x86',
 };
+
+# wishlist
+ci: continuous integration - loop over entire CPAN
+rls: follow the PAUSE release feed and smoke releases as they come
+t[X]: how often to run this VM
+n[X]: expected total number of VMs
+by default the VM runs ubuntu unless otherwise noted
+
+- ci VM with internet disabled t[whatever]
+- ci VM with 2 processors t[whatever]
+- ci VM with full system count of processors t[whatever]
+- ci VM with crazy low RAM allocation per OS t[whatever]
+- ci VM with full perl matrix compiled per OS ( 64/32bit ) ( all 1k+ whatever versions hah ) t[whatever]
+- rls VM with a select few perl versions to keep it fast t[always] n[ubuntuDesktop/WinXP]
+- ci VM per OS ( 64/32bit ) t[always] n[20]
+- ci VM with many compilers installed ( gcc 4/3/2, icc, whatever ) t[whatever]
+- ci VM with shuffle/parallel testing t[whatever]
+- ci VM for perl test suite smoking t[always] n[ubuntuServer/WinXP/OpenBSD/OpenSolaris]
+
+# OS list
+
+- ubuntu ( latest server/desktop[ for the gui ] )
+- gentoo ( latest server )
+- all windows I can get
+- free/open/net BSD
+- solaris
