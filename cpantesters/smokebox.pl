@@ -213,8 +213,8 @@ sub check_perls : State {
 		$_[HEAP]->{'PERLS'}->{ $p } = 1;
 	}
 
-	# Every hour we re-check the perls so we can add new ones
-	$_[KERNEL]->delay_add( 'check_perls' => 60 * 60 );
+	# Every 12 hours we re-check the perls so we can add new ones
+	$_[KERNEL]->delay_add( 'check_perls' => 60 * 60 * 12 );
 
 	return;
 }
@@ -299,9 +299,9 @@ sub _stop : State {
 # gets the perls
 sub getPerlVersions {
 	# look for ready perls only
-	opendir( PERLS, File::Spec->catdir( $HOME, 'perls' ) ) or die "Unable to opendir: $!";
-	my @perls = grep { /perl\_[\d\.\w\-]+\_/ && -d File::Spec->catdir( $HOME, 'perls', $_ ) && -e File::Spec->catfile( $HOME, 'perls', $_, 'ready.smoke' ) } readdir( PERLS );
-	closedir( PERLS ) or die "Unable to closedir: $!";
+	opendir( my $p, File::Spec->catdir( $HOME, 'perls' ) ) or die "Unable to opendir: $!";
+	my @perls = grep { /perl\_[\d\.\w\-]+\_/ && -d File::Spec->catdir( $HOME, 'perls', $_ ) && -e File::Spec->catfile( $HOME, 'perls', $_, 'ready.smoke' ) } readdir( $p );
+	closedir( $p ) or die "Unable to closedir: $!";
 
 	return \@perls;
 }
@@ -354,8 +354,9 @@ sub irc_botcmd_uname : State {
 	my $nick = (split '!', $_[ARG0])[0];
 	my ($where, $arg) = @_[ARG1, ARG2];
 
-	# TODO lousy hack here
-	my $uname = `uname -a`;
+	# Load the config info
+	require Config;
+	my $uname = $Config::Config{myuname};
 	chomp( $uname );
 
 	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Uname: $uname" );
@@ -463,7 +464,7 @@ sub irc_botcmd_smoke : State {
 			type => 'CPANPLUS::YACSmoke',
 			delay => $delay,
 
-			# Don't store the output anywhere, it gets huge!
+			# Don't store the output anywhere, it may get huge!
 			no_log => 1,
 
 			# disable use of String::Perl::Warnings which sometimes blows up perl - rt.perl.org #74484
@@ -532,8 +533,8 @@ sub check_free_space : State {
 			# Cleanup the system perl if needed
 			my $dir = File::Spec->catdir( $HOME, '.cpanplus' );
 			if ( -d $dir ) {
-				opendir( DIR, $dir ) or die "Unable to opendir ($dir): $!";
-				foreach my $d ( readdir( DIR ) ) {
+				opendir( my $cpanp, $dir ) or die "Unable to opendir ($dir): $!";
+				foreach my $d ( readdir( $cpanp ) ) {
 					# downloaded tarballs
 					# cpan@ubuntu-server64:~$ rm -rf /home/cpan/.cpanplus/authors/*
 					if ( $d eq 'authors' ) {
@@ -558,13 +559,13 @@ sub check_free_space : State {
 						}
 					}
 				}
-				closedir( DIR ) or die "Unable to closedir ($dir): $!";
+				closedir( $cpanp ) or die "Unable to closedir ($dir): $!";
 			}
 
 			# wipe out each perl version
 			$dir = File::Spec->catdir( $HOME, 'cpanp_conf' );
-			opendir( DIR, $dir ) or die "Unable to opendir ($dir): $!";
-			foreach my $d ( readdir( DIR ) ) {
+			opendir( my $cpanp, $dir ) or die "Unable to opendir ($dir): $!";
+			foreach my $d ( readdir( $cpanp ) ) {
 				if ( $d =~ /perl\_([\d\.\w\-]+)\_/ ) {
 					$d = File::Spec->catdir( $dir, $d, '.cpanplus' );
 					my $build = File::Spec->catdir( $d, $1 );
@@ -583,8 +584,8 @@ sub check_free_space : State {
 					}
 
 					# Since we are using CPANIDX, we can make sure any index files disappear :)
-					opendir( IDXFILES, $d ) or die "Unable to opendir ($d): $!";
-					foreach my $idx ( readdir( IDXFILES ) ) {
+					opendir( my $p, $d ) or die "Unable to opendir ($d): $!";
+					foreach my $idx ( readdir( $p ) ) {
 						if ( $idx =~ /^(01mailrc|02packages|03modlist|sourcefiles)/ ) {
 							my $file = File::Spec->catfile( $d, $idx );
 							if ( -f $file ) {
@@ -592,10 +593,10 @@ sub check_free_space : State {
 							}
 						}
 					}
-					closedir( IDXFILES ) or die "Unable to closedir ($d): $!";
+					closedir( $p ) or die "Unable to closedir ($d): $!";
 				}
 			}
-			closedir( DIR ) or die "Unable to closedir ($dir): $!";
+			closedir( $cpanp ) or die "Unable to closedir ($dir): $!";
 		}
 	} else {
 		warn "Unable to get DF from filesystem!";
@@ -664,8 +665,8 @@ sub async_del_do : State {
 				return;
 			}
 		} else {
-			opendir( DIR, $dir->[1] ) or die "Unable to opendir($dir->[1]): $!";
-			while ( my $f = readdir( DIR ) ) {
+			opendir( my $p, $dir->[1] ) or die "Unable to opendir($dir->[1]): $!";
+			while ( my $f = readdir( $p ) ) {
 				next if $f eq '.' or $f eq '..';
 				$f = File::Spec->catfile( $dir->[1], $f );
 				if ( -d $f and ! -l $f ) {
@@ -674,7 +675,7 @@ sub async_del_do : State {
 					unshift( @{ $req->{files} }, $f );
 				}
 			}
-			closedir( DIR ) or die "Unable to closedir($dir->[1]): $!";
+			closedir( $p ) or die "Unable to closedir($dir->[1]): $!";
 			$dir->[0] = 1; # we are done processing this dir
 
 			$_[KERNEL]->yield( 'async_del_do' );
