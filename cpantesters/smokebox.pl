@@ -619,6 +619,7 @@ sub wipe_done : State {
 	return;
 }
 
+# TODO this should be factored out into a PoCo! ( PoCo::AsyncFileManager or something )
 sub async_del : State {
 	my $arg = $_[ARG0];
 
