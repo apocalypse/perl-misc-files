@@ -54,18 +54,26 @@ exit 0;
 sub _start : State {
 	$_[KERNEL]->alias_set( 'smoker' );
 
-	# Always enable SmokeBox debugging so we can dump output to a log
-	$ENV{PERL5_SMOKEBOX_DEBUG} = 1;
-	my $logfile = 'smokebox.log';
-	open( my $logfh, '>', $logfile ) or die "Unable to open '$logfile': $!";
-	$SIG{'__WARN__'} = sub {
-		my $l = $_[0];
-		$l =~ s/(?:\r|\n)+$//;	# Needed so we get consistent newline output on MSWin32
-		print STDOUT $l, "\n";
-		print $logfh $l, "\n";
-	};
+	# TODO how to limit log size/rotation/etc?
+#	# Always enable SmokeBox debugging so we can dump output to a log
+#	$ENV{PERL5_SMOKEBOX_DEBUG} = 1;
+#	my $logfile = 'smokebox.log';
+#	open( my $logfh, '>', $logfile ) or die "Unable to open '$logfile': $!";
+#	$SIG{'__WARN__'} = sub {
+#		my $l = $_[0];
+#		$l =~ s/(?:\r|\n)+$//;	# Needed so we get consistent newline output on MSWin32
+#		print STDOUT $l, "\n";
+#		print $logfh $l, "\n";
+#	};
 
 	$_[HEAP]->{'PERLS'} = {};
+
+	# Make sure tmp dir is empty
+	my $dir = File::Spec->catdir( $HOME, 'tmp' );
+	if ( -d $dir ) {
+		File::Path::Tiny::rm( $dir ) or die "Unable to rmdir ($dir): $!";
+		mkdir( $dir ) or die "Unable to mkdir ($dir): $!";
+	}
 
 	# setup our stuff
 	$_[KERNEL]->yield( 'create_smokebox' );
@@ -112,13 +120,9 @@ sub create_smokebox : State {
 sub smokebox_callback : State {
 	my( $myarg, $smokearg ) = @_[ARG0, ARG1];
 
-	# Check tmp dir for droppings - thanks to BinGOs for the idea!
 	if ( $smokearg->[0] eq 'AFTER' ) {
 		# We need to check disk space for sanity
 		$_[KERNEL]->call( $_[SESSION], 'check_free_space' );
-
-		# TODO do this!
-		#$_[KERNEL]->call( $_[SESSION], 'check_tmp_dir', $myarg, $smokearg );
 	}
 
 	# Do special actions for win32
@@ -326,8 +330,7 @@ sub irc_botcmd_time : State {
 	my ($where, $arg) = @_[ARG1, ARG2];
 
 	my $time = time;
-
-	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Time: $time" );
+	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Time: $time (" . localtime($time) . ")" );
 
 	return;
 }
@@ -393,14 +396,8 @@ sub irc_botcmd_status : State {
 		}
 
 		# Add smokers info
-		# TODO fix wrong calculation bug...
-		# <netbsd64> Number of jobs in the queue: 0. Current job: smoke Pod::Simple, still working after 7 minutes and 56 seconds, running(/home/cpan/perls/perl-5.8.2-default/bin/perl), with 15/19 perls done.
-		# <netbsd64> Number of jobs in the queue: 0. Current job: smoke Pod::Simple, still working after 9 minutes and 50 seconds, running(/home/cpan/perls/perl-5.6.1-default/bin/perl), with 18/20 perls done.
 		my $smokedone = scalar @{ $currjob->{'result'} };
 		my $smokeleft = scalar @{ $currjob->{'smokers'} };
-		if ( $smokeleft == 0 ) {
-			$smokeleft = 1;
-		}
 		if ( defined $currjob->{'backend'} ) {
 			$smokeleft++;
 		}
@@ -464,18 +461,20 @@ sub irc_botcmd_smoke : State {
 			command => 'smoke',
 			module => $arg,
 			type => 'CPANPLUS::YACSmoke',
-			no_log => 1,
 			delay => $delay,
 
-			# disable use of String::Perl::Warnings which sometimes blows up rt.perl.org #74484
+			# Don't store the output anywhere, it gets huge!
+			no_log => 1,
+
+			# disable use of String::Perl::Warnings which sometimes blows up perl - rt.perl.org #74484
 			check_warnings => 0,
 		),
 	);
 
-	# hack: ignore the CPAN bot!
-	if ( $nick ne 'CPAN' ) {
-		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Added $arg to the job queue." );
-	}
+#	# hack: ignore the CPAN bot!
+#	if ( $nick ne 'CPAN' ) {
+#		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Added $arg to the job queue." );
+#	}
 
 	return;
 }
@@ -499,7 +498,6 @@ sub smokeresult : State {
 	my $duration = duration_exact( $endtime - $starttime );
 
 	# report this to IRC
-	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module in ${duration}." );
 	foreach my $r ( @fails ) {
 		my $fail = 'UNKNOWN';
 		foreach my $failtype ( qw( idle excess term ) ) {
@@ -509,88 +507,216 @@ sub smokeresult : State {
 			}
 		}
 
-		$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "FAIL $module perl:$r->{'perl'} reason:$fail" );
+		$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "FAIL $module on $r->{'perl'} reason:$fail" );
 	}
+
+#	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module in ${duration}." );
 
 	return;
 }
 
 sub check_free_space : State {
-	my $do_purge = $_[ARG0];
+	# Since sometimes it takes forever to wipe, we need to do it asynchronously!
+	my @wipe_dirs;
+	my @wipe_files;
 
-	# TODO this is a ugly hack, until we get proper callbacks from SmokeBox
-
-#	<Apocalypse> I need some serious CPANPLUS smarts - in my CPAN smoker script I wipe the crud ( build dirs, downloaded tarballs, etc ) when free space is less than X, but I got my logic wrong
-#	<Apocalypse> What I do is basically rm -rf those directories under the .cpanplus root: authors/*, $perlver/build/*
-#	<Apocalypse> But what I managed to do was to totally hose the perl install and ended up sending gazillions of FAIL to cpantesters :(
-#	<Apocalypse> How do I sanely clean up everything in the cpanplus dir?
-#	<Apocalypse> Hmm, maybe I should just use CPANPLUS::YACSmoke's "flush" thingie
-#	<kane> Apocalypse: after you whipe that, you need to rebuild the indexes i suppose
-#	<@kane> 'x' from the default shell or the equivalent method in cpanplus::backend
-#	<Apocalypse> kane: Ah that's the part I didn't do - I just wiped the dirs then proceeded to smoke the next dist
-#	<Apocalypse> I didn't realize the indexes included info about built dists
-#	<kane> Apocalypse: they don't, but you also threw away the parsed version of the index cpanplus uses internally
-#	<@kane> depending on what you have and haven't loaded by then, Weird Stuff(tm) may happen
-#	<Apocalypse> Makes sense :)
-#	<Apocalypse> What happened to me was this - http://www.nntp.perl.org/group/perl.cpan.testers/2010/01/msg6675283.html
-#	<+dipsy> [ FAIL File-BOM-0.14 i86pc-solaris 2.11 - nntp.perl.org ]
-#	<Apocalypse> Lots of modules thought their deps were "installed" but I actually wiped them out...
-#	<Apocalypse> I'll re-create this situation and see if rebuilding the indexes fixed it
-#	<Apocalypse> Thanks again kane!
-
-	# TODO Hmm, now that I'm using CPANIDX do we need to do anything "special" for it?
+	return if exists $_[HEAP]->{'ASYNC_DEL'};
 
 	my $df = dfportable( $HOME );
 	if ( defined $df ) {
 		# Do we need to wipe?
-		if ( $df->{'bavail'} < $freespace or $do_purge ) {
-			# TODO need to implement proper callbacks in poco-smokebox so we can force an index if this happens
-			$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Apocalypse: Disk space getting low!" );
-			exit;
+		if ( $df->{'bavail'} < $freespace ) {
+			# inform the irc netizens :)
+			$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "WARNING: Disk space getting low, executing purge!" );
 
-			# cpan@ubuntu-server64:~$ rm -rf /home/cpan/.cpanplus/authors/*						# downloaded tarballs
-			my $dir = File::Spec->catdir( $HOME, '.cpanplus', 'authors' );
+			# Cleanup the system perl if needed
+			my $dir = File::Spec->catdir( $HOME, '.cpanplus' );
 			if ( -d $dir ) {
-				File::Path::Tiny::rm( $dir ) or die "Unable to rmdir ($dir): $!";
-			}
+				opendir( DIR, $dir ) or die "Unable to opendir ($dir): $!";
+				foreach my $d ( readdir( DIR ) ) {
+					# downloaded tarballs
+					# cpan@ubuntu-server64:~$ rm -rf /home/cpan/.cpanplus/authors/*
+					if ( $d eq 'authors' ) {
+						$d = File::Spec->catdir( $dir, $d );
+						if ( -d $d ) {
+							push( @wipe_dirs, $d );
+						}
 
-			# cpan@ubuntu-server64:~$ rm -rf /home/cpan/.cpanplus/5.8.9/build/*					# extracted builds
-			$dir = File::Spec->catdir( $HOME, '.cpanplus' );
-			opendir( DIR, $dir ) or die "Unable to opendir ($dir): $!";
-			foreach my $d ( readdir( DIR ) ) {
-				if ( $d =~ /^[\d\.]+$/ ) {
-					$d = File::Spec->catdir( $dir, $d );
-					if ( -d $d ) {
-						File::Path::Tiny::rm( $d ) or die "Unable to rmdir ($d): $!";
+					# extracted builds
+					# cpan@ubuntu-server64:~$ rm -rf /home/cpan/.cpanplus/5.8.9/*
+					} elsif ( $d =~ /^[\d\.]+$/ ) {
+						$d = File::Spec->catdir( $dir, $d );
+						if ( -d $d ) {
+							push( @wipe_dirs, $d );
+						}
+
+					# Since we are using CPANIDX, we can make sure any index files disappear :)
+					} elsif ( $d =~ /^(01mailrc|02packages|03modlist|sourcefiles)/ ) {
+						$d = File::Spec->catfile( $dir, $d );
+						if ( -f $d ) {
+							push( @wipe_files, $d );
+						}
 					}
 				}
+				closedir( DIR ) or die "Unable to closedir ($dir): $!";
 			}
-			closedir( DIR ) or die "Unable to closedir ($dir): $!";
 
-			# cpan@ubuntu-server64:~$ rm -rf /home/cpan/cpanp_conf/perl-5.10.0-default/.cpanplus/5.10.0/build/*	# extracted builds
+			# wipe out each perl version
 			$dir = File::Spec->catdir( $HOME, 'cpanp_conf' );
 			opendir( DIR, $dir ) or die "Unable to opendir ($dir): $!";
 			foreach my $d ( readdir( DIR ) ) {
 				if ( $d =~ /perl\_([\d\.\w\-]+)\_/ ) {
-					$d = File::Spec->catdir( $dir, $d, '.cpanplus', $1 );
-					if ( -d $d ) {
-						File::Path::Tiny::rm( $d ) or die "Unable to rmdir ($d): $!";
+					$d = File::Spec->catdir( $dir, $d, '.cpanplus' );
+					my $build = File::Spec->catdir( $d, $1 );
+					my $authors = File::Spec->catdir( $d, 'authors' );
+
+					# downloaded tarballs
+					# cpan@ubuntu-server64:~$ rm -rf /home/cpan/cpanp_conf/perl-5.10.0-default/.cpanplus/authors/*
+					if ( -d $authors ) {
+						push( @wipe_dirs, $authors );
 					}
+
+					# extracted tarballs
+					# cpan@ubuntu-server64:~$ rm -rf /home/cpan/cpanp_conf/perl-5.10.0-default/.cpanplus/5.10.0/*
+					if ( -d $build ) {
+						push( @wipe_dirs, $build );
+					}
+
+					# Since we are using CPANIDX, we can make sure any index files disappear :)
+					opendir( IDXFILES, $d ) or die "Unable to opendir ($d): $!";
+					foreach my $idx ( readdir( IDXFILES ) ) {
+						if ( $idx =~ /^(01mailrc|02packages|03modlist|sourcefiles)/ ) {
+							my $file = File::Spec->catfile( $d, $idx );
+							if ( -f $file ) {
+								push( @wipe_files, $file );
+							}
+						}
+					}
+					closedir( IDXFILES ) or die "Unable to closedir ($d): $!";
 				}
 			}
 			closedir( DIR ) or die "Unable to closedir ($dir): $!";
-
-			# cpan@ubuntu-server64:~$ rm -rf /home/cpan/tmp/*							# temporary space for builds
-			$dir = File::Spec->catdir( $HOME, 'tmp' );
-			File::Path::Tiny::rm( $dir ) or die "Unable to rmdir ($dir): $!";
-			mkdir( $dir ) or die "Unable to mkdir ($dir): $!";
 		}
 	} else {
 		warn "Unable to get DF from filesystem!";
 	}
 
+	# async delete need us to do some magic!
+	if ( @wipe_dirs or @wipe_files ) {
+		# tell smokebox to pause itself
+		[ $_[HEAP]->{'SMOKEBOX'}->queues ]->[0]->pause_queue_now;
+
+		$_[KERNEL]->yield( 'async_del' => { 'dirs' => \@wipe_dirs, 'files' => \@wipe_files, 'cb' => 'wipe_done' } );
+	}
+
 	return;
 }
+
+sub wipe_done : State {
+	# tell smokebox to resume
+	[ $_[HEAP]->{'SMOKEBOX'}->queues ]->[0]->resume_queue;
+
+	return;
+}
+
+sub async_del : State {
+	my $arg = $_[ARG0];
+
+	# Silently convert dirs to our format
+	$arg->{dirs} = [ map { [ 0, $_ ] } @{ $arg->{dirs} } ] if exists $arg->{dirs};
+
+	if ( exists $_[HEAP]->{'ASYNC_DEL'} ) {
+		push( @{ $_[HEAP]->{'ASYNC_DEL'} }, $arg );
+	} else {
+		$_[HEAP]->{'ASYNC_DEL'} = [ $arg ];
+
+		# okay, go ahead and delete!
+		$_[KERNEL]->yield( 'async_del_do' );
+	}
+
+	return;
+}
+
+sub async_del_do : State {
+	my $req = $_[HEAP]->{'ASYNC_DEL'}->[0];
+
+	# We process the files first
+	if ( scalar @{ $req->{files} } ) {
+		my $f = shift @{ $req->{files} };
+		unlink( $f ) or die "Unable to unlink($f): $!";
+		$_[KERNEL]->yield( 'async_del_do' );
+		return;
+	}
+
+	# Okay, we clean up the dirs next
+	# Code partially inspired from File::Path::Tiny
+	if ( scalar @{ $req->{dirs} } ) {
+		# process the first directory in it
+		my $dir = $req->{dirs}->[0];
+
+		# have we processed this dir yet?
+		if ( $dir->[0] ) {
+			rmdir( $dir->[1] ) or die "Unable to rmdir($dir->[1]): $!";
+			shift @{ $req->{dirs} };
+			if ( scalar @{ $req->{dirs} } ) {
+				$_[KERNEL]->yield( 'async_del_do' );
+				return;
+			}
+		} else {
+			opendir( DIR, $dir->[1] ) or die "Unable to opendir($dir->[1]): $!";
+			while ( my $f = readdir( DIR ) ) {
+				next if $f eq '.' or $f eq '..';
+				$f = File::Spec->catfile( $dir->[1], $f );
+				if ( -d $f and ! -l $f ) {
+					unshift( @{ $req->{dirs} }, [ 0, $f ] );
+				} else {
+					unshift( @{ $req->{files} }, $f );
+				}
+			}
+			closedir( DIR ) or die "Unable to closedir($dir->[1]): $!";
+			$dir->[0] = 1; # we are done processing this dir
+
+			$_[KERNEL]->yield( 'async_del_do' );
+			return;
+		}
+	}
+
+	# Wow, we finally finished a request!
+	$_[KERNEL]->yield( $req->{cb} );
+	shift @{ $_[HEAP]->{'ASYNC_DEL'} };
+	if ( scalar @{ $_[HEAP]->{'ASYNC_DEL'} } ) {
+		$_[KERNEL]->yield( 'async_del_do' );
+	} else {
+		delete $_[HEAP]->{'ASYNC_DEL'};
+	}
+
+	return;
+}
+
+# TODO need to move this logic into CPANPLUS itself so I can pinpoint which dependency caused it...
+#sub check_tmp_dir : State {
+#	my( $myarg, $smokearg ) = @_[ARG0, ARG1];
+#	my $perlver = $myarg->[0];
+#	my $module = $smokearg->[2]->{module};
+#	my $dir = File::Spec->catdir( $HOME, 'tmp' );
+#
+#	if ( -d $dir ) {
+#		# check the dir for droppings - thanks BinGOs for the idea!
+#		opendir( TMPDIR, $dir ) or die "Unable to opendir($dir): $!";
+#		my @files = readdir( TMPDIR );
+#		closedir( TMPDIR ) or die "Unable to closedir($dir): $!";
+#		if ( scalar @files > 2 ) {
+#			$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "DROPPINGS detected in tmpdir, courtesy of $module on $perlver" );
+#		}
+#
+#		# temporary space for builds
+#		# cpan@ubuntu-server64:~$ rm -rf /home/cpan/tmp/*
+#		File::Path::Tiny::rm( $dir ) or die "Unable to rmdir ($dir): $!";
+#		mkdir( $dir ) or die "Unable to mkdir ($dir): $!";
+#	}
+#
+#	return;
+#}
 
 sub irc_botcmd_perls : State {
 	my $nick = (split '!', $_[ARG0])[0];
