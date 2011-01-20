@@ -355,8 +355,8 @@ sub irc_botcmd_uname : State {
 	my ($where, $arg) = @_[ARG1, ARG2];
 
 	# Load the config info
-	require Config;
-	my $uname = $Config::Config{myuname};
+	require POSIX;
+	my $uname = join( ' ', POSIX::uname() );
 	chomp( $uname );
 
 	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Uname: $uname" );
