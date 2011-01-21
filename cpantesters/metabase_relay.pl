@@ -118,8 +118,7 @@ sub irc_botcmd_time : State {
 	my ($where, $arg) = @_[ARG1, ARG2];
 
 	my $time = time;
-
-	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Time: $time" );
+	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Time: $time (" . localtime($time) . ")" );
 
 	return;
 }
@@ -143,8 +142,9 @@ sub irc_botcmd_uname : State {
 	my $nick = (split '!', $_[ARG0])[0];
 	my ($where, $arg) = @_[ARG1, ARG2];
 
-	# TODO lousy hack here
-	my $uname = `uname -a`;
+	# Load the config info
+	require POSIX;
+	my $uname = join( ' ', POSIX::uname() );
 	chomp( $uname );
 
 	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Uname: $uname" );
