@@ -413,7 +413,7 @@ sub irc_botcmd_status : State {
 	}
 
 	my $status = $queue->queue_paused ? 'DISABLED' : 'ENABLED';
-	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "SMOKING $status: Smoking block(" . $_[HEAP]->{BLOCK} . ") Number of jobs in the queue: ${numjobs}." . ( defined $currjob ? " Current job: $currjob" : '' ) );
+	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "CI $status: Smoking block(" . $_[HEAP]->{BLOCK} . ") Number of jobs in the queue: ${numjobs}." . ( defined $currjob ? " Current job: $currjob" : '' ) );
 
 	return;
 }
