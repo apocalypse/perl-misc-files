@@ -290,21 +290,21 @@ sub ci_start : State {
 	# Do we have a record?
 	my $res = {};
 	if ( scalar @results ) {
-		if ( ! $results[0]->{done} ) {
+		if ( ! $results[0]->{'done'} ) {
 			# Bad news, client requested a new block before completing the previous one!
 			$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "WARNING: Bot( $hostname ) is malformed, requested a new block without completing the old one!" );
 		}
 
 		# Move on to the next block
-		$res->{block} = $results[0]->{block} + 1;
-		if ( ! defined block2char( $res->{block} ) ) {
+		$res->{'block'} = $results[0]->{'block'} + 1;
+		if ( ! defined block2char( $res->{'block'} ) ) {
 			# finished the entire block list, start over
-			$res->{block} = 0;
-			$res->{finished} = 1;
+			$res->{'block'} = 0;
+			$res->{'finished'} = 1;
 		}
 		$sql = 'UPDATE ci SET block = ?, done = 0 WHERE hostname = ?';
-		$sth = $_[HEAP]->{dbh}->prepare_cached( $sql ) or die $DBI::errstr, "\n";
-		my $rv = $sth->execute( $res->{block}, $hostname ) or die "Unable to update DB block status => " . $sth->errstr;
+		$sth = $_[HEAP]->{'DBH'}->prepare_cached( $sql ) or die $DBI::errstr, "\n";
+		my $rv = $sth->execute( $res->{'block'}, $hostname ) or die "Unable to update DB block status => " . $sth->errstr;
 		if ( $rv != 1 ) {
 			die "Failed to update DB status for $hostname";
 		}
@@ -312,13 +312,13 @@ sub ci_start : State {
 		# Completely new smoker, start at the beginning!
 		$res->{block} = 0;
 		$sql = 'INSERT INTO ci ( block, done, hostname ) VALUES ( ?, 0, ? )';
-		$sth = $_[HEAP]->{dbh}->prepare_cached( $sql ) or die $DBI::errstr, "\n";
-		$sth->execute( $res->{block}, $hostname ) or die "Unable to insert DB status => " . $sth->errstr;
+		$sth = $_[HEAP]->{'DBH'}->prepare_cached( $sql ) or die $DBI::errstr, "\n";
+		$sth->execute( $res->{'block'}, $hostname ) or die "Unable to insert DB status => " . $sth->errstr;
 	}
 
 	# search for the block's data!
 	POE::Component::SmokeBox::Dists->distro(
-		'search'	=> build_regex( $res->{block} ),
+		'search'	=> build_regex( $res->{'block'} ),
 		'event'		=> 'search_results',
 		'url'		=> "ftp://$ircserver/CPAN/",	# TODO this is hardcoded...
 		'_response'	=> $response,
@@ -331,14 +331,14 @@ sub ci_start : State {
 sub search_results : State {
 	my $ref = $_[ARG0];
 
-	die $ref->{error} if $ref->{error};
+	die $ref->{'error'} if $ref->{'error'};
 
 	# Finalize the result!
 	my $result = {
-		block => $ref->{_data}->{block},
-		block2char => block2char( $ref->{_data}->{block} ),
-		dists => $ref->{dists},
-		( exists $ref->{_data}->{finished} ? ( 'purge' => 1 ) : () ),
+		block => $ref->{'_data'}->{'block'},
+		block2char => uc( block2char( $ref->{'_data'}->{'block'} ) ),
+		dists => $ref->{'dists'},
+		( exists $ref->{'_data'}->{'finished'} ? ( 'purge' => 1 ) : () ),
 	};
 
 	# encode it in the basic yaml format
@@ -346,12 +346,12 @@ sub search_results : State {
 	eval { $string = YAML::Tiny::Dump( $result ); };
 
 	# Do our stuff to HTTP::Response
-	$ref->{_response}->header( 'Content-Type' => 'application/x-yaml; charset=utf-8' );
-	$ref->{_response}->code( 200 );
-	$ref->{_response}->content( $string );
+	$ref->{'_response'}->header( 'Content-Type' => 'application/x-yaml; charset=utf-8' );
+	$ref->{'_response'}->code( 200 );
+	$ref->{'_response'}->content( $string );
 
 	# We are done!
-	$_[KERNEL]->post( 'HTTPD', 'DONE', $ref->{_response} );
+	$_[KERNEL]->post( 'HTTPD', 'DONE', $ref->{'_response'} );
 	return;
 }
 
