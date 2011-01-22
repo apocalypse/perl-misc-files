@@ -8,14 +8,13 @@ use strict; use warnings;
 
 use POE;
 use POE::Component::Server::SimpleHTTP;
-use POE::Component::SmokeBox::Dists 1.02;		# include the pkg_time param
+use POE::Component::SmokeBox::Dists 1.02;	# include the pkg_time param
 use POE::Component::IRC::State 6.18;		# 6.18 depends on POE::Filter::IRCD 2.42 to shutup warnings about 005 numerics
 use POE::Component::IRC::Plugin::AutoJoin;
 use POE::Component::IRC::Plugin::Connector;
 use POE::Component::IRC::Plugin::BotCommand;
 use base 'POE::Session::AttributeBased';
 
-use Time::Duration qw( duration_exact );
 use DBI;
 use YAML::Tiny;
 
@@ -51,7 +50,7 @@ sub _start : State {
 sub create_db : State {
 	# connect to the db
 	my $dbh = DBI->connect( $dsn, $user, $pass ) or die $DBI::errstr, "\n";
-	$_[HEAP]->{dbh} = $dbh;
+	$_[HEAP]->{'DBH'} = $dbh;
 
 	# Set some sqlite optimizations
 	if ( $dsn =~ /^dbi\:SQLite/i ) {
@@ -59,7 +58,7 @@ sub create_db : State {
 	}
 
 	# Do we have our table created yet?
-	my $sql = 'CREATE TABLE IF NOT EXISTS ci ( hostname TEXT, ts INTEGER, done INTEGER, block INTEGER, UNIQUE(hostname) )';
+	my $sql = 'CREATE TABLE IF NOT EXISTS ci ( hostname TEXT, done INTEGER, block INTEGER, UNIQUE(hostname) )';
 	$dbh->do( $sql ) or die $dbh->errstr;
 
 	return;
@@ -183,15 +182,15 @@ sub irc_botcmd_status : State {
 
 	# Get the number of smokers
 	my @results;
-	my $sql = 'SELECT hostname, ts, block, done FROM ci';
-	my $sth = $_[HEAP]->{dbh}->prepare_cached( $sql ) or die $DBI::errstr, "\n";
+	my $sql = 'SELECT hostname FROM ci';
+	my $sth = $_[HEAP]->{'DBH'}->prepare_cached( $sql ) or die $DBI::errstr, "\n";
 	$sth->execute();
 	while ( my $row = $sth->fetchrow_hashref() ) {
 		push @results, { %{ $row } };
 	}
 
 	# TODO expose more data?
-	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "CI Server ONLINE - bots configured( " . scalar @results . " )" );
+	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "CI Server ONLINE - bots running: " . scalar @results );
 
 	return;
 }
@@ -199,56 +198,64 @@ sub irc_botcmd_status : State {
 sub ci_done : State {
 	# ARG0 = HTTP::Request object, ARG1 = HTTP::Response object, ARG2 = the DIR that matched
 	my( $request, $response, $dirmatch ) = @_[ ARG0 .. ARG2 ];
-	my( undef, undef, $hostname, $block ) = grep { $_ } split m#/#, $request->uri->path;
+	my( $hostname, $block, $duration ) = ( split m#/#, $request->uri->path )[3 .. 5];
 
-	my $done_ts = time;
+#	warn "New DONE req: " . $request->uri->path;
 
 	# Verify this user
 	my @results;
-	my $sql = 'SELECT ts, done, block FROM ci WHERE hostname = ?';
-	my $sth = $_[HEAP]->{dbh}->prepare_cached( $sql ) or die $DBI::errstr, "\n";
-	$sth->execute( $hostname );
+	my $sql = 'SELECT done, block FROM ci WHERE hostname = ?';
+	my $sth = $_[HEAP]->{'DBH'}->prepare_cached( $sql ) or die $DBI::errstr, "\n";
+	$sth->execute( $hostname ) or die "Unable to get DB done data => " . $sth->errstr;
 	while ( my $row = $sth->fetchrow_hashref() ) {
 		push @results, { %{ $row } };
 	}
+
+#	use Data::Dumper;
+#	warn Dumper( "DB RESULT ($hostname)", \@results );
+
 	if ( scalar @results ) {
 		# Sanity checks
 		if ( $results[0]->{block} ne $block ) {
 			$response->code( 404 );
-			$response->content( '' );
+			$response->content( 'invalid block' );
 			$_[KERNEL]->post( 'HTTPD', 'DONE', $response );
 			return;
 		}
 		if ( $results[0]->{done} == 1 ) {
 			$response->code( 404 );
-			$response->content( '' );
+			$response->content( 'invalid done code' );
 			$_[KERNEL]->post( 'HTTPD', 'DONE', $response );
 			return;
 		}
 	} else {
 		$response->code( 404 );
-		$response->content( '' );
+		$response->content( 'invalid client' );
 		$_[KERNEL]->post( 'HTTPD', 'DONE', $response );
 		return;
 	}
 
 	# Update the DB
 	$sql = 'UPDATE ci SET done = 1 WHERE hostname = ?';
-	$sth = $_[HEAP]->{dbh}->prepare_cached( $sql ) or die $DBI::errstr, "\n";
-	$sth->execute( $hostname ) or die "Unable to update DB done status for $hostname => $DBI::errstr";
+	$sth = $_[HEAP]->{'DBH'}->prepare_cached( $sql ) or die $DBI::errstr, "\n";
+	my $rv = $sth->execute( $hostname ) or die "Unable to update DB done status => " . $sth->errstr;
+	if ( $rv != 1 ) {
+		die "Failed to update DB done status for $hostname";
+	}
 
 	# Did the bot smoke the entire CPAN?
 	if ( ! defined block2char( $block + 1 ) ) {
 		# TODO gather statistics so we can display entire CPAN smoke duration?
-		$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "CI bot($hostname) smoked the entire CPAN!" );
+		$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "Botsnack time! Bot( $hostname ) smoked the entire CPAN!" );
 	}
+
+	# TODO archive this run for statistical analysis? ( use the duration received from the client, anything else?
 
 	# encode it in the basic yaml format
 	my $string;
 	eval { $string = YAML::Tiny::Dump( {
 		result => 1,
-		duration => duration_exact( $done_ts - $results[0]->{ts} ),
-		block2char => block2char( $results[0]->{block} ),
+		block2char => uc( block2char( $results[0]->{'block'} ) ),
 	} ); };
 
 	# Do our stuff to HTTP::Response
@@ -264,41 +271,49 @@ sub ci_done : State {
 sub ci_start : State {
 	# ARG0 = HTTP::Request object, ARG1 = HTTP::Response object, ARG2 = the DIR that matched
 	my( $request, $response, $dirmatch ) = @_[ ARG0 .. ARG2 ];
-	my( undef, undef, $hostname ) = grep { $_ } split m#/#, $request->uri->path;
+	my $hostname = ( split m#/#, $request->uri->path )[3];
+
+#	warn "New START req: " . $request->uri->path;
 
 	# get the block + result
 	my @results;
 	my $sql = 'SELECT block, done FROM ci WHERE hostname = ?';
-	my $sth = $_[HEAP]->{dbh}->prepare_cached( $sql ) or die $DBI::errstr, "\n";
-	$sth->execute( $hostname );
+	my $sth = $_[HEAP]->{'DBH'}->prepare_cached( $sql ) or die $DBI::errstr, "\n";
+	$sth->execute( $hostname ) or die "Unable to get DB block => " . $sth->errstr;
 	while ( my $row = $sth->fetchrow_hashref() ) {
 		push @results, { %{ $row } };
 	}
+
+#	use Data::Dumper;
+#	warn Dumper( "DB RESULT ($hostname)", \@results );
 
 	# Do we have a record?
 	my $res = {};
 	if ( scalar @results ) {
 		if ( ! $results[0]->{done} ) {
 			# Bad news, client requested a new block before completing the previous one!
-			$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "WARNING: Bot($hostname) is malformed, requested a new block without completing the old one!" );
+			$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "WARNING: Bot( $hostname ) is malformed, requested a new block without completing the old one!" );
 		}
 
 		# Move on to the next block
-		$res->{block}++;
+		$res->{block} = $results[0]->{block} + 1;
 		if ( ! defined block2char( $res->{block} ) ) {
 			# finished the entire block list, start over
 			$res->{block} = 0;
 			$res->{finished} = 1;
 		}
-		$sql = 'UPDATE ci SET block = ?, done = 0, ts = ? WHERE hostname = ?';
+		$sql = 'UPDATE ci SET block = ?, done = 0 WHERE hostname = ?';
 		$sth = $_[HEAP]->{dbh}->prepare_cached( $sql ) or die $DBI::errstr, "\n";
-		$sth->execute( $res->{block}, time(), $hostname ) or die "Unable to update DB status for $hostname => $DBI::errstr";
+		my $rv = $sth->execute( $res->{block}, $hostname ) or die "Unable to update DB block status => " . $sth->errstr;
+		if ( $rv != 1 ) {
+			die "Failed to update DB status for $hostname";
+		}
 	} else {
 		# Completely new smoker, start at the beginning!
 		$res->{block} = 0;
-		$sql = 'INSERT INTO ci ( block, done, ts, hostname ) VALUES ( ?, 0, ?, ? )';
+		$sql = 'INSERT INTO ci ( block, done, hostname ) VALUES ( ?, 0, ? )';
 		$sth = $_[HEAP]->{dbh}->prepare_cached( $sql ) or die $DBI::errstr, "\n";
-		$sth->execute( $res->{block}, time(), $hostname ) or die "Unable to insert DB status for $hostname => $DBI::errstr";
+		$sth->execute( $res->{block}, $hostname ) or die "Unable to insert DB status => " . $sth->errstr;
 	}
 
 	# search for the block's data!
@@ -307,8 +322,7 @@ sub ci_start : State {
 		'event'		=> 'search_results',
 		'url'		=> "ftp://$ircserver/CPAN/",	# TODO this is hardcoded...
 		'_response'	=> $response,
-		'_res'		=> $res,
-		'_hostname'	=> $hostname,
+		'_data'		=> $res,
 	);
 
 	return;
@@ -321,10 +335,10 @@ sub search_results : State {
 
 	# Finalize the result!
 	my $result = {
-		block => $ref->{_res}->{block},
-		block2char => block2char( $ref->{_res}->{block} ),
+		block => $ref->{_data}->{block},
+		block2char => block2char( $ref->{_data}->{block} ),
 		dists => $ref->{dists},
-		( exists $ref->{_res}->{finished} ? ( 'purge' => 1 ) : () ),
+		( exists $ref->{_data}->{finished} ? ( 'purge' => 1 ) : () ),
 	};
 
 	# encode it in the basic yaml format
@@ -409,4 +423,3 @@ sub ci_404 : State {
 	$_[KERNEL]->post( 'HTTPD', 'DONE', $response );
 	return;
 }
-

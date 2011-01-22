@@ -27,8 +27,8 @@ use File::Spec;
 use File::Path::Tiny;
 use Shell::Command qw( mv );
 use Number::Bytes::Human qw( format_bytes );
+use Parse::CPAN::Meta;	# minimal YAML parser we need, thanks CPANIDX for the idea!
 require HTTP::Request;
-use Parse::CPAN::Meta;	# minimal YAML parser we need, thanks to CPANIDX
 
 # set some handy variables
 my $ircnick = hostname();
@@ -36,6 +36,7 @@ my $ircserver = '192.168.0.200';
 my $freespace = 1024 * 1024 * 1024 * 5;	# set it to 5GB - in bytes before we auto-purge CPAN files
 my $delay = 0;				# set delay in seconds between jobs/smokers to "throttle"
 my $use_system = 0;			# use the system perl binary too?
+my $ci_server = $ircserver;		# The CI server IP ( in my case it's the same as the IRC server, ha! )
 my $ci_port = 11_112;			# The port on the ircserver for the CI httpd
 my $HOME = $ENV{HOME};			# home path to search for perls/etc
 if ( $^O eq 'MSWin32' ) {
@@ -82,7 +83,6 @@ sub _start : State {
 	# setup our stuff
 	$_[KERNEL]->yield( 'create_smokebox' );
 	$_[KERNEL]->yield( 'create_irc' );
-	$_[KERNEL]->yield( 'ci_start' );
 
 	return;
 }
@@ -118,6 +118,9 @@ sub create_smokebox : State {
 
 	# Do the first pass over our perls
 	$_[KERNEL]->yield( 'check_perls' );
+
+	# Finally, ask the CI server to get our dists
+	$_[KERNEL]->yield( 'ci_start' );
 
 	return;
 }
@@ -296,7 +299,7 @@ sub _stop : State {
 	undef $_[HEAP]->{'SMOKEBOX'};
 	$_[HEAP]->{'IRC'}->shutdown();
 	undef $_[HEAP]->{'IRC'};
-	$_[KERNEL]->call( 'ua', 'shutdown' );
+	$_[KERNEL]->call( 'ua' => 'shutdown' ) if exists $_[HEAP]->{'HTTP'};
 
 	return;
 }
@@ -482,7 +485,7 @@ sub smokeresult : State {
 			}
 		}
 
-		$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "FAIL $module on $r->{'perl'} reason:$fail" );
+		$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "FAIL $module on $r->{'perl'} reason: $fail kill" );
 	}
 
 #	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module in ${duration}." );
@@ -498,14 +501,24 @@ sub smokeresult : State {
 }
 
 sub ci_done : State {
+	# Get the duration
+	my $duration = time() - $_[HEAP]->{BLOCK_TS};
+
 	# Okay, tell the CI server we are done with this block
-	$_[KERNEL]->post( 'ua', 'request', 'ci_done_reply', HTTP::Request->new( GET => "http://$ircserver:$ci_port/CI/done/$ircnick/" . $_[HEAP]->{BLOCK} ) );
+	$_[KERNEL]->post(
+		'ua' => 'request',
+		'ci_done_reply',
+		HTTP::Request->new( GET => "http://$ci_server:$ci_port/CI/done/$ircnick/" . $_[HEAP]->{BLOCK} . "/$duration" ),
+		{ duration => $duration },
+	);
 
 	return;
 }
 
 sub ci_done_reply : State {
 	my ($request_packet, $response_packet) = @_[ARG0, ARG1];
+
+#	warn "Got response from CI for DONE:\n" . $response_packet->[0]->as_string;
 
 	if ( $response_packet->[0]->is_error ) {
 		die "CI server isn't responding: " . $response_packet->[0]->as_string;
@@ -518,14 +531,15 @@ sub ci_done_reply : State {
 	}
 
 	# Did we get a-OK?
-	if ( $res->{result} ) {
+	if ( $res->{'result'} ) {
 		# let IRC know
-		$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Finished smoking block($res->{block2char}) in $res->{duration}" );
+		my $duration = duration_exact( $response_packet->[1]->{'duration'} );
+		$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Finished smoking block( $res->{block2char} ) in $duration" );
 
 		# Then, start all over at ci_start
 		$_[KERNEL]->yield( 'ci_start' );
 	} else {
-		die "Got bad answer from CI server for done";
+		die "Got bad answer from CI server for DONE";
 	}
 
 	return;
@@ -533,19 +547,27 @@ sub ci_done_reply : State {
 
 sub ci_start : State {
 	# Do we have a http client spawned?
-	if ( ! exists $_[HEAP]->{HTTP} ) {
+	if ( ! exists $_[HEAP]->{'HTTP'} ) {
 		POE::Component::Client::HTTP->spawn(
 			Alias => 'ua',
 		);
-		$_[HEAP]->{HTTP} = 1;
+		$_[HEAP]->{'HTTP'} = 1;
 	}
 
 	# Okay, tell the CI server to give us a new block to process
-	$_[KERNEL]->post( 'ua', 'request', 'ci_start_reply', HTTP::Request->new( GET => "http://$ircserver:$ci_port/CI/start/$ircnick" ) );
+	$_[KERNEL]->post(
+		'ua' => 'request',
+		'ci_start_reply',
+		HTTP::Request->new( GET => "http://$ci_server:$ci_port/CI/start/$ircnick" ),
+	);
+
+	return;
 }
 
 sub ci_start_reply : State {
 	my ($request_packet, $response_packet) = @_[ARG0, ARG1];
+
+#	warn "Got response from CI for START:\n" . $response_packet->[0]->as_string;
 
 	if ( $response_packet->[0]->is_error ) {
 		die "CI server isn't responding: " . $response_packet->[0]->as_string;
@@ -558,16 +580,17 @@ sub ci_start_reply : State {
 	}
 
 	# Do we have to purge?
-	if ( exists $res->{purge} and $res->{purge} ) {
+	if ( exists $res->{'purge'} and $res->{'purge'} ) {
 		# TODO clear the free space
 		# AND <-- is important!
 		# clear the cpansmoke db file!@!!!!
-		die "Need to PURGE!";
+		die "We need to purge the cpansmoke db - WE FINISHED SMOKING CPAN :)";
 	}
 
 	# Okay, we now have a block and a list of dists to smoke :)
-	$_[HEAP]->{BLOCK} = $res->{block};
-	foreach my $d ( @{ $res->{dists} } ) {
+	$_[HEAP]->{'BLOCK'} = $res->{'block'};
+	$_[HEAP]->{'BLOCK_TS'} = time();
+	foreach my $d ( @{ $res->{'dists'} } ) {
 		$_[HEAP]->{'SMOKEBOX'}->submit( event => 'smokeresult',
 			job => POE::Component::SmokeBox::Job->new(
 				command => 'smoke',
@@ -584,11 +607,11 @@ sub ci_start_reply : State {
 		);
 	}
 
-	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Started smoking block($res->{block2char}) with " . scalar @{ $res->{dists} } . " dists" );
+	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Started smoking block( $res->{block2char} ) with " . scalar @{ $res->{dists} } . " dists" );
 
 	# If we got no dists to smoke, proceed to the next block!
-	if ( ! scalar @{ $res->{dists} } ) {
-		$_[HEAP]->yield( 'ci_done' );
+	if ( ! scalar @{ $res->{'dists'} } ) {
+		$_[KERNEL]->yield( 'ci_done' );
 	}
 
 	return;
@@ -599,6 +622,7 @@ sub check_free_space : State {
 	my @wipe_dirs;
 	my @wipe_files;
 
+	# TODO this should never happen... I think it can be safely removed
 	return if exists $_[HEAP]->{'ASYNC_DEL'};
 
 	my $df = dfportable( $HOME );
@@ -703,7 +727,7 @@ sub async_del : State {
 	my $arg = $_[ARG0];
 
 	# Silently convert dirs to our format
-	$arg->{dirs} = [ map { [ 0, $_ ] } @{ $arg->{dirs} } ] if exists $arg->{dirs};
+	$arg->{'dirs'} = [ map { [ 0, $_ ] } @{ $arg->{'dirs'} } ] if exists $arg->{'dirs'};
 
 	if ( exists $_[HEAP]->{'ASYNC_DEL'} ) {
 		push( @{ $_[HEAP]->{'ASYNC_DEL'} }, $arg );
@@ -721,8 +745,8 @@ sub async_del_do : State {
 	my $req = $_[HEAP]->{'ASYNC_DEL'}->[0];
 
 	# We process the files first
-	if ( scalar @{ $req->{files} } ) {
-		my $f = shift @{ $req->{files} };
+	if ( scalar @{ $req->{'files'} } ) {
+		my $f = shift @{ $req->{'files'} };
 		unlink( $f ) or die "Unable to unlink($f): $!";
 		$_[KERNEL]->yield( 'async_del_do' );
 		return;
@@ -730,14 +754,14 @@ sub async_del_do : State {
 
 	# Okay, we clean up the dirs next
 	# Code partially inspired from File::Path::Tiny
-	if ( scalar @{ $req->{dirs} } ) {
+	if ( scalar @{ $req->{'dirs'} } ) {
 		# process the first directory in it
-		my $dir = $req->{dirs}->[0];
+		my $dir = $req->{'dirs'}->[0];
 
 		# have we processed this dir yet?
 		if ( $dir->[0] ) {
 			rmdir( $dir->[1] ) or die "Unable to rmdir($dir->[1]): $!";
-			shift @{ $req->{dirs} };
+			shift @{ $req->{'dirs'} };
 			if ( scalar @{ $req->{dirs} } ) {
 				$_[KERNEL]->yield( 'async_del_do' );
 				return;
@@ -748,9 +772,9 @@ sub async_del_do : State {
 				next if $f eq '.' or $f eq '..';
 				$f = File::Spec->catfile( $dir->[1], $f );
 				if ( -d $f and ! -l $f ) {
-					unshift( @{ $req->{dirs} }, [ 0, $f ] );
+					unshift( @{ $req->{'dirs'} }, [ 0, $f ] );
 				} else {
-					unshift( @{ $req->{files} }, $f );
+					unshift( @{ $req->{'files'} }, $f );
 				}
 			}
 			closedir( $p ) or die "Unable to closedir($dir->[1]): $!";
@@ -762,7 +786,7 @@ sub async_del_do : State {
 	}
 
 	# Wow, we finally finished a request!
-	$_[KERNEL]->yield( $req->{cb} );
+	$_[KERNEL]->yield( $req->{'cb'} );
 	shift @{ $_[HEAP]->{'ASYNC_DEL'} };
 	if ( scalar @{ $_[HEAP]->{'ASYNC_DEL'} } ) {
 		$_[KERNEL]->yield( 'async_del_do' );
