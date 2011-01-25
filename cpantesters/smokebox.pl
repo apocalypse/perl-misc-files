@@ -341,7 +341,7 @@ sub irc_botcmd_df : State {
 
 	my $df = dfportable( $HOME );
 	if ( defined $df ) {
-		my $free = format_bytes( $df->{'bavail'}, si => 1 );
+		my $free = format_bytes( $df->{'bavail'}, 'si' => 1 );
 		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Df: $free" );
 	} else {
 		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Df: Error in getting df!" );
@@ -425,7 +425,7 @@ sub irc_botcmd_smoking : State {
 				if ( ! $queue->queue_paused ) {
 					$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Smoker was already enabled!" );
 				} else {
-					$queue->resume_queue();
+					$queue->resume_queue;
 
 					$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Enabling the smoker..." );
 				}
@@ -433,7 +433,7 @@ sub irc_botcmd_smoking : State {
 				if ( $queue->queue_paused ) {
 					$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Smoker was already disabled!" );
 				} else {
-					$queue->pause_queue();
+					$queue->pause_queue;
 
 					$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Disabling the smoker..." );
 				}
@@ -442,7 +442,7 @@ sub irc_botcmd_smoking : State {
 			$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Invalid argument - it must be 0 or 1' );
 		}
 	} else {
-		my $status = $queue->queue_paused() ? 'DISABLED' : 'ENABLED';
+		my $status = $queue->queue_paused ? 'DISABLED' : 'ENABLED';
 		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Smoker status: $status" );
 	}
 
