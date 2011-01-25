@@ -17,6 +17,8 @@ use base 'POE::Session::AttributeBased';
 
 use DBI;
 use YAML::Tiny;
+use Filesys::DfPortable qw( dfportable );
+use Number::Bytes::Human qw( format_bytes );
 
 # Set some handy variables
 my $ircnick = 'CI-Server';
@@ -58,7 +60,7 @@ sub create_db : State {
 	}
 
 	# Do we have our table created yet?
-	my $sql = 'CREATE TABLE IF NOT EXISTS ci ( hostname TEXT, done INTEGER, block INTEGER, UNIQUE(hostname) )';
+	my $sql = 'CREATE TABLE IF NOT EXISTS ci ( hostname TEXT, done INTEGER, block TEXT, UNIQUE(hostname) )';
 	$dbh->do( $sql ) or die $dbh->errstr;
 
 	return;
@@ -216,13 +218,13 @@ sub ci_done : State {
 
 	if ( scalar @results ) {
 		# Sanity checks
-		if ( $results[0]->{block} ne $block ) {
+		if ( $results[0]->{'block'} ne $block ) {
 			$response->code( 404 );
 			$response->content( 'invalid block' );
 			$_[KERNEL]->post( 'HTTPD', 'DONE', $response );
 			return;
 		}
-		if ( $results[0]->{done} == 1 ) {
+		if ( $results[0]->{'done'} == 1 ) {
 			$response->code( 404 );
 			$response->content( 'invalid done code' );
 			$_[KERNEL]->post( 'HTTPD', 'DONE', $response );
@@ -244,7 +246,7 @@ sub ci_done : State {
 	}
 
 	# Did the bot smoke the entire CPAN?
-	if ( ! defined block2char( $block + 1 ) ) {
+	if ( get_next_block( $block ) eq get_next_block( undef ) ) {
 		# TODO gather statistics so we can display entire CPAN smoke duration?
 		$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "Botsnack time! Bot( $hostname ) smoked the entire CPAN!" );
 	}
@@ -255,7 +257,6 @@ sub ci_done : State {
 	my $string;
 	eval { $string = YAML::Tiny::Dump( {
 		result => 1,
-		block2char => uc( block2char( $results[0]->{'block'} ) ),
 	} ); };
 
 	# Do our stuff to HTTP::Response
@@ -296,12 +297,14 @@ sub ci_start : State {
 		}
 
 		# Move on to the next block
-		$res->{'block'} = $results[0]->{'block'} + 1;
-		if ( ! defined block2char( $res->{'block'} ) ) {
-			# finished the entire block list, start over
-			$res->{'block'} = 0;
+		$res->{'block'} = get_next_block( $results[0]->{'block'} );
+
+		# did the bot smoke the entire CPAN?
+		if ( $res->{'block'} eq get_next_block( undef ) ) {
 			$res->{'finished'} = 1;
 		}
+
+		# Finally, update the db!
 		$sql = 'UPDATE ci SET block = ?, done = 0 WHERE hostname = ?';
 		$sth = $_[HEAP]->{'DBH'}->prepare_cached( $sql ) or die $DBI::errstr, "\n";
 		my $rv = $sth->execute( $res->{'block'}, $hostname ) or die "Unable to update DB block status => " . $sth->errstr;
@@ -310,7 +313,7 @@ sub ci_start : State {
 		}
 	} else {
 		# Completely new smoker, start at the beginning!
-		$res->{block} = 0;
+		$res->{'block'} = get_next_block( undef );
 		$sql = 'INSERT INTO ci ( block, done, hostname ) VALUES ( ?, 0, ? )';
 		$sth = $_[HEAP]->{'DBH'}->prepare_cached( $sql ) or die $DBI::errstr, "\n";
 		$sth->execute( $res->{'block'}, $hostname ) or die "Unable to insert DB status => " . $sth->errstr;
@@ -336,7 +339,6 @@ sub search_results : State {
 	# Finalize the result!
 	my $result = {
 		block => $ref->{'_data'}->{'block'},
-		block2char => uc( block2char( $ref->{'_data'}->{'block'} ) ),
 		dists => $ref->{'dists'},
 		( exists $ref->{'_data'}->{'finished'} ? ( 'purge' => 1 ) : () ),
 	};
@@ -355,51 +357,76 @@ sub search_results : State {
 	return;
 }
 
-sub block2char {
-	my $block = shift;
-
-#apoc@blackhole:~/Desktop/mystuff$ perl cpan_frequency.pl
-#Frequency of CPAN distributions by name ( Jan 20, 2011 )
-# 0 - 0
-# z - 34
-# q - 57
-# y - 65
-# v - 167
-# j - 173
-# u - 185
-# k - 213
-# o - 254
-# e - 411
-# r - 468
-# i - 499
-# x - 509
-# h - 671
-# b - 691
-# f - 728
-# g - 804
-# l - 839
-# n - 1074
-# w - 1170
-# s - 1278
-# m - 1464
-# p - 1692
-# d - 1915
-# a - 2006
-# t - 2049
-# c - 2390
-
+{
 	# We work from smallest to largest in the hope of spreading the dependencies around...
-	my @chars = qw( 0 z q y v j u k o e r i x h b f g l n w s m p d a t c );
-	return $chars[ $block ];
+	#apoc@blackhole:~/Desktop/mystuff$ perl cpan_frequency.pl
+	#Frequency of CPAN distributions by name ( Jan 20, 2011 )
+	# 0 - 0
+	# z - 34
+	# q - 57
+	# y - 65
+	# v - 167
+	# j - 173
+	# u - 185
+	# k - 213
+	# o - 254
+	# e - 411
+	# r - 468
+	# i - 499
+	# x - 509
+	# h - 671
+	# b - 691
+	# f - 728
+	# g - 804
+	# l - 839
+	# n - 1074
+	# w - 1170
+	# s - 1278
+	# m - 1464
+	# p - 1692
+	# d - 1915
+	# a - 2006
+	# t - 2049
+	# c - 2390
+	my %table;
+
+	sub get_next_block {
+		my $block = shift;
+
+		# TODO this sucks, how do I init private variables for subs in a non-module?
+		if ( keys %table == 0 ) {
+			# The table is set up so it returns the next block given the current block
+			my @chars = qw( 0 z q y v j u k o e r i x h b f g l n w s m p d a t c );
+			foreach my $i ( 0 .. $#chars ) {
+				# end of the array?
+				if ( ! defined $chars[ $i + 1 ] ) {
+					$table{ $chars[ $i ] } = '0';
+				} else {
+					$table{ $chars[ $i ] } = $chars[ $i + 1 ];
+				}
+			}
+		}
+
+		# undef means give me the first block
+		return '0' if ! defined $block;
+
+		# regular lookup
+		if ( exists $table{ $block } ) {
+			return $table{ $block };
+		} else {
+			return;
+		}
+	}
 }
 
 sub build_regex {
 	my $block = shift;
-	my $sel = block2char( $block );
-	if ( $sel eq '0' ) {
+
+	# 0 basically means anything other than alphabetical character as the first letter of the dist
+	if ( $block eq '0' ) {
 		return '^[^[:alpha:]]';
 	} else {
-		return '^(' . $sel . '|' . uc( $sel ) . ')';
+		return '^(?:' . $block . '|' . uc( $block ) . ')';
 	}
 }
 

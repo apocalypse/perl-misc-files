@@ -6,8 +6,7 @@ use strict; use warnings;
 
 # TODO list:
 #
-#	- enable irc control of which perls to smoke ( i.e. !perls 5.12.0 # will enable only 5.12.0 perl, bla bla )
-#	- use symlinks for windows? ( to avoid costly mv's ) http://shell-shocked.org/article.php?id=284
+#	- look at smokebox.pl because a lot of the code in here is cribbed from there
 
 use POE;
 use POE::Component::SmokeBox 0.38;		# must be > 0.32 for the delay stuff + 0.36 for loop bug fix + 0.38 for the name
@@ -28,7 +27,7 @@ use File::Path::Tiny;
 use Shell::Command qw( mv );
 use Number::Bytes::Human qw( format_bytes );
 use Parse::CPAN::Meta;	# minimal YAML parser we need, thanks CPANIDX for the idea!
-require HTTP::Request;
+use HTTP::Request;
 
 # set some handy variables
 my $ircnick = hostname();
@@ -36,6 +35,7 @@ my $ircserver = '192.168.0.200';
 my $freespace = 1024 * 1024 * 1024 * 5;	# set it to 5GB - in bytes before we auto-purge CPAN files
 my $delay = 0;				# set delay in seconds between jobs/smokers to "throttle"
 my $use_system = 0;			# use the system perl binary too?
+my $ci_enabled = 1;			# enable/disable CI smoking
 my $ci_server = $ircserver;		# The CI server IP ( in my case it's the same as the IRC server, ha! )
 my $ci_port = 11_112;			# The port on the ircserver for the CI httpd
 my $HOME = $ENV{HOME};			# home path to search for perls/etc
@@ -120,7 +120,7 @@ sub create_smokebox : State {
 	$_[KERNEL]->yield( 'check_perls' );
 
 	# Finally, ask the CI server to get our dists
-	$_[KERNEL]->yield( 'ci_start' );
+	$_[KERNEL]->yield( 'ci_start' ) if $ci_enabled;
 
 	return;
 }
@@ -261,6 +261,7 @@ sub create_irc : State {
 			'time'		=> 'Returns the local time of the machine. Takes no arguments.',
 			'df'		=> 'Returns the free space of the machine. Takes no arguments.',
 			'delay'		=> 'Get/Set the delay for PoCo-SmokeBox. Takes one optional argument: number of seconds.',
+			'ci'		=> 'Get/Set the status of the CI bot. Takes one optional qrgument: a bool value.',
 		},
 		Addressed 	=> 0,
 		Ignore_unknown	=> 1,
@@ -349,7 +350,7 @@ sub irc_botcmd_df : State {
 
 	my $df = dfportable( $HOME );
 	if ( defined $df ) {
-		my $free = format_bytes( $df->{'bavail'}, si => 1 );
+		my $free = format_bytes( $df->{'bavail'}, 'si' => 1 );
 		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Df: $free" );
 	} else {
 		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Df: Error in getting df!" );
@@ -415,8 +416,10 @@ sub irc_botcmd_status : State {
 		$currjob = $current;
 	}
 
-	my $status = $queue->queue_paused ? 'DISABLED' : 'ENABLED';
-	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "CI $status: Smoking block(" . $_[HEAP]->{BLOCK} . ") Number of jobs in the queue: ${numjobs}." . ( defined $currjob ? " Current job: $currjob" : '' ) );
+	my $ci_status = $ci_enabled ? 'ENABLED' : 'DISABLED';
+	my $smoke_status = $queue->queue_paused ? 'DISABLED' : 'ENABLED';
+	my $block_status = exists $_[HEAP]->{'BLOCK'} ? ' Smoking block( ' . uc( $_[HEAP]->{'BLOCK'} ) . ' )' : '';
+	$_[HEAP]->{'IRC'}->yield( privmsg => $where, "CI ${ci_status}$block_status, Smoking $smoke_status => Number of jobs in the queue: ${numjobs}." . ( defined $currjob ? " Current job: $currjob" : '' ) );
 
 	return;
 }
@@ -433,7 +436,7 @@ sub irc_botcmd_smoking : State {
 				if ( ! $queue->queue_paused ) {
 					$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Smoker was already enabled!" );
 				} else {
-					$queue->resume_queue();
+					$queue->resume_queue;
 
 					$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Enabling the smoker..." );
 				}
@@ -441,7 +444,7 @@ sub irc_botcmd_smoking : State {
 				if ( $queue->queue_paused ) {
 					$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Smoker was already disabled!" );
 				} else {
-					$queue->pause_queue();
+					$queue->pause_queue;
 
 					$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Disabling the smoker..." );
 				}
@@ -450,8 +453,43 @@ sub irc_botcmd_smoking : State {
 			$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Invalid argument - it must be 0 or 1' );
 		}
 	} else {
-		my $status = $queue->queue_paused() ? 'DISABLED' : 'ENABLED';
+		my $status = $queue->queue_paused ? 'DISABLED' : 'ENABLED';
 		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Smoker status: $status" );
+	}
+
+	return;
+}
+
+sub irc_botcmd_ci : State {
+	my $nick = (split '!', $_[ARG0])[0];
+	my ($where, $arg) = @_[ARG1, ARG2];
+
+	if ( defined $arg ) {
+		if ( $arg =~ /^(?:0|1)$/ ) {
+			if ( $arg ) {
+				if ( $ci_enabled ) {
+					$_[HEAP]->{'IRC'}->yield( privmsg => $where, "CI was already enabled!" );
+				} else {
+					$ci_enabled = 1;
+					$_[KERNEL]->yield( 'ci_start' );
+
+					$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Enabling the CI..." );
+				}
+			} else {
+				if ( ! $ci_enabled ) {
+					$_[HEAP]->{'IRC'}->yield( privmsg => $where, "CI was already disabled!" );
+				} else {
+					$ci_enabled = 0;
+
+					$_[HEAP]->{'IRC'}->yield( privmsg => $where, "Disabling the CI..." );
+				}
+			}
+		} else {
+			$_[HEAP]->{'IRC'}->yield( privmsg => $where, 'Invalid argument - it must be 0 or 1' );
+		}
+	} else {
+		my $status = $ci_enabled ? 'ENABLED' : 'DISABLED';
+		$_[HEAP]->{'IRC'}->yield( privmsg => $where, "CI status: $status" );
 	}
 
 	return;
@@ -502,13 +540,13 @@ sub smokeresult : State {
 
 sub ci_done : State {
 	# Get the duration
-	my $duration = time() - $_[HEAP]->{BLOCK_TS};
+	my $duration = time - $_[HEAP]->{'BLOCK_TS'};
 
 	# Okay, tell the CI server we are done with this block
 	$_[KERNEL]->post(
 		'ua' => 'request',
 		'ci_done_reply',
-		HTTP::Request->new( GET => "http://$ci_server:$ci_port/CI/done/$ircnick/" . $_[HEAP]->{BLOCK} . "/$duration" ),
+		HTTP::Request->new( GET => "http://$ci_server:$ci_port/CI/done/$ircnick/" . $_[HEAP]->{'BLOCK'} . "/$duration" ),
 		{ duration => $duration },
 	);
 
@@ -534,10 +572,15 @@ sub ci_done_reply : State {
 	if ( $res->{'result'} ) {
 		# let IRC know
 		my $duration = duration_exact( $response_packet->[1]->{'duration'} );
-		$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Finished smoking block( $res->{block2char} ) in $duration" );
+		$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Finished smoking block( " . uc( $_[HEAP]->{'BLOCK'} ) . " ) in $duration" );
 
-		# Then, start all over at ci_start
-		$_[KERNEL]->yield( 'ci_start' );
+		# Then, start all over
+		if ( $ci_enabled ) {
+			$_[KERNEL]->yield( 'ci_start' );
+		} else {
+			delete $_[HEAP]->{'BLOCK'};
+			delete $_[HEAP]->{'BLOCK_TS'};
+		}
 	} else {
 		die "Got bad answer from CI server for DONE";
 	}
@@ -589,7 +632,7 @@ sub ci_start_reply : State {
 
 	# Okay, we now have a block and a list of dists to smoke :)
 	$_[HEAP]->{'BLOCK'} = $res->{'block'};
-	$_[HEAP]->{'BLOCK_TS'} = time();
+	$_[HEAP]->{'BLOCK_TS'} = time;
 	foreach my $d ( @{ $res->{'dists'} } ) {
 		$_[HEAP]->{'SMOKEBOX'}->submit( event => 'smokeresult',
 			job => POE::Component::SmokeBox::Job->new(
@@ -607,7 +650,7 @@ sub ci_start_reply : State {
 		);
 	}
 
-	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Started smoking block( $res->{block2char} ) with " . scalar @{ $res->{dists} } . " dists" );
+	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Started smoking block( " . uc( $res->{'block'} ) . " ) with " . scalar @{ $res->{'dists'} } . " dists" );
 
 	# If we got no dists to smoke, proceed to the next block!
 	if ( ! scalar @{ $res->{'dists'} } ) {
@@ -723,6 +766,9 @@ sub wipe_done : State {
 }
 
 # TODO this should be factored out into a PoCo! ( PoCo::AsyncFileManager or something )
+# Also, this should be "invisible" to the end-user!
+# see POE::Quickie, LWP::UserAgent::POE for examples
+# the ideal thing would be to export async_unlink, async_rmdir, async_rmtree functions
 sub async_del : State {
 	my $arg = $_[ARG0];
 
