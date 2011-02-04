@@ -1636,7 +1636,7 @@ sub do_installCPANPLUS {
 	# Gisle Aas (1):
 	#      perl-5.6 no longer supported
 	if ( $C{'perlver'} =~ /^5\.6/ ) {
-		if ( ! do_cpanpboxed_action( "i GAAS/Digest-MD5-2.40.tar.gz" ) ) {
+		if ( ! do_cpanpboxed_action( "i Digest-MD5-2.40" ) ) {
 			return 0;
 		}
 	}
