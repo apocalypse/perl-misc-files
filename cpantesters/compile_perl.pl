@@ -1204,6 +1204,7 @@ sub customize_perl {
 
 sub finalize_perl {
 	# Get rid of the man directory!
+	# TODO <@vincent> -Dman1dir=none -Dman3dir=none
 	my $path = File::Spec->catdir( $C{home}, 'perls', $C{perldist} );
 	my $mandir = File::Spec->catdir( $path, 'man' );
 	if ( -d $mandir ) {
@@ -1630,16 +1631,6 @@ sub get_binary_path {
 
 sub do_installCPANPLUS {
 	do_log( "[CPANPLUS] Configuring CPANPLUS..." );
-
-	# This sucks, but on perl-5.6.x Digest::MD5 doesn't work anymore!
-	# http://cpansearch.perl.org/src/GAAS/Digest-MD5-2.50/Changes
-	# Gisle Aas (1):
-	#      perl-5.6 no longer supported
-	if ( $C{'perlver'} =~ /^5\.6/ ) {
-		if ( ! do_cpanpboxed_action( "i Digest-MD5-2.40" ) ) {
-			return 0;
-		}
-	}
 
 	# Install CPANPLUS and it's stuff!
 	if ( ! do_cpanpboxed_action( "s selfupdate all" ) ) {
