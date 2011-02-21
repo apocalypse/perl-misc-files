@@ -1205,6 +1205,7 @@ sub customize_perl {
 sub finalize_perl {
 	# Get rid of the man directory!
 	# TODO <@vincent> -Dman1dir=none -Dman3dir=none
+	# <Khisanth> makepl_arg         [INSTALLMAN1DIR=none INSTALLMAN3DIR=none]
 	my $path = File::Spec->catdir( $C{home}, 'perls', $C{perldist} );
 	my $mandir = File::Spec->catdir( $path, 'man' );
 	if ( -d $mandir ) {
