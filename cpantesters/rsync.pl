@@ -12,7 +12,7 @@ use strict; use warnings;
 #	- add the CPAN::WWW::Top100::Retrieve stuff ( need a POE wrapper for it, ha! )
 
 use POE;
-use POE::Component::SmokeBox::Uploads::Rsync;
+use POE::Component::SmokeBox::Uploads::Rsync 1.000;
 use POE::Component::SmokeBox::Dists 1.02;		# include the pkg_time param
 use POE::Component::IRC::State 6.18;			# 6.18 depends on POE::Filter::IRCD 2.42 to shutup warnings about 005 numerics
 use POE::Component::IRC::Plugin::AutoJoin;
@@ -29,8 +29,8 @@ use Filesys::DfPortable;
 my $ircnick = 'CPAN';
 my $ircserver = '192.168.0.200';
 my $rsyncserver = 'cpan.dagolden.com::CPAN';	# Our favorite fast mirror
-my $interval = 60 * 60;				# rsync every hour
-#my $interval = 60 * 60 * 24;			# or rsync every day...
+#my $interval = 60 * 60;			# rsync every hour
+my $interval = 60 * 60 * 24;			# or rsync every day...
 my $do_rsync = 1;				# auto-rsync on startup...
 
 POE::Session->create(
@@ -123,24 +123,27 @@ sub _stop : State {
 sub rsyncd_done : State {
 	my $r = $_[ARG0];
 
+	# take note of the time
+	$_[HEAP]->{'RSYNCTS'} = time;
+
+	my $duration = duration_exact( $r->{'stoptime'} - $r->{'starttime'} );
+
 	if ( $r->{'status'} ) {
-		$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "Rsync run done in " . duration_exact( $r->{'stoptime'} - $r->{'starttime'} ) . " with $r->{'dists'} new dists!" );
+		$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "Rsync run done in $duration with $r->{'dists'} new dists" );
 		if ( $r->{'dists'} > 0 ) {
 			# start an index run!
 			$_[KERNEL]->yield( 'run_cpanidx' );
 		}
 	} else {
-		$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "Rsync run failed in " . duration_exact( $r->{'stoptime'} - $r->{'starttime'} ) . " with error: $r->{'exit'}!" );
+		$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke', "Rsync run failed in $duration with error($r->{'exit'}): $r->{'exit_str'}" );
 	}
-
-	# take note of the time
-	$_[HEAP]->{'RSYNCTS'} = time;
 
 	return;
 }
 
 sub run_cpanidx : State {
 	# Kill the old one, if it's still around
+	# TODO should we have a timeout for the process in case it gets wedged?
 	if ( defined $_[HEAP]->{'CPANIDX'} ) {
 		$_[HEAP]->{'CPANIDX'}->kill( -9 );
 		undef $_[HEAP]->{'CPANIDX'};
@@ -213,6 +216,9 @@ sub rsyncd_upload : State {
 	if ( $dist =~ /withoutworldwriteables/ ) {
 		return;
 	}
+
+	# TODO Skip all task/bundle dists?
+	# TODO skip perl itself? ( I know CPANPLUS will skip it but it wastes time? )
 
 	# We need to make sure that CPANIDX has finished running the latest rsync
 	if ( exists $_[HEAP]->{'CPANIDXTS'} and $_[HEAP]->{'CPANIDXTS'} > $_[HEAP]->{'RSYNCTS'} ) {
