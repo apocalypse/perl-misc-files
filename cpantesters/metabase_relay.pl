@@ -3,7 +3,7 @@
 use strict; use warnings;
 
 use POE;
-use POE::Component::Metabase::Relay::Server 0.10;	# Needed to fix numerous SQL bugs + 0.08 for no_relay
+use POE::Component::Metabase::Relay::Server 0.18;	# needed for recv_event support
 use POE::Component::IRC::State 6.18;			# 6.18 depends on POE::Filter::IRCD 2.42 to shutup warnings about 005 numerics
 use POE::Component::IRC::Plugin::AutoJoin;
 use POE::Component::IRC::Plugin::Connector;
@@ -20,7 +20,7 @@ my $relayd_port = 11_111;
 my $metabase_id = '/home/cpan/.metabase/id.json';	# TODO why doesn't ~/.metabase work?
 my $metabase_dsn = 'dbi:SQLite:dbname=/home/cpan/CPANTesters.db';
 my $metabase_uri = 'https://metabase.cpantesters.org/api/v1/';
-my $metabase_norelay = 1;
+my $metabase_norelay = 0;
 
 POE::Session->create(
 	__PACKAGE__->inline_states(),
@@ -55,13 +55,60 @@ sub create_relay : State {
 		id_file		=> $metabase_id,
 		dsn		=> $metabase_dsn,
 		uri		=> $metabase_uri,
-		debug		=> 1,
+		debug		=> 0,
 		multiple	=> 1,
 		no_relay	=> $metabase_norelay,
-		submissions	=> 10,	# This is the default value, we set it just in case it changes upstream :)
+		submissions	=> 2,
+		recv_event	=> 'relayd_gotreport',
 	);
 
 	$_[HEAP]->{'relayd'} = $test_httpd;
+
+	# Create the report cache if it doesn't exist
+	# TODO ugly code here
+	$_[HEAP]->{'relayd'}->queue->_easydbi->do(
+		sql => 'CREATE TABLE IF NOT EXISTS reports ( osversion TEXT, distfile TEXT, archname TEXT, textreport TEXT, osname TEXT, perl_version TEXT, grade TEXT, ip TEXT )',
+		event => '_got_create',
+	);
+
+	return;
+}
+
+sub _got_create : State {
+	my $result = $_[ARG0];
+
+	if ( exists $result->{error} ) {
+		die "Error in creating report table: $result->{error}";
+	}
+
+	return;
+}
+
+sub relayd_gotreport : State {
+	my( $data, $ip ) = @_[ARG0,ARG1];
+
+	# TODO colorize it?
+	$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke-reports',
+		"CPAN Report for '" . $data->{distfile} . "' - " . $data->{grade} . " from Perl-" . $data->{perl_version} . " on " . $data->{osname}
+	);
+
+	# Store it!
+	# TODO ugly code here
+	$_[HEAP]->{'relayd'}->queue->_easydbi->insert(
+		sql => 'INSERT INTO reports ( osversion, distfile, archname, textreport, osname, perl_version, grade, ip ) VALUES ( ?, ?, ?, ?, ?, ?, ?, ? )',
+		placeholders => [ $data->{osversion}, $data->{distfile}, $data->{archname}, $data->{textreport}, $data->{osname}, $data->{perl_version}, $data->{grade}, $ip ],
+		event => '_got_report',
+	);
+
+	return;
+}
+
+sub _got_report : State {
+	my $result = $_[ARG0];
+
+	if ( exists $result->{error} ) {
+		die "Error in storing report: $result->{error}";
+	}
 
 	return;
 }
@@ -75,7 +122,7 @@ sub create_irc : State {
 #		Flood	=> 1,
 	) or die "Unable to spawn irc: $!";
 
-	$_[HEAP]->{'IRC'}->plugin_add( 'AutoJoin', POE::Component::IRC::Plugin::AutoJoin->new( Channels => { '#smoke' => '' } ) );
+	$_[HEAP]->{'IRC'}->plugin_add( 'AutoJoin', POE::Component::IRC::Plugin::AutoJoin->new( Channels => { '#smoke' => '', '#smoke-reports' => '' } ) );
 	$_[HEAP]->{'IRC'}->plugin_add( 'Connector', POE::Component::IRC::Plugin::Connector->new() );
 	$_[HEAP]->{'IRC'}->plugin_add( 'BotCommand', POE::Component::IRC::Plugin::BotCommand->new(
 		Commands	=> {
