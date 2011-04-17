@@ -56,7 +56,7 @@ use strict; use warnings;
 #		- Sys::Info::Device::CPU::bitness() for a start...
 #	- for the patch_hints thing, auto-detect the latest perl tarball and copy it from there instead of hardcoding it here...
 #	- fix all TODO lines in this code :)
-#	- we should run 2 CPANPLUS configs per perl - "prefer_makefile" true and false...
+#	- we should run 3 CPANPLUS configs per perl - "prefer_makefile" = true + false + autodetect
 #	- consider "perl-5.12.0-RC1.tar.gz" and "perl-5.6.1-TRIAL1.tar.gz" devel releases and skip them?
 #	- put all our module prereqs into a BEGIN { eval } check so we can pretty-print the missing modules
 #	- add $C{perltarball} that tracks the tarball of "current" perl so we can use it in some places instead of manually hunting it...
@@ -83,6 +83,7 @@ use strict; use warnings;
 #	- look at BinGOs' excellent work in CPAN smoking
 #		- http://github.com/bingos/cpan-smoke-tools
 #		- App::Smokebrew
+#	- change the logger from "[FOOBAR] msg" to "<<FOOBAR>> msg" so it's easier to differentiate it vs CPANPLUS output?
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
@@ -118,8 +119,8 @@ if ( $^O eq 'MSWin32' ) {
 # Holds our cached logs
 my @LOGS = ();
 
-# Set a nice term title
-set_titlebar( "Perl-Compiler@" . hostname() );
+# Set a nice term title ( hostname first so we can see it easily in the task switcher )
+set_titlebar( hostname() . ' Perl-Compiler' );
 
 # Do some basic sanity checks
 do_sanity_checks();
@@ -314,7 +315,7 @@ sub prompt_action {
 			do_config_localCPANPLUS();
 		} elsif ( $res eq 'i' ) {
 			# install a specific module
-			my $module = do_prompt( "What module should we install?", '' );
+			my $module = do_prompt( "What module(s) should we install?", '' );
 			if ( length $module ) {
 				do_log( "[CPANPLUS] Installing '$module' on perls..." );
 				iterate_perls( sub {
