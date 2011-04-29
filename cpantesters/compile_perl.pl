@@ -84,6 +84,7 @@ use strict; use warnings;
 #		- http://github.com/bingos/cpan-smoke-tools
 #		- App::Smokebrew
 #	- change the logger from "[FOOBAR] msg" to "<<FOOBAR>> msg" so it's easier to differentiate it vs CPANPLUS output?
+#	- investigate http://www.citrusperl.org/ as an extra perl for win32?
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
