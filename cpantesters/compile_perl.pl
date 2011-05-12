@@ -85,6 +85,7 @@ use strict; use warnings;
 #		- App::Smokebrew
 #	- change the logger from "[FOOBAR] msg" to "<<FOOBAR>> msg" so it's easier to differentiate it vs CPANPLUS output?
 #	- investigate http://www.citrusperl.org/ as an extra perl for win32?
+#	- use "make test_harness" for parallel testing and set $ENV{TEST_JOBS} and "make -jN" to the same number
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
