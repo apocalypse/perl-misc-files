@@ -86,6 +86,13 @@ use strict; use warnings;
 #	- change the logger from "[FOOBAR] msg" to "<<FOOBAR>> msg" so it's easier to differentiate it vs CPANPLUS output?
 #	- investigate http://www.citrusperl.org/ as an extra perl for win32?
 #	- use "make test_harness" for parallel testing and set $ENV{TEST_JOBS} and "make -jN" to the same number
+#	- use this? http://yellow-perl.berlios.de/
+#	- http://win32.perl.org/wiki/index.php?title=Win32_Distributions # for more win32 dists :)
+#	- does -des already do that?
+#		<@theory> What's the configure option to prevent the @INC paths of alread-installed Perls from being included in @INC?
+#		<b_jonas> theory: look at INSTALL, it tells about that
+#		<b_jonas> theory: -Dinc_version_list=none
+#		<@theory> b_jonas: Right-o, thanks.
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
