@@ -27,11 +27,12 @@ use Filesys::DfPortable;
 
 # Set some handy variables
 my $ircnick = 'CPAN';
-my $ircserver = '192.168.0.200';
+my $ircserver = 'cpan.0ne.us';
+my $ircpass = 'apoc4cpan';
 my $rsyncserver = 'cpan.dagolden.com::CPAN';	# Our favorite fast mirror
-#my $interval = 60 * 60;			# rsync every hour
-my $interval = 60 * 60 * 24;			# or rsync every day...
-my $do_rsync = 1;				# auto-rsync on startup...
+my $interval = 60 * 60;			# rsync every hour
+#my $interval = 60 * 60 * 24;			# or rsync every day...
+my $do_rsync = 0;				# auto-rsync on startup...
 
 POE::Session->create(
 	__PACKAGE__->inline_states(),
@@ -69,6 +70,7 @@ sub create_irc : State {
 		nick	=> $ircnick,
 		ircname	=> $ircnick,
 		server	=> $ircserver,
+		Password => $ircpass,
 #		Flood	=> 1,
 	) or die "Unable to spawn irc: $!";
 
