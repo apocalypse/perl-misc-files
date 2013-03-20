@@ -15,12 +15,13 @@ use Filesys::DfPortable;
 
 # Set some handy variables
 my $ircnick = 'relayd';
-my $ircserver = '192.168.0.200';
+my $ircserver = 'cpan.0ne.us';
+my $ircpass = 'apoc4cpan';
 my $relayd_port = 11_111;
 my $metabase_id = '/home/cpan/.metabase/id.json';	# TODO why doesn't ~/.metabase work?
 my $metabase_dsn = 'dbi:SQLite:dbname=/home/cpan/CPANTesters.db';
 my $metabase_uri = 'https://metabase.cpantesters.org/api/v1/';
-my $metabase_norelay = 0;
+my $metabase_norelay = 1;
 
 POE::Session->create(
 	__PACKAGE__->inline_states(),
@@ -119,6 +120,7 @@ sub create_irc : State {
 		nick	=> $ircnick,
 		ircname	=> $ircnick,
 		server	=> $ircserver,
+		Password => $ircpass,
 #		Flood	=> 1,
 	) or die "Unable to spawn irc: $!";
 
