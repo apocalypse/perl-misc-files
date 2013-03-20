@@ -29,7 +29,8 @@ use Number::Bytes::Human qw( format_bytes );
 
 # set some handy variables
 my $ircnick = hostname();
-my $ircserver = '192.168.0.200';
+my $ircserver = 'cpan.0ne.us';
+my $ircpass = 'apoc4cpan';
 my $freespace = 1024 * 1024 * 1024 * 5;	# set it to 5GB - in bytes before we auto-purge CPAN files
 my $delay = 0;				# set delay in seconds between jobs/smokers to "throttle"
 my $use_system = 0;			# use the system perl binary too?
@@ -37,12 +38,6 @@ my $HOME = $ENV{HOME};			# home path to search for perls/etc
 if ( $^O eq 'MSWin32' ) {
 	$HOME = "C:\\cpansmoke";
 }
-
-# Set our system info
-my %VMs = (
-	# hostname => full text
-	'ubuntu32'		=> 'Ubuntu 10.10 server 32bit (192.168.0.201)',
-);
 
 POE::Session->create(
 	__PACKAGE__->inline_states(),
@@ -99,7 +94,7 @@ sub create_smokebox : State {
 				'APPDATA'		=> $HOME,
 				'PERL5_YACSMOKE_BASE'	=> $HOME,
 				'TMPDIR'		=> File::Spec->catdir( $HOME, 'tmp' ),
-				'PERL_CPANSMOKER_HOST'	=> $perl . ' / ' . $VMs{ $ircnick },
+				'PERL_CPANSMOKER_HOST'	=> $perl . ' / ' . $ircnick,
 				'PERL5_CPANIDX_URL'	=> 'http://' . $ircserver . ':11110/CPANIDX/',	# TODO fix this hardcoded path
 			},
 			do_callback => $_[SESSION]->callback( 'smokebox_callback', 'SYSTEM' ),
@@ -202,7 +197,7 @@ sub check_perls : State {
 				'APPDATA'		=> File::Spec->catdir( $HOME, 'cpanp_conf', $p ),
 				'PERL5_YACSMOKE_BASE'	=> File::Spec->catdir( $HOME, 'cpanp_conf', $p ),
 				'TMPDIR'		=> File::Spec->catdir( $HOME, 'tmp' ),
-				'PERL_CPANSMOKER_HOST'	=> $p . ' / ' . $VMs{ $ircnick },
+				'PERL_CPANSMOKER_HOST'	=> $p . ' / ' . $ircnick,
 				'PERL5_CPANIDX_URL'	=> 'http://' . $ircserver . ':11110/CPANIDX/',	# TODO fix this hardcoded path
 			},
 			do_callback => $_[SESSION]->callback( 'smokebox_callback', $p ),
@@ -238,11 +233,12 @@ sub create_irc : State {
 		nick	=> $ircnick,
 		ircname	=> $ircnick,
 		server	=> $ircserver,
+		Password => $ircpass,
 # TODO investigate why our local ircd kicks us off...
 #		Flood	=> 1,
 	) or die "Unable to spawn irc: $!";
 
-	$_[HEAP]->{'IRC'}->plugin_add( 'AutoJoin', POE::Component::IRC::Plugin::AutoJoin->new( Channels => { '#smoke' => '' } ) );
+	$_[HEAP]->{'IRC'}->plugin_add( 'AutoJoin', POE::Component::IRC::Plugin::AutoJoin->new( Channels => { '#smoke' => '','#smoke-reports' => '' } ) );
 	$_[HEAP]->{'IRC'}->plugin_add( 'Connector', POE::Component::IRC::Plugin::Connector->new() );
 	$_[HEAP]->{'IRC'}->plugin_add( 'BotCommand', POE::Component::IRC::Plugin::BotCommand->new(
 		Commands 	=> {
@@ -511,7 +507,7 @@ sub smokeresult : State {
 		$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "FAIL $module on $r->{'perl'} reason:$fail" );
 	}
 
-#	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "Smoked $module in ${duration}." );
+	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke-reports', "Smoked $module in ${duration}." );
 
 	return;
 }
