@@ -93,9 +93,17 @@ sub _got_create : State {
 sub relayd_gotreport : State {
 	my( $data, $ip ) = @_[ARG0,ARG1];
 
+	# grab the proper perl version / vm name from the report
+        my $perl_ver;
+        if ( $data->{textreport} =~ /PERL_CPANSMOKER_HOST=\"(.+)\"/ ) {
+                $perl_ver = $1 . " / " . $data->{osname};
+        } else {
+		$perl_ver = $data->{perl_version} . " / " . $data->{osname};
+        }
+
 	# TODO colorize it?
 	$_[HEAP]->{'IRC'}->yield( privmsg => '#smoke-reports',
-		"CPAN Report for '" . $data->{distfile} . "' - " . $data->{grade} . " from Perl-" . $data->{perl_version} . " on " . $data->{osname}
+		uc( $data->{grade} ) . " [" . $data->{distfile} . "] $perl_ver"
 	);
 
 	# Store it!
