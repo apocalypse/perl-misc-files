@@ -29,7 +29,7 @@ use Filesys::DfPortable;
 my $ircnick = 'CPAN';
 my $ircserver = 'cpan.0ne.us';
 my $ircpass = 'apoc4cpan';
-my $rsyncserver = 'cpan.dagolden.com::CPAN';	# Our favorite fast mirror
+my $rsyncserver = 'cpan.cpantesters.org::CPAN';	# Our favorite fast mirror
 my $interval = 60 * 60;			# rsync every hour
 #my $interval = 60 * 60 * 24;			# or rsync every day...
 my $do_rsync = 0;				# auto-rsync on startup...
