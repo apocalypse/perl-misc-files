@@ -65,8 +65,13 @@ sub create_relay : State {
 
 	$_[HEAP]->{'relayd'} = $test_httpd;
 
-	# Create the report cache if it doesn't exist
 	# TODO ugly code here
+	$_[KERNEL]->delay( '_relayd_createtable', 1 );
+	return;
+}
+
+# Create the report cache if it doesn't exist
+sub _relayd_createtable : State {
 	$_[HEAP]->{'relayd'}->queue->_easydbi->do(
 		sql => 'CREATE TABLE IF NOT EXISTS reports ( osversion TEXT, distfile TEXT, archname TEXT, textreport TEXT, osname TEXT, perl_version TEXT, grade TEXT, ip TEXT )',
 		event => '_got_create',
