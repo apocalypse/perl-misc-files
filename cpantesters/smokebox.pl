@@ -234,8 +234,7 @@ sub create_irc : State {
 		ircname	=> $ircnick,
 		server	=> $ircserver,
 		Password => $ircpass,
-# TODO investigate why our local ircd kicks us off...
-#		Flood	=> 1,
+		Flood	=> 1,
 	) or die "Unable to spawn irc: $!";
 
 	$_[HEAP]->{'IRC'}->plugin_add( 'AutoJoin', POE::Component::IRC::Plugin::AutoJoin->new( Channels => { '#smoke' => '','#smoke-reports' => '' } ) );
@@ -507,7 +506,8 @@ sub smokeresult : State {
 		$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke', "FAIL $module on $r->{'perl'} reason:$fail" );
 	}
 
-	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke-reports', "Smoked $module in ${duration}." );
+# disabled due to too much noise
+#	$_[HEAP]->{'IRC'}->yield( 'privmsg' => '#smoke-reports', "Smoked $module in ${duration}." );
 
 	return;
 }
