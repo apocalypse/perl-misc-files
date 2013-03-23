@@ -22,7 +22,8 @@ use Number::Bytes::Human qw( format_bytes );
 
 # Set some handy variables
 my $ircnick = 'CI-Server';
-my $ircserver = '192.168.0.200';
+my $ircserver = 'cpan.0ne.us';
+my $ircpass = 'apoc4cpan';
 my $port = 11_112;
 my $dsn = 'dbi:SQLite:dbname=/home/cpan/ci_server.db';
 my $user = 'ci';
@@ -99,7 +100,8 @@ sub create_irc : State {
 		nick	=> $ircnick,
 		ircname	=> $ircnick,
 		server	=> $ircserver,
-#		Flood	=> 1,
+		Password => $ircpass,
+		Flood	=> 1,
 	) or die "Unable to spawn irc: $!";
 
 	$_[HEAP]->{'IRC'}->plugin_add( 'AutoJoin', POE::Component::IRC::Plugin::AutoJoin->new( Channels => { '#smoke' => '' } ) );

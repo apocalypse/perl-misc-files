@@ -134,7 +134,7 @@ sub create_irc : State {
 		ircname	=> $ircnick,
 		server	=> $ircserver,
 		Password => $ircpass,
-#		Flood	=> 1,
+		Flood	=> 1,
 	) or die "Unable to spawn irc: $!";
 
 	$_[HEAP]->{'IRC'}->plugin_add( 'AutoJoin', POE::Component::IRC::Plugin::AutoJoin->new( Channels => { '#smoke' => '', '#smoke-reports' => '' } ) );
