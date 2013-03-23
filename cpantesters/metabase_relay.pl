@@ -100,9 +100,9 @@ sub relayd_gotreport : State {
 	# grab the proper perl version / vm name from the report
         my $perl_ver;
         if ( $data->{textreport} =~ /PERL_CPANSMOKER_HOST=\"(.+)\"/ ) {
-                $perl_ver = $1 . " / " . $data->{osname} . "-" . $data->{archname};
+                $perl_ver = $1 . " / " . $data->{osname} . "(" . $data->{archname} . ")";
         } else {
-		$perl_ver = $data->{perl_version} . " / " . $data->{osname} . "-" . $data->{archname};
+		$perl_ver = $data->{perl_version} . " / " . $data->{osname} . "(" . $data->{archname} . ")";
         }
 
 	# TODO colorize it?
