@@ -1,0 +1,428 @@
+CPU1: Intel(R) Core(TM) i7 CPU X 980 @ 3.33GHz (Cores 12)
+   Memory:  24110 MB
+   Disk /dev/sda: 300 GB (=> 278 GiB)
+   Disk /dev/sdb: 300 GB (=> 278 GiB)
+   Disk /dev/sdc: 300 GB (=> 278 GiB)
+   Disk /dev/sdd: 120 GB (=> 111 GiB)
+   Total capacity 948 GiB with 4 Disks
+   RAID Adaptec AAC-RAID
+
+Network data:
+   eth0  LINK: yes
+         MAC:  6c:62:6d:a0:72:ca
+         IP:   176.9.1.18
+         IPv6: 2a01:4f8:141:310e::2/64
+         RealTek RTL-8169 Gigabit Ethernet driver
+
+OS Config:
+
+	Ubuntu 14.04 (Trusty Tahr) 64bit
+
+
+cpan@smoker-master:~$ cat /proc/cpuinfo
+processor	: 0
+vendor_id	: GenuineIntel
+cpu family	: 6
+model		: 44
+model name	: Westmere E56xx/L56xx/X56xx (Nehalem-C)
+stepping	: 1
+microcode	: 0x1
+cpu MHz		: 3341.624
+cache size	: 4096 KB
+physical id	: 0
+siblings	: 1
+core id		: 0
+cpu cores	: 1
+apicid		: 0
+initial apicid	: 0
+fpu		: yes
+fpu_exception	: yes
+cpuid level	: 11
+wp		: yes
+flags		: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss syscall nx pdpe1gb rdtscp lm constant_tsc rep_good nopl pni pclmulqdq vmx ssse3 cx16 pcid sse4_1 sse4_2 x2apic popcnt aes hypervisor lahf_lm vnmi ept
+bogomips	: 6683.24
+clflush size	: 64
+cache_alignment	: 64
+address sizes	: 40 bits physical, 48 bits virtual
+power management:
+
+
+root@perl:/etc/libvirt/qemu# virsh nodeinfo
+CPU model:           x86_64
+CPU(s):              12
+CPU frequency:       1600 MHz
+CPU socket(s):       1
+Core(s) per socket:  6
+Thread(s) per core:  2
+NUMA cell(s):        1
+Memory size:         24738576 KiB
+
+root@perl:/etc/libvirt/qemu# virsh schedinfo
+error: command 'schedinfo' requires <domain> option
+root@perl:/etc/libvirt/qemu# virsh schedinfo smoker-master
+Scheduler      : Unknown
+error: Requested operation is not valid: cgroup CPU controller is not mounted
+
+root@perl:/etc/libvirt/qemu# virsh schedinfo default
+error: failed to get domain 'default'
+error: Domain not found: no domain with matching name 'default'
+
+root@perl:/etc/libvirt/qemu# virsh schedinfo demo
+error: failed to get domain 'demo'
+error: Domain not found: no domain with matching name 'demo'
+
+root@perl:/etc/libvirt/qemu# virsh vcpuinfo smoker-master
+VCPU:           0
+CPU:            4
+State:          running
+CPU time:       4152.6s
+CPU Affinity:   yyyyyyyyyyyy
+
+root@perl:/etc/libvirt/qemu# virsh vcpuinfo smoker-1
+VCPU:           0
+CPU:            3
+State:          running
+CPU time:       74298.0s
+CPU Affinity:   yyyyyyyyyyyy
+
+root@perl:/etc/libvirt/qemu# man virsh
+root@perl:/etc/libvirt/qemu# virsh
+Welcome to virsh, the virtualization interactive terminal.
+
+Type:  'help' for help with commands
+       'quit' to quit
+
+virsh # host
+error: unknown command: 'host'
+virsh # host capabilities
+error: unknown command: 'host'
+virsh # capabilities
+<capabilities>
+
+  <host>
+    <uuid>00000000-0000-0000-0000-6c626da072ca</uuid>
+    <cpu>
+      <arch>x86_64</arch>
+      <model>Westmere</model>
+      <vendor>Intel</vendor>
+      <topology sockets='1' cores='6' threads='2'/>
+      <feature name='rdtscp'/>
+      <feature name='pdpe1gb'/>
+      <feature name='pdcm'/>
+      <feature name='xtpr'/>
+      <feature name='tm2'/>
+      <feature name='est'/>
+      <feature name='vmx'/>
+      <feature name='ds_cpl'/>
+      <feature name='monitor'/>
+      <feature name='dtes64'/>
+      <feature name='pclmuldq'/>
+      <feature name='pbe'/>
+      <feature name='tm'/>
+      <feature name='ht'/>
+      <feature name='ss'/>
+      <feature name='acpi'/>
+      <feature name='ds'/>
+      <feature name='vme'/>
+    </cpu>
+    <power_management/>
+    <migration_features>
+      <live/>
+      <uri_transports>
+        <uri_transport>tcp</uri_transport>
+      </uri_transports>
+    </migration_features>
+    <topology>
+      <cells num='1'>
+        <cell id='0'>
+          <cpus num='12'>
+            <cpu id='0'/>
+            <cpu id='1'/>
+            <cpu id='2'/>
+            <cpu id='3'/>
+            <cpu id='4'/>
+            <cpu id='5'/>
+            <cpu id='6'/>
+            <cpu id='7'/>
+            <cpu id='8'/>
+            <cpu id='9'/>
+            <cpu id='10'/>
+            <cpu id='11'/>
+          </cpus>
+        </cell>
+      </cells>
+    </topology>
+  </host>
+
+  <guest>
+    <os_type>hvm</os_type>
+    <arch name='i686'>
+      <wordsize>32</wordsize>
+      <emulator>/usr/bin/kvm</emulator>
+      <machine>pc-1.1</machine>
+      <machine canonical='pc-1.1'>pc</machine>
+      <machine>pc-1.0</machine>
+      <machine>pc-0.15</machine>
+      <machine>pc-0.14</machine>
+      <machine>pc-0.13</machine>
+      <machine>pc-0.12</machine>
+      <machine>pc-0.11</machine>
+      <machine>pc-0.10</machine>
+      <machine>isapc</machine>
+      <domain type='qemu'>
+      </domain>
+      <domain type='kvm'>
+        <emulator>/usr/bin/kvm</emulator>
+      </domain>
+    </arch>
+    <features>
+      <cpuselection/>
+      <deviceboot/>
+      <pae/>
+      <nonpae/>
+      <acpi default='on' toggle='yes'/>
+      <apic default='on' toggle='no'/>
+    </features>
+  </guest>
+
+  <guest>
+    <os_type>hvm</os_type>
+    <arch name='x86_64'>
+      <wordsize>64</wordsize>
+      <emulator>/usr/bin/kvm</emulator>
+      <machine>pc-1.1</machine>
+      <machine canonical='pc-1.1'>pc</machine>
+      <machine>pc-1.0</machine>
+      <machine>pc-0.15</machine>
+      <machine>pc-0.14</machine>
+      <machine>pc-0.13</machine>
+      <machine>pc-0.12</machine>
+      <machine>pc-0.11</machine>
+      <machine>pc-0.10</machine>
+      <machine>isapc</machine>
+      <domain type='qemu'>
+      </domain>
+      <domain type='kvm'>
+        <emulator>/usr/bin/kvm</emulator>
+      </domain>
+    </arch>
+    <features>
+      <cpuselection/>
+      <deviceboot/>
+      <acpi default='on' toggle='yes'/>
+      <apic default='on' toggle='no'/>
+    </features>
+  </guest>
+
+</capabilities>
+
+
+virsh # cpu-models
+error: unknown command: 'cpu-models'
+virsh # hostname
+perl.0ne.us
+
+virsh # sysinfo
+<sysinfo type='smbios'>
+  <bios>
+    <entry name='vendor'>American Megatrends Inc.</entry>
+    <entry name='version'>V8.14B8</entry>
+    <entry name='date'>11/09/2012</entry>
+    <entry name='release'>8.15</entry>
+  </bios>
+  <system>
+    <entry name='manufacturer'>MSI</entry>
+    <entry name='product'>MS-7522</entry>
+    <entry name='version'>3.0</entry>
+    <entry name='serial'>To Be Filled By O.E.M.</entry>
+    <entry name='uuid'>00000000-0000-0000-0000-6C626DA072CA</entry>
+    <entry name='sku'>To Be Filled By O.E.M.</entry>
+    <entry name='family'>High-End Desktop</entry>
+  </system>
+  <processor>
+    <entry name='socket_destination'>CPU 1</entry>
+    <entry name='type'>Central Processor</entry>
+    <entry name='family'>Core i7</entry>
+    <entry name='manufacturer'>Intel</entry>
+    <entry name='signature'>Type 0, Family 6, Model 44, Stepping 2</entry>
+    <entry name='version'>Intel(R) Core(TM) i7 CPU       X 980  @ 3.33GHz</entry>
+    <entry name='external_clock'>133 MHz</entry>
+    <entry name='max_speed'>3333 MHz</entry>
+    <entry name='status'>Populated, Enabled</entry>
+    <entry name='serial_number'>To Be Filled By O.E.M.</entry>
+    <entry name='part_number'>To Be Filled By O.E.M.</entry>
+  </processor>
+  <memory_device>
+    <entry name='size'>4096 MB</entry>
+    <entry name='form_factor'>DIMM</entry>
+    <entry name='locator'>DIMM0</entry>
+    <entry name='bank_locator'>BANK0</entry>
+    <entry name='type'>Other</entry>
+    <entry name='type_detail'>Other</entry>
+    <entry name='speed'>1066 MHz</entry>
+    <entry name='manufacturer'>Samsung</entry>
+    <entry name='serial_number'>27C46A87</entry>
+    <entry name='part_number'>M378B5273DH0-CH9</entry>
+  </memory_device>
+  <memory_device>
+    <entry name='size'>4096 MB</entry>
+    <entry name='form_factor'>DIMM</entry>
+    <entry name='locator'>DIMM1</entry>
+    <entry name='bank_locator'>BANK1</entry>
+    <entry name='type'>Other</entry>
+    <entry name='type_detail'>Other</entry>
+    <entry name='speed'>1066 MHz</entry>
+    <entry name='manufacturer'>Samsung</entry>
+    <entry name='serial_number'>25C46A87</entry>
+    <entry name='part_number'>M378B5273DH0-CH9</entry>
+  </memory_device>
+  <memory_device>
+    <entry name='size'>4096 MB</entry>
+    <entry name='form_factor'>DIMM</entry>
+    <entry name='locator'>DIMM2</entry>
+    <entry name='bank_locator'>BANK2</entry>
+    <entry name='type'>Other</entry>
+    <entry name='type_detail'>Other</entry>
+    <entry name='speed'>1066 MHz</entry>
+    <entry name='manufacturer'>Samsung</entry>
+    <entry name='serial_number'>B8C46A87</entry>
+    <entry name='part_number'>M378B5273DH0-CH9</entry>
+  </memory_device>
+  <memory_device>
+    <entry name='size'>4096 MB</entry>
+    <entry name='form_factor'>DIMM</entry>
+    <entry name='locator'>DIMM3</entry>
+    <entry name='bank_locator'>BANK3</entry>
+    <entry name='type'>Other</entry>
+    <entry name='type_detail'>Other</entry>
+    <entry name='speed'>1066 MHz</entry>
+    <entry name='manufacturer'>Samsung</entry>
+    <entry name='serial_number'>0EC46A87</entry>
+    <entry name='part_number'>M378B5273DH0-CH9</entry>
+  </memory_device>
+  <memory_device>
+    <entry name='size'>4096 MB</entry>
+    <entry name='form_factor'>DIMM</entry>
+    <entry name='locator'>DIMM4</entry>
+    <entry name='bank_locator'>BANK4</entry>
+    <entry name='type'>Other</entry>
+    <entry name='type_detail'>Other</entry>
+    <entry name='speed'>1066 MHz</entry>
+    <entry name='manufacturer'>Samsung</entry>
+    <entry name='serial_number'>B3C46A87</entry>
+    <entry name='part_number'>M378B5273DH0-CH9</entry>
+  </memory_device>
+  <memory_device>
+    <entry name='size'>4096 MB</entry>
+    <entry name='form_factor'>DIMM</entry>
+    <entry name='locator'>DIMM5</entry>
+    <entry name='bank_locator'>BANK5</entry>
+    <entry name='type'>Other</entry>
+    <entry name='type_detail'>Other</entry>
+    <entry name='speed'>1066 MHz</entry>
+    <entry name='manufacturer'>Samsung</entry>
+    <entry name='serial_number'>B4C46A87</entry>
+    <entry name='part_number'>M378B5273DH0-CH9</entry>
+  </memory_device>
+</sysinfo>
+
+virsh #
+
+root@perl:/# lxc-checkconfig
+Kernel config /proc/config.gz not found, looking in other places...
+Found kernel config file /boot/config-3.2.0-4-amd64
+--- Namespaces ---
+Namespaces: enabled
+Utsname namespace: enabled
+Ipc namespace: enabled
+Pid namespace: enabled
+User namespace: enabled
+Network namespace: enabled
+Multiple /dev/pts instances: enabled
+
+--- Control groups ---
+Cgroup: enabled
+Cgroup clone_children flag: enabled
+Cgroup device: enabled
+Cgroup sched: enabled
+Cgroup cpu account: enabled
+Cgroup memory controller: enabled
+Cgroup cpuset: enabled
+
+--- Misc ---
+Veth pair device: enabled
+Macvlan: enabled
+Vlan: enabled
+File capabilities: enabled
+
+root@perl /home/apoc # virt-install --os-variant list
+win7                 : Microsoft Windows 7
+vista                : Microsoft Windows Vista
+winxp64              : Microsoft Windows XP (x86_64)
+winxp                : Microsoft Windows XP
+win2k                : Microsoft Windows 2000
+win2k8               : Microsoft Windows Server 2008
+win2k3               : Microsoft Windows Server 2003
+openbsd4             : OpenBSD 4.x
+freebsd8             : FreeBSD 8.x
+freebsd7             : FreeBSD 7.x
+freebsd6             : FreeBSD 6.x
+solaris9             : Sun Solaris 9
+solaris10            : Sun Solaris 10
+opensolaris          : Sun OpenSolaris
+netware6             : Novell Netware 6
+netware5             : Novell Netware 5
+netware4             : Novell Netware 4
+msdos                : MS-DOS
+generic              : Generic
+debianwheezy         : Debian Wheezy
+debiansqueeze        : Debian Squeeze
+debianlenny          : Debian Lenny
+debianetch           : Debian Etch
+fedora18             : Fedora 18
+fedora17             : Fedora 17
+fedora16             : Fedora 16
+fedora15             : Fedora 15
+fedora14             : Fedora 14
+fedora13             : Fedora 13
+fedora12             : Fedora 12
+fedora11             : Fedora 11
+fedora10             : Fedora 10
+fedora9              : Fedora 9
+fedora8              : Fedora 8
+fedora7              : Fedora 7
+fedora6              : Fedora Core 6
+fedora5              : Fedora Core 5
+mageia1              : Mageia 1 and later
+mes5.1               : Mandriva Enterprise Server 5.1 and later
+mes5                 : Mandriva Enterprise Server 5.0
+mandriva2010         : Mandriva Linux 2010 and later
+mandriva2009         : Mandriva Linux 2009 and earlier
+rhel7                : Red Hat Enterprise Linux 7
+rhel6                : Red Hat Enterprise Linux 6
+rhel5.4              : Red Hat Enterprise Linux 5.4 or later
+rhel5                : Red Hat Enterprise Linux 5
+rhel4                : Red Hat Enterprise Linux 4
+rhel3                : Red Hat Enterprise Linux 3
+rhel2.1              : Red Hat Enterprise Linux 2.1
+sles11               : Suse Linux Enterprise Server 11
+sles10               : Suse Linux Enterprise Server
+opensuse12           : openSuse 12
+opensuse11           : openSuse 11
+ubuntutrusty         : Ubuntu 14.04 LTS (Trusty Tahr)
+ubuntusaucy          : Ubuntu 13.10 (Saucy Salamander)
+ubunturaring         : Ubuntu 13.04 (Raring Ringtail)
+ubuntuquantal        : Ubuntu 12.10 (Quantal Quetzal)
+ubuntuprecise        : Ubuntu 12.04 LTS (Precise Pangolin)
+ubuntuoneiric        : Ubuntu 11.10 (Oneiric Ocelot)
+ubuntunatty          : Ubuntu 11.04 (Natty Narwhal)
+ubuntumaverick       : Ubuntu 10.10 (Maverick Meerkat)
+ubuntulucid          : Ubuntu 10.04 LTS (Lucid Lynx)
+ubuntukarmic         : Ubuntu 9.10 (Karmic Koala)
+ubuntujaunty         : Ubuntu 9.04 (Jaunty Jackalope)
+ubuntuintrepid       : Ubuntu 8.10 (Intrepid Ibex)
+ubuntuhardy          : Ubuntu 8.04 LTS (Hardy Heron)
+virtio26             : Generic 2.6.25 or later kernel with virtio
+generic26            : Generic 2.6.x kernel
+generic24            : Generic 2.4.x kernel
+

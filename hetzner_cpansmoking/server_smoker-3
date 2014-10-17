@@ -1,0 +1,45 @@
+This is the smoker-3 VM
+-----------------------
+
+install freebsd 10 (64bit)
+
+	wget ftp://ftp.freebsd.org/pub/FreeBSD/releases/amd64/amd64/ISO-IMAGES/10.0/FreeBSD-10.0-RELEASE-amd64-disc1.iso
+	virt-install --name=smoker-3 --ram=1024 --vcpus=1 --cpu kvm64 --os-type unix --os-variant freebsd8 --hvm --accelerate --cdrom=/home/apoc/FreeBSD-10.0-RELEASE-amd64-disc1.iso --disk pool=zpool-data,size=100,sparse=true,format=qcow2 --network=network=default,model=e1000 --vnc --noautoconsole
+
+	follow normal instructions, bla bla
+	set hostname: smoker-3
+	don't forget to add apoc and cpan users!
+
+install steps:
+
+	pw usermod apoc -G wheel
+	cd /usr/ports/editors/nano && make install
+	cd /usr/ports/ftp/wget && make install
+	cd /usr/ports/archivers/unzip && make install
+	cd /usr/ports/security/sudo && make install
+	cd /usr/ports/sysutils/screen && make install
+	nano /usr/local/etc/sudoers # and add "cpan ALL=/usr/sbin/chown"
+	cpanp "s conf prereqs 1; s conf verbose 1; s save"
+	nano .cpanplus/lib/CPANPLUS/Config/User.pm	# use smoker-master as ftp
+	cpanp x --update_source && cpanp s selfupdate all
+	cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased Filesys::DfPortable File::Path::Tiny Number::Bytes::Human File::Which Term::Title Archive::Tar Archive::Zip Archive::Extract Shell::Command File::Find::Rule
+
+	#TODO why did it complain about being unable to check cert?
+wget https://raw.githubusercontent.com/apocalypse/perl-misc-files/master/cpantesters/compile_perl.pl
+--2014-10-14 08:21:10--  https://raw.githubusercontent.com/apocalypse/perl-misc-files/master/cpantesters/compile_perl.pl
+Resolving raw.githubusercontent.com (raw.githubusercontent.com)... 185.31.17.133
+Connecting to raw.githubusercontent.com (raw.githubusercontent.com)|185.31.17.133|:443... connected.
+ERROR: cannot verify raw.githubusercontent.com's certificate, issued by '/C=US/O=DigiCert Inc/OU=www.digicert.com/CN=DigiCert High Assurance CA-3':
+  Unable to locally verify the issuer's authority.
+To connect to raw.githubusercontent.com insecurely, use `--no-check-certificate'.
+
+	wget --no-check-certificate https://raw.githubusercontent.com/apocalypse/perl-misc-files/master/cpantesters/compile_perl.pl
+	nano compile_perl.pl
+	screen -d -m perl compile_perl.pl
+	# get a coffee or something :)
+
+	cpanp i POE::Component::Client::HTTP
+	wget https://raw.githubusercontent.com/apocalypse/perl-misc-files/master/cpantesters/ci_bot.pl
+	nano ci_bot.pl
+	screen -d -m -S ci_bot perl ci_bot.pl
+

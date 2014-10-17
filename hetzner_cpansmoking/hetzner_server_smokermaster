@@ -1,0 +1,144 @@
+install ubuntu trusty 14.04 64-bit
+	follow normal instructions, bla bla
+	set hostname: smoker-master
+
+post-install tasks:
+
+	passwd # password is apoc
+	groupadd wheel
+	nano /etc/pam.d/su # and enable su for wheel
+	usermod -G wheel apoc
+	* make sure rootfs mounted noatime: "nano /etc/fstab" and modify the line mounting /
+	* apt-get update && apt-get upgrade
+	* apt-get install build-essential libssl-dev unzip screen ssh
+	* nano /etc/default/grub # set GRUB_CMDLINE_LINUX="ipv6.disable=1"
+	* update-grub
+	* dpkg-reconfigure tzdata
+	* apt-get purge && apt-get autoremove
+	* rm /etc/cron.daily/* /etc/cron.weekly/*
+
+	* useradd -m -s /bin/bash cpan && passwd cpan # passwd is cpan
+	* mkdir /home/cpan/CPAN
+	* chown cpan:cpan /home/cpan/CPAN
+
+Now, install ircd:
+
+	* apt-get install ircd-hybrid && nano /etc/ircd-hybrid/ircd.conf && /etc/init.d/ircd-hybrid restart
+		NOTE: to connect from your pc, do this: ssh -L 6667:smoker-master:6667 perl.0ne.us -N -f
+
+root@smoker-master:/home/apoc# cat /etc/ircd-hybrid/ircd.conf
+serverinfo {
+	name = "irc.perl.0ne.us";
+	sid = "0HY";
+	description = "ircd-hybrid 8.1-debian";
+	network_name = "0ne.us";
+	network_desc = "smoking...";
+	hub = no;
+	max_clients = 5000;
+	max_nick_length = 50;
+	max_topic_length = 300;
+};
+
+class {
+	name = "users";
+	ping_time = 90 seconds;
+	sendq = 1 megabytes;
+	recvq = 1 megabytes;
+};
+
+listen {
+	port = 6667;
+};
+
+auth {
+	user = "*@*";
+	class = "users";
+};
+
+general {
+	disable_auth = yes;
+	default_floodcount = 1000;
+	ping_cookie = yes;
+	max_targets = 999;
+	throttle_time = 0;
+};
+
+modules {
+	path = "/usr/lib/ircd-hybrid/modules";
+	path = "/usr/lib/ircd-hybrid/modules/autoload";
+};
+
+log {
+	use_logging = yes;
+};
+
+
+Now, install FTPd:
+
+	* apt-get install vsftpd
+	* nano /etc/vsftpd.conf && invoke-rc.d vsftpd restart
+		cpan@smoker-master:~$ cat /etc/vsftpd.conf
+		listen=YES
+		anonymous_enable=YES
+		anon_root=/home/cpan
+		local_enable=NO
+		write_enable=NO
+		anon_upload_enable=NO
+		anon_mkdir_write_enable=NO
+		dirmessage_enable=NO
+		use_localtime=YES
+		xferlog_enable=NO
+		secure_chroot_dir=/var/run/vsftpd/empty
+		pam_service_name=vsftpd
+
+Now, we can finally mirror CPAN!
+
+	rsync -avz mirror.de.leaseweb.net::CPAN/ CPAN/
+	cpanp "s conf prereqs 1; s conf verbose 1; s save"
+	nano the config file and change the mirror to our ftp
+	cpanp x --update_source && cpanp s selfupdate all
+
+Now, setup the cpanidx http server
+
+	apt-get install libexpat1-dev
+	wget https://raw.githubusercontent.com/apocalypse/perl-misc-files/master/cpantesters/cpanidx_httpd.pl
+	cpanp i POE::Component::Server::SimpleHTTP DBI App::CPANIDX::Renderer Config::Tiny Getopt::Long
+	screen -d -m -S cpanidx perl cpanidx_httpd.pl
+	cpanidx-gendb
+
+Now, setup our rsync script
+
+	wget https://raw.githubusercontent.com/apocalypse/perl-misc-files/master/cpantesters/rsync.pl
+	cpanp i POE::Component::SmokeBox::Uploads::Rsync POE::Component::SmokeBox::Dists POE::Component::IRC::State POE::Session::AttributeBased Time::Duration Number::Bytes::Human Filesys::DfPortable
+	screen -d -m -S rsync perl rsync.pl
+
+Next is the metabase relayd
+
+	wget https://raw.githubusercontent.com/apocalypse/perl-misc-files/master/cpantesters/metabase_relay.pl
+	cpanp i POE::Component::Metabase::Relay::Server
+	cp apocal.json .metabase/id.json
+	screen -d -m -S metabase perl metabase_relay.pl
+		# IF you see this: cpan@smoker-master:~$ perl metabase_relay.pl
+		Can't call method "ID" on unblessed reference at /usr/local/share/perl/5.14.2/POE/Component/Metabase/Relay/Server.pm line 222.
+			nano /usr/local/share/perl/5.18.2/POE/Component/Metabase/Relay/Server.pm
+				change $sender to $$sender, DUNNO WHY THIS HAPPENS!@$
+
+Next is the CI master
+
+	wget https://raw.githubusercontent.com/apocalypse/perl-misc-files/master/cpantesters/ci_server.pl
+	screen -d -m -S ci perl ci_server.pl
+
+Finally, we setup misc things our smokers need
+
+	mkdir -p /home/cpan/perl_dists/src
+	wget https://raw.githubusercontent.com/apocalypse/perl-misc-files/master/cpantesters/get_perls.pl
+	perl get_perls.pl
+
+# Putting it all together:
+
+	nano /etc/rc.local
+		su - cpan -c 'screen -d -m -S rsync perl /home/cpan/rsync.pl'
+		su - cpan -c 'screen -d -m -S metabase perl /home/cpan/metabase_relay.pl'
+		su - cpan -c 'screen -d -m -S cpanidx perl /home/cpan/cpanidx_httpd.pl'
+		su - cpan -c 'screen -d -m -S ci perl /home/cpan/ci_server.pl'
+

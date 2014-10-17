@@ -1,0 +1,271 @@
+[ 2353.688820] aacraid: Host adapter abort request (0,1,2,0)
+[ 2353.688852] aacraid: Host adapter reset request. SCSI hang ?
+[ 2363.723725] sd 0:1:2:0: Device offlined - not ready after error recovery
+[ 2363.723748] sd 0:1:2:0: [sdc] Media Changed
+[ 2363.723756] sd 0:1:2:0: [sdc]  Result: hostbyte=DID_OK driverbyte=invalid
+[ 2363.723770] sd 0:1:2:0: [sdc]  Sense Key : Unit Attention [current]
+[ 2363.723788] sd 0:1:2:0: [sdc]  Add. Sense: Bus device reset function occurred
+[ 2363.723804] sd 0:1:2:0: [sdc] CDB: Write(10): 2a 00 00 00 ee 48 00 01 00 00
+[ 2363.723832] end_request: I/O error, dev sdc, sector 61000
+[ 2363.723958] sd 0:1:2:0: rejecting I/O to offline device
+
+root@perl:/usr/StorMan# ./arcconf getlogs 1 event
+Controllers found: 1
+<ControllerLog controllerID="0" type="6" time="1412966742">
+    <eventlog>
+    	<event Date="1412966742" eventType="FSA_EM_BATTERY_CHANGE" eventCode="0x4000" batteryEventType="FSA_BATTERY_DEAD" batteryEventCode="1" priorState="0" currentState="0" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_EXPANDED_EVENT" eventCode="0x10000000" groupType="FSA_EXE_SCSI_GROUP" groupCode="2" priority="3" subType="FSA_EXE_SCSI_SENSE_DATA" subTypeCode="12" cdb="00 00 00 00 00 00 00 00 00 00 00 00" data="70 00 06 00 00 00 00 00 00 00 00 00 29 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00" lun="0" controllerID="0" channelID="0" deviceID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_EXPANDED_EVENT" eventCode="0x10000000" groupType="FSA_EXE_SCSI_GROUP" groupCode="2" priority="3" subType="FSA_EXE_SCSI_SENSE_DATA" subTypeCode="12" cdb="00 00 00 00 00 00 00 00 00 00 00 00" data="70 00 06 00 00 00 00 00 00 00 00 00 29 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00" lun="0" controllerID="0" channelID="0" deviceID="1"/>
+    	<event Date="1412966742" eventType="FSA_EM_EXPANDED_EVENT" eventCode="0x10000000" groupType="FSA_EXE_SCSI_GROUP" groupCode="2" priority="3" subType="FSA_EXE_SCSI_SENSE_DATA" subTypeCode="12" cdb="00 00 00 00 00 00 00 00 00 00 00 00" data="70 00 06 00 00 00 00 00 00 00 00 00 29 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00" lun="0" controllerID="0" channelID="0" deviceID="2"/>
+    	<event Date="1412966742" eventType="FSA_EM_BATTERY_CHANGE" eventCode="0x4000" batteryEventType="FSA_BATTERY_DEAD" batteryEventCode="1" priorState="0" currentState="0" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_BATTERY_CHANGE" eventCode="0x4000" batteryEventType="FSA_BATTERY_DEAD" batteryEventCode="1" priorState="0" currentState="0" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_BATTERY_CHANGE" eventCode="0x4000" batteryEventType="FSA_BATTERY_DEAD" batteryEventCode="1" priorState="0" currentState="0" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_UNRECOGNIZED_FW_EVENT" eventCode="0x80000000" fwParam0="30" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_UNRECOGNIZED_FW_EVENT" eventCode="0x80000000" fwParam0="30" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_UNRECOGNIZED_FW_EVENT" eventCode="0x80000000" fwParam0="30" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_CONFIG_CHANGE" eventCode="0x4" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_BATTERY_CHANGE" eventCode="0x4000" batteryEventType="FSA_BATTERY_DEAD" batteryEventCode="1" priorState="0" currentState="0" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_BATTERY_CHANGE" eventCode="0x4000" batteryEventType="FSA_BATTERY_DEAD" batteryEventCode="1" priorState="0" currentState="0" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_BATTERY_CHANGE" eventCode="0x4000" batteryEventType="FSA_BATTERY_DEAD" batteryEventCode="1" priorState="0" currentState="0" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_BATTERY_CHANGE" eventCode="0x4000" batteryEventType="FSA_BATTERY_DEAD" batteryEventCode="1" priorState="0" currentState="0" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_BATTERY_CHANGE" eventCode="0x4000" batteryEventType="FSA_BATTERY_DEAD" batteryEventCode="1" priorState="0" currentState="0" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_BATTERY_CHANGE" eventCode="0x4000" batteryEventType="FSA_BATTERY_DEAD" batteryEventCode="1" priorState="0" currentState="0" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_BATTERY_CHANGE" eventCode="0x4000" batteryEventType="FSA_BATTERY_DEAD" batteryEventCode="1" priorState="0" currentState="0" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_BATTERY_CHANGE" eventCode="0x4000" batteryEventType="FSA_BATTERY_DEAD" batteryEventCode="1" priorState="0" currentState="0" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_BATTERY_CHANGE" eventCode="0x4000" batteryEventType="FSA_BATTERY_DEAD" batteryEventCode="1" priorState="0" currentState="0" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_BATTERY_CHANGE" eventCode="0x4000" batteryEventType="FSA_BATTERY_DEAD" batteryEventCode="1" priorState="0" currentState="0" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_BATTERY_CHANGE" eventCode="0x4000" batteryEventType="FSA_BATTERY_DEAD" batteryEventCode="1" priorState="0" currentState="0" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_BATTERY_CHANGE" eventCode="0x4000" batteryEventType="FSA_BATTERY_DEAD" batteryEventCode="1" priorState="0" currentState="0" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_BATTERY_CHANGE" eventCode="0x4000" batteryEventType="FSA_BATTERY_DEAD" batteryEventCode="1" priorState="0" currentState="0" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_EXPANDED_EVENT" eventCode="0x10000000" groupType="FSA_EXE_SCSI_GROUP" groupCode="2" priority="3" subType="FSA_EXE_SCSI_COMMAND_TIMEOUT" subTypeCode="13" cdb="2a 00 00 00 ee 48 00 01 00 00 00 00" lun="0" controllerID="0" channelID="0" deviceID="2"/>
+    	<event Date="1412966742" eventType="FSA_EM_ADAPTER_PAUSED" eventCode="0x400" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_ADAPTER_RESUMED" eventCode="0x800" controllerID="0"/>
+    	<event Date="1412966742" eventType="FSA_EM_CONFIG_CHANGE" eventCode="0x4" controllerID="0"/>
+    </eventlog>
+</ControllerLog>
+
+root@perl:/usr/StorMan# ./arcconf getlogs 1 device
+Controllers found: 1
+<ControllerLog controllerID="0" type="0" time="1412966825" version="3" tableFull="false">
+    <driveErrorEntry smartError="false" vendorID="" serialNumber="11126503000009980500" wwn="0000000000000000" productID="Corsair " numParityErrors="0" linkFailures="1" hwErrors="0" abortedCmds="102" mediumErrors="0" smartWarning="0" />
+</ControllerLog>
+
+root@perl:/usr/StorMan# ./arcconf getlogs 1 dead
+Controllers found: 1
+<ControllerLog controllerID="0" type="5" time="1412966858" version="1">
+    <deadDriveEntry vendorID="" rtcSeconds="1" rtcMinutes="7" rtcHours="17" rtcDay="12" rtcMonth="10" rtcYear="2013" serialNumber="11126503000009980500" productID="Corsair " wwn="0000000000000000" failureReasonCode="2"/>
+</ControllerLog>
+
+root@perl:/usr/StorMan# smartctl -d scsi --all /dev/sg0
+smartctl 5.41 2011-06-09 r3365 [x86_64-linux-3.2.0-4-amd64] (local build)
+Copyright (C) 2002-11 by Bruce Allen, http://smartmontools.sourceforge.net
+
+Vendor:               SEAGATE
+Product:              ST3300657SS
+Revision:             0008
+User Capacity:        299,563,483,136 bytes [299 GB]
+Logical block size:   512 bytes
+Logical Unit id:      0x5000c5003a8bb837
+Serial number:        6SJ09NJJ0000N14407WB
+Device type:          disk
+Transport protocol:   SAS
+Local Time is:        Fri Oct 10 20:56:57 2014 CEST
+Device supports SMART and is Enabled
+Temperature Warning Enabled
+SMART Health Status: OK
+
+Current Drive Temperature:     37 C
+Drive Trip Temperature:        68 C
+Elements in grown defect list: 42
+Vendor (Seagate) cache information
+  Blocks sent to initiator = 339368492
+  Blocks received from initiator = 9634972
+  Blocks read from cache and sent to initiator = 1570016152
+  Number of read and write commands whose size <= segment size = 1389485741
+  Number of read and write commands whose size > segment size = 4484
+Vendor (Seagate/Hitachi) factory information
+  number of hours powered up = 27865.85
+  number of minutes until next internal SMART test = 25
+
+Error counter log:
+           Errors Corrected by           Total   Correction     Gigabytes    Total
+               ECC          rereads/    errors   algorithm      processed    uncorrected
+           fast | delayed   rewrites  corrected  invocations   [10^9 bytes]  errors
+read:   1246277007        0         0  1246277007   1246277007     369562.419           0
+write:         0        0         0         0          0     101352.643           0
+verify:   634614        0         0    634614     634614          0.000           0
+
+Non-medium error count:       59
+
+[GLTSD (Global Logging Target Save Disable) set. Enable Save with '-S on']
+
+SMART Self-test log
+Num  Test              Status                 segment  LifeTime  LBA_first_err [SK ASC ASQ]
+     Description                              number   (hours)
+# 1  Background long   Completed                   -   27619                 - [-   -    -]
+# 2  Background long   Completed                   -   27595                 - [-   -    -]
+# 3  Background long   Completed                   -   27104                 - [-   -    -]
+# 4  Background long   Completed                   -   27079                 - [-   -    -]
+# 5  Background long   Aborted (by user command)   -   20282                 - [-   -    -]
+# 6  Background short  Completed                   -   20282                 - [-   -    -]
+# 7  Background short  Completed                   -   20278                 - [-   -    -]
+
+Long (extended) Self Test duration: 3200 seconds [53.3 minutes]
+
+root@perl:/usr/StorMan# smartctl -d scsi --all /dev/sg1
+smartctl 5.41 2011-06-09 r3365 [x86_64-linux-3.2.0-4-amd64] (local build)
+Copyright (C) 2002-11 by Bruce Allen, http://smartmontools.sourceforge.net
+
+Vendor:               SEAGATE
+Product:              ST3300657SS
+Revision:             0008
+User Capacity:        299,563,483,136 bytes [299 GB]
+Logical block size:   512 bytes
+Logical Unit id:      0x5000c5003a8b8b7b
+Serial number:        6SJ09Q320000N144252T
+Device type:          disk
+Transport protocol:   SAS
+Local Time is:        Fri Oct 10 20:57:28 2014 CEST
+Device supports SMART and is Enabled
+Temperature Warning Enabled
+SMART Health Status: OK
+
+Current Drive Temperature:     37 C
+Drive Trip Temperature:        68 C
+Elements in grown defect list: 0
+Vendor (Seagate) cache information
+  Blocks sent to initiator = 1183268891
+  Blocks received from initiator = 3072836806
+  Blocks read from cache and sent to initiator = 1306024869
+  Number of read and write commands whose size <= segment size = 1701097443
+  Number of read and write commands whose size > segment size = 230
+Vendor (Seagate/Hitachi) factory information
+  number of hours powered up = 27866.10
+  number of minutes until next internal SMART test = 24
+
+Error counter log:
+           Errors Corrected by           Total   Correction     Gigabytes    Total
+               ECC          rereads/    errors   algorithm      processed    uncorrected
+           fast | delayed   rewrites  corrected  invocations   [10^9 bytes]  errors
+read:   3406565567        0         0  3406565567   3406565567     352385.130           0
+write:         0        0         0         0          0      34853.998           0
+verify:   231532        0         0    231532     231532          0.000           0
+
+Non-medium error count:       12
+
+[GLTSD (Global Logging Target Save Disable) set. Enable Save with '-S on']
+
+SMART Self-test log
+Num  Test              Status                 segment  LifeTime  LBA_first_err [SK ASC ASQ]
+     Description                              number   (hours)
+# 1  Background long   Completed                   -   27620                 - [-   -    -]
+# 2  Background long   Completed                   -   27595                 - [-   -    -]
+# 3  Background long   Completed                   -   27104                 - [-   -    -]
+# 4  Background long   Completed                   -   27080                 - [-   -    -]
+# 5  Background long   Aborted (by user command)   -   20282                 - [-   -    -]
+# 6  Background short  Completed                   -   20282                 - [-   -    -]
+# 7  Background short  Completed                   -   20278                 - [-   -    -]
+
+Long (extended) Self Test duration: 3200 seconds [53.3 minutes]
+
+root@perl:/usr/StorMan# smartctl -d scsi --all /dev/sg2
+smartctl 5.41 2011-06-09 r3365 [x86_64-linux-3.2.0-4-amd64] (local build)
+Copyright (C) 2002-11 by Bruce Allen, http://smartmontools.sourceforge.net
+
+Vendor:               SEAGATE
+Product:              ST3300657SS
+Revision:             0008
+User Capacity:        299,563,483,136 bytes [299 GB]
+Logical block size:   512 bytes
+Logical Unit id:      0x5000c5003a8b828b
+Serial number:        6SJ1PWZV0000N14425QJ
+Device type:          disk
+Transport protocol:   SAS
+Local Time is:        Fri Oct 10 20:57:43 2014 CEST
+Device supports SMART and is Enabled
+Temperature Warning Enabled
+SMART Health Status: OK
+
+Current Drive Temperature:     33 C
+Drive Trip Temperature:        68 C
+Elements in grown defect list: 95
+Vendor (Seagate) cache information
+  Blocks sent to initiator = 3873398892
+  Blocks received from initiator = 3456737
+  Blocks read from cache and sent to initiator = 2636237159
+  Number of read and write commands whose size <= segment size = 1748979268
+  Number of read and write commands whose size > segment size = 200
+Vendor (Seagate/Hitachi) factory information
+  number of hours powered up = 27865.85
+  number of minutes until next internal SMART test = 53
+
+Error counter log:
+           Errors Corrected by           Total   Correction     Gigabytes    Total
+               ECC          rereads/    errors   algorithm      processed    uncorrected
+           fast | delayed   rewrites  corrected  invocations   [10^9 bytes]  errors
+read:   3012348561       31         0  3012348592   3012349378     342797.425         786
+write:         0        0         0         0          1      35485.350           6
+verify:   857940        5         0    857945     857968          0.000           5
+
+Non-medium error count:        6
+
+[GLTSD (Global Logging Target Save Disable) set. Enable Save with '-S on']
+
+SMART Self-test log
+Num  Test              Status                 segment  LifeTime  LBA_first_err [SK ASC ASQ]
+     Description                              number   (hours)
+# 1  Background long   Completed                   -   27619                 - [-   -    -]
+# 2  Background long   Completed                   -   27595                 - [-   -    -]
+# 3  Background long   Completed                   -   27104                 - [-   -    -]
+# 4  Background long   Completed                   -   27079                 - [-   -    -]
+# 5  Background long   Aborted (by user command)   -   20282                 - [-   -    -]
+# 6  Background short  Completed                   -   20282                 - [-   -    -]
+# 7  Background short  Completed                   -   20278                 - [-   -    -]
+
+Long (extended) Self Test duration: 3200 seconds [53.3 minutes]
+
+
+[ 3884.901373] sd 0:1:2:0: [sdc] Unhandled sense code
+[ 3884.901388] sd 0:1:2:0: [sdc]  Result: hostbyte=DID_ERROR driverbyte=DRIVER_SENSE
+[ 3884.901407] sd 0:1:2:0: [sdc]  Sense Key : Medium Error [current]
+[ 3884.901426] Info fld=0x3ab6
+[ 3884.901434] sd 0:1:2:0: [sdc]  Add. Sense: Unrecovered read error
+[ 3884.901452] sd 0:1:2:0: [sdc] CDB: Read(10): 28 00 00 00 3a 50 00 00 80 00
+[ 3884.901490] end_request: I/O error, dev sdc, sector 15030
+[ 3889.786165] sd 0:1:2:0: [sdc] Unhandled sense code
+[ 3889.786179] sd 0:1:2:0: [sdc]  Result: hostbyte=DID_ERROR driverbyte=DRIVER_SENSE
+[ 3889.786197] sd 0:1:2:0: [sdc]  Sense Key : Medium Error [current]
+[ 3889.786217] Info fld=0x410d
+[ 3889.786224] sd 0:1:2:0: [sdc]  Add. Sense: Unrecovered read error
+[ 3889.786242] sd 0:1:2:0: [sdc] CDB: Read(10): 28 00 00 00 40 d0 00 01 00 00
+[ 3889.786279] end_request: I/O error, dev sdc, sector 16653
+[ 3899.943019] sd 0:1:2:0: [sdc] Unhandled sense code
+[ 3899.943034] sd 0:1:2:0: [sdc]  Result: hostbyte=DID_ERROR driverbyte=DRIVER_SENSE
+[ 3899.943052] sd 0:1:2:0: [sdc]  Sense Key : Medium Error [current]
+[ 3899.943072] Info fld=0x46e5
+[ 3899.943079] sd 0:1:2:0: [sdc]  Add. Sense: Unrecovered read error
+[ 3899.943110] sd 0:1:2:0: [sdc] CDB: Read(10): 28 00 00 00 46 80 00 00 80 00
+[ 3899.943159] end_request: I/O error, dev sdc, sector 18149
+[ 3914.296032] sd 0:1:2:0: [sdc] Unhandled sense code
+[ 3914.296058] sd 0:1:2:0: [sdc]  Result: hostbyte=DID_ERROR driverbyte=DRIVER_SENSE
+[ 3914.296100] sd 0:1:2:0: [sdc]  Sense Key : Medium Error [current]
+[ 3914.296132] Info fld=0x5a3a
+[ 3914.296152] sd 0:1:2:0: [sdc]  Add. Sense: Unrecovered read error
+[ 3914.296182] sd 0:1:2:0: [sdc] CDB: Read(10): 28 00 00 00 59 e0 00 01 00 00
+[ 3914.296231] end_request: I/O error, dev sdc, sector 23098
+[ 3920.426876] sd 0:1:2:0: [sdc] Unhandled sense code
+[ 3920.426902] sd 0:1:2:0: [sdc]  Result: hostbyte=DID_ERROR driverbyte=DRIVER_SENSE
+[ 3920.426944] sd 0:1:2:0: [sdc]  Sense Key : Medium Error [current]
+[ 3920.426975] Info fld=0x6088
+[ 3920.426995] sd 0:1:2:0: [sdc]  Add. Sense: Unrecovered read error
+[ 3920.427025] sd 0:1:2:0: [sdc] CDB: Read(10): 28 00 00 00 60 60 00 00 80 00
+[ 3920.427074] end_request: I/O error, dev sdc, sector 24712
+[ 3930.504678] sd 0:1:2:0: [sdc] Unhandled sense code
+[ 3930.504704] sd 0:1:2:0: [sdc]  Result: hostbyte=DID_ERROR driverbyte=DRIVER_SENSE
+[ 3930.504746] sd 0:1:2:0: [sdc]  Sense Key : Medium Error [current]
+[ 3930.504778] Info fld=0x6d25
+[ 3930.504797] sd 0:1:2:0: [sdc]  Add. Sense: Unrecovered read error
+[ 3930.504827] sd 0:1:2:0: [sdc] CDB: Read(10): 28 00 00 00 6c 60 00 01 00 00
+[ 3930.504877] end_request: I/O error, dev sdc, sector 27941
+
+

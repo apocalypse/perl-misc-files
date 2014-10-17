@@ -1,0 +1,51 @@
+
+
+add irc command: !cq to clear queues
+	this is especially for the irc backlog buffer, so the bots can send faster because of server flooding limits
+	i think this is solved now but have to check again!
+
+add irc command: !abort SMOKERNAME in public, !abort in private
+	that way the smoker cleanly deletes current job/queue/etc
+
+add irc command: !die SMOKERNAME in pub, !die in priv
+	cleanly shutdown the bot - a way for the supervisor(Kerrigan-like) concept to manage the bots
+
+POE::Component::Metabase::Relay
+	relayd_registered use inet_ntoa for the case of listening on '0'
+
+	in START, why do we need to fix $$sender instead of $sender in the source? something funky with MX::POE?
+
+compile_perl.pl
+	don't cache perl tarballs, download them!
+
+	use bingos' cpan::perl::releases to corroborate versions with tarballs for easier discovery
+
+	use devel::patchperl!
+
+	look into porting/maintainers.t fail because of aggressive patching?
+
+	fix freebsd problem because of old version of hints embedded in the compiler!
+
+metabase_relay.pl
+	don't store just IP in reports, do a real DNS resolve so we can store both in different columns for easier lookup!
+
+	colorize colorize FAIL in irc!
+
+	recurring daily rotate the CPANTesters.db file and compress n etc?
+
+	DO NOT dump all PASS to irc, just FAIL or etc, and do this every min - similar to "last message seen X times" in syslog or whatever
+		"summary: received X PASSES from Y smokers"
+
+	I saw a case where it took literally minutes to startup! I suspect some sqlite commands on a big file stalled my code?
+
+ci_bot.pl
+	when it prints "finished smoking block" in IRC, the time is totally wrong!
+
+
+CPAN BAD DISTS
+--------------
+What are they? They are dists that the smoker killed for some reason. I'll investigate them at some point in the future in the hope of being
+able to smoke them! No need to "blacklist" or whatever, I have full faith that smokebox will be able to catch errors and move on.
+
+	Zucchini	=> IDLE
+	QDBM_File	=> IDLE

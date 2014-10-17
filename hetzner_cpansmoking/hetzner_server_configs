@@ -1,0 +1,355 @@
+HETZNER SERVER DIARY
+--------------------
+
+First of all, I ordered the server then had some problems installing Debian because of the way the onboard Adaptec RAID controller worked. I had to put in a support request to move the SSD from the RAID to being attached directly to the motherboard. Then I could finally install debian to the SSD and boot it.
+
+In the rescue system, execute installimage then pick ubuntu 14 image
+then use this for the install.conf:
+	DRIVE1 /dev/sdd
+	SWRAID 0
+	BOOTLOADER grub
+	HOSTNAME perl.0ne.us
+	PART swap swap 12G
+	PART /boot ext3 512M
+	PART / ext4 10G
+	IMAGE /root/.oldroot/nfs/install/../images/Ubuntu-1404-trusty-64-minimal.tar.gz
+
+The first step is of course, to update:
+
+	apt-get update && apt-get upgrade
+	nano /etc/fstab # and add noatime
+	apt-get purge mdadm # we don't use it!
+	passwd # passwd is F+PHax$c5statRa
+	useradd -m -s /bin/bash apoc
+	passwd apoc
+	groupadd wheel
+	nano /etc/pam.d/su # and enable su for wheel
+	usermod -G wheel apoc
+	copy id_rsa.pub to /home/apoc/.ssh/authorized_keys
+	nano /etc/ssh/sshd_config
+		# Forbid root login!
+	/etc/init.d/ssh restart
+	rm /etc/cron.daily/* /etc/cron.weekly/*
+
+Now, we configure the disks for ZFS!
+
+	fdisk /dev/sda
+		create one linux partition for the entire disk
+	fdisk /dev/sdb
+	fdisk /dev/sdc
+
+	fdisk /dev/sdd
+		# careful, this is the system disk!
+		we just add two more partitions to use up the entire space
+		If you're having problems, use parted!
+			parted /dev/sdd
+				mkpart extended 24.2G 120G
+				mkpart logical 24.2G 75G
+				mkpart logical 75G 120G
+
+			(parted) print
+				Model: ATA Corsair CSSD-F12 (scsi)
+				Disk /dev/sdd: 120GB
+				Sector size (logical/physical): 512B/512B
+				Partition Table: msdos
+
+				Number  Start   End     Size    Type      File system     Flags
+				 1      1049kB  12.9GB  12.9GB  primary   linux-swap(v1)
+				 2      12.9GB  13.4GB  537MB   primary   ext3
+				 3      13.4GB  24.2GB  10.7GB  primary   ext4
+				 4      24.2GB  120GB   95.9GB  extended                  lba
+				 5      24.2GB  75.0GB  50.8GB  logical
+				 6      75.0GB  120GB   45.0GB  logical
+
+Install some basic packages we need:
+
+	# from http://louwrentius.com/installation-of-zfs-on-linux-hangs-on-debian-wheezy.html
+	apt-get install build-essential zlib1g-dev uuid-dev libblkid-dev libselinux1-dev lsscsi
+
+Oh, install Adaptec ARCCONF tool:
+
+	apt-get install alien libstdc++5 smartmontools
+	wget http://download.adaptec.com/raid/storage_manager/asm_linux_x64_v5_20_17414.rpm
+	alien asm_linux_x64_v5_20_17414.rpm
+	dpkg -i storman_5.20-1_amd64.deb
+	chmod +x /usr/StorMan/arcconf
+	ln -s /usr/bin/sort /bin/sort
+	/usr/StorMan/arcconf getconfig 1
+	smartctl -d scsi --all /dev/sg0
+
+Then, install ZFS:
+
+	# from http://zfsonlinux.org/ubuntu.html
+	apt-get install software-properties-common
+	add-apt-repository ppa:zfs-native/stable
+	apt-get update && apt-get install ubuntu-zfs
+	zpool status
+		# should display: no pools available
+		then we're good to go!
+
+Configure our VM storage pool:
+
+	# from http://pingd.org/2012/installing-zfs-raid-z-on-centos-6-2-with-ssd-caching.html
+	# if you have issues, do this: sgdisk -Z /dev/sda or parted /dev/sda rm 1 or zpool labelclear -f /dev/sda
+	zpool create -o ashift=12 data -f raidz wwn-0x5000c5003a8b828b wwn-0x5000c5003a8b8b7b wwn-0x5000c5003a8bb837
+		# NOTE: if you have issues with creating the pool, it is common knowledge that "slow startup disks" typically cause this problem!
+		# the solution is to run 'dd if=/dev/sda of=/dev/null' in parallel!
+
+	zpool status
+		# should look good...
+	zpool add data log wwn-0x5000000000000095-part6
+	zpool add data cache wwn-0x5000000000000095-part5
+	zfs set compression=lz4 data
+	zfs set checksum=on data
+	zfs set dedup=on data
+	zfs set atime=off data
+	zfs set xattr=sa data
+	nano /etc/modprobe.d/zfs.conf
+		# http://www.solaris-cookbook.eu/linux/linux-ubuntu/debian-ubuntu-centos-zfs-on-linux-zfs-limit-arc-cache/
+		options zfs zfs_arc_min=536870912
+		options zfs zfs_arc_max=2147483648
+		options zfs zfs_prefetch_disable=1
+		options zfs zfs_vdev_cache_bshift=13
+
+root@perl:~# zpool status
+  pool: data
+ state: ONLINE
+  scan: none requested
+config:
+
+	NAME                            STATE     READ WRITE CKSUM
+	data                            ONLINE       0     0     0
+	  raidz1-0                      ONLINE       0     0     0
+	    wwn-0x5000c5003a8b828b      ONLINE       0     0     0
+	    wwn-0x5000c5003a8b8b7b      ONLINE       0     0     0
+	    wwn-0x5000c5003a8bb837      ONLINE       0     0     0
+	logs
+	  wwn-0x5000000000000095-part6  ONLINE       0     0     0
+	cache
+	  wwn-0x5000000000000095-part5  ONLINE       0     0     0
+
+root@perl:/home/apoc# fdisk -l /dev/sda
+
+WARNING: GPT (GUID Partition Table) detected on '/dev/sda'! The util fdisk doesn't support GPT. Use GNU Parted.
+
+
+Disk /dev/sda: 299.6 GB, 299563483136 bytes
+256 heads, 63 sectors/track, 36277 cylinders, total 585084928 sectors
+Units = sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disk identifier: 0x00000000
+
+   Device Boot      Start         End      Blocks   Id  System
+/dev/sda1               1   585084927   292542463+  ee  GPT
+root@perl:/home/apoc# fdisk -l /dev/sdb
+
+WARNING: GPT (GUID Partition Table) detected on '/dev/sdb'! The util fdisk doesn't support GPT. Use GNU Parted.
+
+
+Disk /dev/sdb: 299.6 GB, 299563483136 bytes
+256 heads, 63 sectors/track, 36277 cylinders, total 585084928 sectors
+Units = sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disk identifier: 0x00000000
+
+   Device Boot      Start         End      Blocks   Id  System
+/dev/sdb1               1   585084927   292542463+  ee  GPT
+root@perl:/home/apoc# fdisk -l /dev/sdc
+
+WARNING: GPT (GUID Partition Table) detected on '/dev/sdc'! The util fdisk doesn't support GPT. Use GNU Parted.
+
+
+Disk /dev/sdc: 299.6 GB, 299563483136 bytes
+256 heads, 63 sectors/track, 36277 cylinders, total 585084928 sectors
+Units = sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disk identifier: 0x00000000
+
+   Device Boot      Start         End      Blocks   Id  System
+/dev/sdc1               1   585084927   292542463+  ee  GPT
+root@perl:/home/apoc# fdisk -l /dev/sdd
+
+Disk /dev/sdd: 120.0 GB, 120034123776 bytes
+255 heads, 63 sectors/track, 14593 cylinders, total 234441648 sectors
+Units = sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disk identifier: 0x0000baa2
+
+   Device Boot      Start         End      Blocks   Id  System
+/dev/sdd1   *        2048     1050624      524288+  83  Linux
+/dev/sdd2         1052672    26218496    12582912+  82  Linux swap / Solaris
+/dev/sdd3        26220544    51386368    12582912+  83  Linux
+/dev/sdd4        51388416   234440703    91526144    f  W95 Ext'd (LBA)
+/dev/sdd5        51390464   156248063    52428800   83  Linux
+/dev/sdd6       156250112   234440703    39095296   83  Linux
+
+root@perl:/# zfs get all data
+NAME  PROPERTY              VALUE                  SOURCE
+data  type                  filesystem             -
+data  creation              Fri Oct 10 10:15 2014  -
+data  used                  23.9G                  -
+data  available             522G                   -
+data  referenced            23.9G                  -
+data  compressratio         1.53x                  -
+data  mounted               yes                    -
+data  quota                 none                   default
+data  reservation           none                   default
+data  recordsize            128K                   default
+data  mountpoint            /data                  default
+data  sharenfs              off                    default
+data  checksum              on                     local
+data  compression           lz4                    local
+data  atime                 off                    local
+data  devices               on                     default
+data  exec                  on                     default
+data  setuid                on                     default
+data  readonly              off                    default
+data  zoned                 off                    default
+data  snapdir               hidden                 default
+data  aclinherit            restricted             default
+data  canmount              on                     default
+data  xattr                 sa                     local
+data  copies                1                      default
+data  version               5                      -
+data  utf8only              off                    -
+data  normalization         none                   -
+data  casesensitivity       sensitive              -
+data  vscan                 off                    default
+data  nbmand                off                    default
+data  sharesmb              off                    default
+data  refquota              none                   default
+data  refreservation        none                   default
+data  primarycache          all                    default
+data  secondarycache        all                    default
+data  usedbysnapshots       0                      -
+data  usedbydataset         23.9G                  -
+data  usedbychildren        67.9M                  -
+data  usedbyrefreservation  0                      -
+data  logbias               latency                default
+data  dedup                 on                     local
+data  mlslabel              none                   default
+data  sync                  standard               default
+data  refcompressratio      1.53x                  -
+data  written               23.9G                  -
+data  logicalused           35.8G                  -
+data  logicalreferenced     35.8G                  -
+data  snapdev               hidden                 default
+data  acltype               off                    default
+data  context               none                   default
+data  fscontext             none                   default
+data  defcontext            none                   default
+data  rootcontext           none                   default
+data  relatime              off                    default
+
+Now that we've done the "base config" it's time to set it up for virtualization!
+
+	# http://stackoverflow.com/questions/21337522/trying-to-use-cgroups-in-debian-wheezy-and-no-daemons
+	# https://help.ubuntu.com/community/KVM/Installation
+	apt-get install cgroup-bin systemd qemu-kvm libvirt-bin lxc
+	lxc-checkconfig # and make sure all says enabled esp for cgroup
+	apt-get purge lxc
+		# we don't use containers, we use VMs
+	adduser apoc kvm
+	adduser apoc libvirtd
+
+	SEEMS LIKE U NEED TO REBOOT HERE...
+
+	# setup the storage pool
+	nano /etc/libvirt/storage/zpool-data.xml
+		<pool type="dir">
+			<name>zpool-data</name>
+			<target>
+				<path>/data</path>
+			</target>
+		</pool>
+
+	virsh pool-define /etc/libvirt/storage/zpool-data.xml
+	virsh pool-start zpool-data
+	virsh pool-autostart zpool-data
+	virsh pool-info zpool-data
+
+	# setup the networking
+	nano /etc/libvirt/qemu/networks/default.xml
+		# modify DHCP range so we can assign .100 to smoker-master and .101-254 to rest
+
+root@perl:/home/apoc# cat /etc/libvirt/qemu/networks/default.xml
+<!--
+WARNING: THIS IS AN AUTO-GENERATED FILE. CHANGES TO IT ARE LIKELY TO BE
+OVERWRITTEN AND LOST. Changes to this xml configuration should be made using:
+  virsh net-edit default
+or other application using the libvirt API.
+-->
+
+<network>
+  <name>default</name>
+  <uuid>08ee0536-f7d0-7ac9-9ab5-563516f67c07</uuid>
+  <forward mode='nat'/>
+  <bridge name='virbr0' stp='on' delay='0' />
+  <mac address='52:54:00:4B:EA:8A'/>
+  <ip address='192.168.122.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='192.168.122.101' end='192.168.122.254' />
+      <host mac='52:54:00:29:f4:69' name='smoker-master' ip='192.168.122.100' />
+    </dhcp>
+  </ip>
+</network>
+
+
+	nano /etc/resolv.conf
+		# add the dnsmasq server so we can resolve
+		nameserver 192.168.122.1
+
+Okay, time to do some tuning on the server :)
+
+	# some from https://git.fedorahosted.org/cgit/tuned.git/tree/profiles/throughput-performance/tuned.conf
+
+	# tune the cpufreq governor
+		update-rc.d ondemand disable
+		for ((i=0;i<$(nproc);i++)); do cpufreq-set -c $i -r -g performance; done
+	# tune the cfs process shceduler
+		nano /etc/sysctl.d/cfs_tune.conf
+			kernel.sched_min_granularity_ns = 10000000
+			kernel.sched_wakeup_granularity_ns = 15000000
+		sysctl -p /etc/sysctl.d/cfs_tune.conf
+	# tune VM dirty ratio
+		nano /etc/sysctl.d/dirty_ratio.conf
+			vm.dirty_ratio = 40
+			vm.dirty_background_ratio = 15
+		sysctl -p /etc/sysctl.d/dirty_ratio.conf
+	# tune VM swappiness
+		nano /etc/sysctl.d/swappiness.conf
+			vm.swappiness = 10
+		sysctl -p /etc/sysctl.d/swappiness.conf
+	# tune the deadline io scheduler
+		nano /etc/default/grub
+			add elevator=deadline to GRUB_CMDLINE_LINUX
+		update-grub
+
+Finally, we can now create our first VM!
+
+	apt-get install virtinst
+	wget http://archive.ubuntu.com/ubuntu/dists/trusty/main/installer-amd64/current/images/netboot/mini.iso
+	mv mini.iso trusty-amd64-mini.iso
+	virt-install --name=smoker-master --ram=768 --vcpus=1 --cpu host --os-type linux --os-variant ubuntutrusty --hvm --accelerate --cdrom=/home/apoc/trusty-amd64-mini.iso --disk pool=zpool-data,size=100,sparse=true,format=qcow2 --network=network=default,model=e1000 --vnc --noautoconsole
+	# tune the cgroups for our master to prio it a bit
+	virsh blkiotune smoker-master --weight 1000 --config --live # range is from 10-1000
+	virsh schedinfo --set cpu_shares=2048 smoker-master --config --live # range is from 0 - 262144, we simply 2x the default
+
+	use virt-manager on your laptop to connect, and open the VNC console of the VM :)
+
+	# Once the install is done and the computer shuts down, we need to start it again...
+	virsh start smoker-master
+
+	# NOTE: the VM will not autostart, we need to manage this ourself because of zpool delay at startup...
+
+Create subsequent smoking VMs!
+
+	# TODO those will not work because I didn't configure ZFS to export block devices!
+	root@perl /etc/libvirt # virsh blkiotune smoker-1 --device-read-iops-sec /data,1000 --config --live
+		error: Unable to change blkio parameters
+		error: Path 'data' must be a block device: Invalid argument
+

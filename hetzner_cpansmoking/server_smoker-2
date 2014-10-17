@@ -1,0 +1,16 @@
+This is the smoker-2 VM
+-----------------------
+
+install ubuntu trusty 14.04 32-bit
+
+	wget http://archive.ubuntu.com/ubuntu/dists/trusty-updates/main/installer-i386/current/images/netboot/mini.iso
+	mv mini.iso trusty-i386-mini.iso
+	virt-install --name=smoker-2 --ram=1024 --vcpus=1 --cpu kvm32 --os-type linux --os-variant ubuntutrusty --hvm --accelerate --cdrom=/home/apoc/trusty-i386-mini.iso --disk pool=zpool-data,size=100,sparse=true,format=qcow2 --network=network=default,model=e1000 --vnc --noautoconsole
+
+	follow normal instructions, bla bla
+	set hostname: smoker-2
+
+install steps:
+
+	exactly the same as smoker-1
+

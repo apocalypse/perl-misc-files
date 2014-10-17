@@ -1,0 +1,49 @@
+This is the smoker-1 VM
+-----------------------
+
+install ubuntu trusty 14.04 64-bit
+
+	wget http://archive.ubuntu.com/ubuntu/dists/trusty/main/installer-amd64/current/images/netboot/mini.iso
+	mv mini.iso trusty-amd64-mini.iso
+	virt-install --name=smoker-1 --ram=1024 --vcpus=1 --cpu kvm64 --os-type linux --os-variant ubuntutrusty --hvm --accelerate --cdrom=/home/apoc/trusty-amd64-mini.iso --disk pool=zpool-data,size=100,sparse=true,format=qcow2 --network=network=default,model=e1000 --vnc --noautoconsole
+
+	follow normal instructions, bla bla
+	set hostname: smoker-1
+
+install steps:
+
+	passwd # password is apoc
+	groupadd wheel
+	nano /etc/pam.d/su # and enable su for wheel
+	usermod -G wheel apoc
+	* make sure rootfs mounted noatime: "nano /etc/fstab" and modify the line mounting /
+	* apt-get update && apt-get upgrade
+	* apt-get install build-essential libssl-dev unzip screen ssh
+	* nano /etc/default/grub # set GRUB_CMDLINE_LINUX="ipv6.disable=1"
+	* update-grub
+	* dpkg-reconfigure tzdata
+	* apt-get purge && apt-get autoremove
+	* rm /etc/cron.daily/* /etc/cron.weekly/*
+
+	useradd -m -s /bin/bash cpan && passwd cpan # passwd is cpan
+	set VISUAL=nano; visudo # and add "cpan ALL=/bin/chown"
+
+Now, configure our perl compiler:
+
+	cpanp "s conf prereqs 1; s conf verbose 1; s save"
+	nano .cpanplus/lib/CPANPLUS/Config/User.pm	# use smoker-master as ftp
+	cpanp x --update_source && cpanp s selfupdate all
+	cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased Filesys::DfPortable File::Path::Tiny Number::Bytes::Human File::Which Term::Title Archive::Tar Archive::Zip Archive::Extract Shell::Command File::Find::Rule
+
+	wget https://raw.githubusercontent.com/apocalypse/perl-misc-files/master/cpantesters/compile_perl.pl
+	nano compile_perl.pl
+	screen -d -m perl compile_perl.pl
+	# get a coffee or something :)
+
+Finally, fire up the CI bot
+
+	cpanp i POE::Component::Client::HTTP
+	wget https://raw.githubusercontent.com/apocalypse/perl-misc-files/master/cpantesters/ci_bot.pl
+	nano ci_bot.pl
+	screen -d -m -S ci_bot perl ci_bot.pl
+

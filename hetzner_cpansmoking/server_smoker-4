@@ -1,0 +1,17 @@
+This is the smoker-4 VM
+-----------------------
+
+install freebsd 10 (32bit)
+
+	wget ftp://ftp.freebsd.org/pub/FreeBSD/releases/i386/i386/ISO-IMAGES/10.0/FreeBSD-10.0-RELEASE-i386-disc1.iso
+	virt-install --name=smoker-4 --ram=1024 --vcpus=1 --cpu kvm32 --os-type unix --os-variant freebsd8 --hvm --accelerate --cdrom=/home/apoc/FreeBSD-10.0-RELEASE-i386-disc1.iso --disk pool=zpool-data,size=100,sparse=true,format=qcow2 --network=network=default,model=e1000 --vnc --noautoconsole
+
+
+	follow normal instructions, bla bla
+	set hostname: smoker-4
+	don't forget to add apoc and cpan users!
+
+install steps:
+
+	same as smoker-3
+
