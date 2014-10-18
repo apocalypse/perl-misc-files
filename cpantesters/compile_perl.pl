@@ -1408,17 +1408,11 @@ sub do_installCPANPLUS {
 	# configure the installed CPANPLUS
 	do_installCPANPLUS_config();
 
-	# force an update to make sure it's ready for smoking
-	# not needed because we use CPANIDX now
-#	if ( ! do_cpanp_action( $stuff{perldist}, "x --update_source" ) ) {
-#		return 0;
-#	}
-
 	return 1;
 }
 
 sub get_CPANPLUS_toolchain {
-	# List taken from CPANPLUS::Internals::Constants::Report v0.9003
+	# List taken from CPANPLUS::Internals::Constants::Report v0.9152
 	# use constant REPORT_TOOLCHAIN_VERSIONS
 	# We remove CPANPLUS from this list because it's redundant :)
 	# We remove 'version' because it's perl-core
@@ -1434,6 +1428,8 @@ sub get_CPANPLUS_toolchain {
 		ExtUtils::ParseXS
 		File::Spec
 		Module::Build
+		Pod::Parser
+		Pod::Simple
 		Test::Harness
 		Test::More
 	);
