@@ -16,15 +16,7 @@ POE::Component::Metabase::Relay
 	in START, why do we need to fix $$sender instead of $sender in the source? something funky with MX::POE?
 
 compile_perl.pl
-	don't cache perl tarballs, download them!
-
-	use bingos' cpan::perl::releases to corroborate versions with tarballs for easier discovery
-
-	use devel::patchperl!
-
 	look into porting/maintainers.t fail because of aggressive patching?
-
-	fix freebsd problem because of old version of hints embedded in the compiler!
 
 metabase_relay.pl
 	don't store just IP in reports, do a real DNS resolve so we can store both in different columns for easier lookup!
