@@ -110,7 +110,7 @@ use Devel::PatchPerl;
 
 # Global config hash
 my %C = (
-	'matrix'	=> 0,			# compile the matrix of perl options or not?
+	'matrix'	=> 1,			# compile the matrix of perl options or not?
 	'devel'		=> 0,			# compile the devel versions of perl?
 	'home'		=> $ENV{HOME},		# the home path where we do our stuff ( also used for local CPANPLUS config! )
 	'cpanp_path'	=> undef,		# the CPANPLUS tarball path we use
@@ -118,7 +118,7 @@ my %C = (
 	'perlver'	=> undef,		# the perl version we're processing now
 	'perlopts'	=> undef,		# the perl options we're using for this run
 	'perldist'	=> undef,		# the full perl dist ( perl_5.6.2_default or perl_$perlver_$perlopts )
-	'server'	=> '192.168.0.200',	# our local CPAN server ( used for mirror/cpantesters upload/etc )
+	'server'	=> 'smoker-master',	# our local CPAN server ( used for mirror/cpantesters upload/etc )
 	'serverctport'	=> '11111',		# our local CPAN server CT2.0 socket/httpgateway port
 	'serverftpdir'	=> '/CPAN/',		# our local CPAN server ftp dir
 	'email'		=> 'apocal@cpan.org',	# the email address to use for CPANPLUS config
