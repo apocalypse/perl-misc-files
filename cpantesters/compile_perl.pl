@@ -856,7 +856,7 @@ sub _prompt_perlver {
 		$res = do_prompt( "Which perl version to use? [ver/(d)isplay/(a)ll/(e)xit]", $perls->[-1] );
 		if ( lc( $res ) eq 'd' ) {
 			# display available versions
-			do_log( "[PERLS] Perls[" . ( scalar @$perls ) . "]: " . join( ' ', @$perls ) );
+			do_log( "[PERLS] " . ( scalar @$perls ) . " versions: " . join( ' ', @$perls ) );
 		} elsif ( lc( $res ) eq 'a' ) {
 			return $perls;
 		} elsif ( lc( $res ) eq 'e' ) {
@@ -1063,7 +1063,8 @@ sub build_perl_opts {
 
 	# Skip problematic perls
 	if ( ! can_build_perl() ) {
-		return 0;
+		# TODO skip for testing		
+		#return 0;
 	}
 
 	# have we already compiled+installed this version?
@@ -1188,7 +1189,7 @@ sub do_prebuild {
 	if ( -f $localpath ) {
 		do_unlink( $localpath );
 	}
-	do_shellcommand( "lwp-mirror ftp://$C{server}/CPAN/authors/id/$cpan_path $localpath" );	
+	do_shellcommand( "lwp-mirror ftp://$C{server}/CPAN/authors/id/" . $cpan_path->{'tar.gz'} . " $localpath" );
 
 	# extract the tarball!
 #	[PERLBUILDER] Firing up the perl-5.11.5-default installer...
