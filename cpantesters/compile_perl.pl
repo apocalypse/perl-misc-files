@@ -110,9 +110,6 @@ my %C = (
 	'matrix'	=> 1,			# compile the matrix of perl options or not?
 	'devel'		=> 0,			# compile the devel versions of perl?
 	'home'		=> $ENV{HOME},		# the home path where we do our stuff ( also used for local CPANPLUS config! )
-	'perlver'	=> undef,		# the perl version we're processing now
-	'perlopts'	=> undef,		# the perl options we're using for this run
-	'perldist'	=> undef,		# the full perl dist ( perl_5.6.2_default or perl_$perlver_$perlopts )
 	'server'	=> 'smoker-master',	# our local CPAN server ( used for mirror/cpantesters upload/etc )
 	'serverctport'	=> '11111',		# our local CPAN server CT2.0 socket/httpgateway port
 	'serverftpdir'	=> '/CPAN/',		# our local CPAN server ftp dir
@@ -128,6 +125,9 @@ my @LOGS = ();
 # Internal variables for bookkeeping
 my %stuff = (
 	'cpanp_ver'	=> undef,		# the CPANPLUS version we'll use for cpanp-boxed
+	'perlver'	=> undef,		# the perl version we're processing now
+	'perlopts'	=> undef,		# the perl options we're using for this run
+	'perldist'	=> undef,		# the full perl dist ( perl_5.6.2_default or perl_$perlver_$perlopts )
 );
 
 # Set a nice term title ( hostname first so we can see it easily in the task switcher )
@@ -243,18 +243,18 @@ sub prompt_action {
 			# Update the entire toolchain + Metabase deps
 			do_log( "[CPANPLUS] Executing toolchain update on CPANPLUS installs..." );
 			iterate_perls( sub {
-				if ( do_cpanp_action( $C{perldist}, "s selfupdate all" ) ) {
-					do_log( "[CPANPLUS] Successfully updated CPANPLUS on '$C{perldist}'" );
+				if ( do_cpanp_action( $stuff{perldist}, "s selfupdate all" ) ) {
+					do_log( "[CPANPLUS] Successfully updated CPANPLUS on '$stuff{perldist}'" );
 
 					# Get our toolchain modules
 					my $cpanp_action = 'i ' . join( ' ', @{ get_CPANPLUS_toolchain() } );
-					if ( do_cpanp_action( $C{perldist}, $cpanp_action ) ) {
-						do_log( "[CPANPLUS] Successfully updated toolchain modules on '$C{perldist}'" );
+					if ( do_cpanp_action( $stuff{perldist}, $cpanp_action ) ) {
+						do_log( "[CPANPLUS] Successfully updated toolchain modules on '$stuff{perldist}'" );
 					} else {
-						do_log( "[CPANPLUS] Failed to update toolchain modules on '$C{perldist}'" );
+						do_log( "[CPANPLUS] Failed to update toolchain modules on '$stuff{perldist}'" );
 					}
 				} else {
-					do_log( "[CPANPLUS] Failed to update CPANPLUS on '$C{perldist}'" );
+					do_log( "[CPANPLUS] Failed to update CPANPLUS on '$stuff{perldist}'" );
 				}
 			} );
 		} elsif ( $res eq 'm' ) {
@@ -269,10 +269,10 @@ sub prompt_action {
 			if ( length $module ) {
 				do_log( "[CPANPLUS] Installing '$module' on perls..." );
 				iterate_perls( sub {
-					if ( do_cpanp_action( $C{perldist}, "i $module" ) ) {
-						do_log( "[CPANPLUS] Installed the module on '$C{perldist}'" );
+					if ( do_cpanp_action( $stuff{perldist}, "i $module" ) ) {
+						do_log( "[CPANPLUS] Installed the module on '$stuff{perldist}'" );
 					} else {
-						do_log( "[CPANPLUS] Failed to install the module on '$C{perldist}'" );
+						do_log( "[CPANPLUS] Failed to install the module on '$stuff{perldist}'" );
 					}
 				} );
 			} else {
@@ -285,10 +285,10 @@ sub prompt_action {
 				do_log( "[CPANPLUS] Uninstalling '$module' on all perls..." );
 				iterate_perls( sub {
 					# use --force so we skip the prompt
-					if ( do_cpanp_action( $C{perldist}, "u $module --force" ) ) {
-						do_log( "[CPANPLUS] Uninstalled the module from '$C{perldist}'" );
+					if ( do_cpanp_action( $stuff{perldist}, "u $module --force" ) ) {
+						do_log( "[CPANPLUS] Uninstalled the module from '$stuff{perldist}'" );
 					} else {
-						do_log( "[CPANPLUS] Failed to uninstall the module from '$C{perldist}'" );
+						do_log( "[CPANPLUS] Failed to uninstall the module from '$stuff{perldist}'" );
 					}
 				} );
 			} else {
@@ -305,7 +305,7 @@ sub prompt_action {
 				do_log( "[COMPILER] Executing chown -R root on perl installs..." );
 				iterate_perls( sub {
 					# some OSes don't have root as a group, so we just set the user
-					do_shellcommand( "sudo chown -R root " . File::Spec->catdir( $C{home}, 'perls', $C{perldist} ) );
+					do_shellcommand( "sudo chown -R root " . File::Spec->catdir( $C{home}, 'perls', $stuff{perldist} ) );
 				} );
 			}
 		} elsif ( $res eq 'n' ) {
@@ -316,7 +316,7 @@ sub prompt_action {
 				# Unchown the perl installs so we can do stuff to them :)
 				do_log( "[COMPILER] Executing chown -R $< on perl installs..." );
 				iterate_perls( sub {
-					do_shellcommand( "sudo chown -R $< " . File::Spec->catdir( $C{home}, 'perls', $C{perldist} ) );
+					do_shellcommand( "sudo chown -R $< " . File::Spec->catdir( $C{home}, 'perls', $stuff{perldist} ) );
 				} );
 			}
 		} elsif ( $res eq 'r' ) {
@@ -326,10 +326,10 @@ sub prompt_action {
 				do_installCPANPLUS_config();
 
 				# No longer needed because of CPANIDX
-#				if ( do_cpanp_action( $C{perldist}, "x --update_source" ) ) {
-#					do_log( "[CPANPLUS] Reconfigured CPANPLUS on '$C{perldist}'" );
+#				if ( do_cpanp_action( $stuff{perldist}, "x --update_source" ) ) {
+#					do_log( "[CPANPLUS] Reconfigured CPANPLUS on '$stuff{perldist}'" );
 #				} else {
-#					do_log( "[CPANPLUS] Error in updating sources for '$C{perldist}'" );
+#					do_log( "[CPANPLUS] Error in updating sources for '$stuff{perldist}'" );
 #				}
 			} );
 		} else {
@@ -338,7 +338,7 @@ sub prompt_action {
 
 		# allow the user to run another loop
 		$res = undef;
-		$C{perlver} = $C{perlopts} = $C{perldist} = undef;
+		$stuff{perlver} = $stuff{perlopts} = $stuff{perldist} = undef;
 		reset_logs();
 	}
 
@@ -507,8 +507,8 @@ sub iterate_perls {
 			do_mv( $perlpath, "C:\\strawberry" );
 
 			# Okay, set the 3 perl variables we need
-			( $C{perlver}, $C{perlopts} ) = split_perl( $p );
-			$C{perldist} = $p;
+			( $stuff{perlver}, $stuff{perlopts} ) = split_perl( $p );
+			$stuff{perldist} = $p;
 
 			# execute action
 			$sub->();
@@ -520,8 +520,8 @@ sub iterate_perls {
 		# Loop through all versions, starting from newest to oldest
 		foreach my $p ( reverse @$res ) {
 			# Okay, set the 3 perl variables we need
-			( $C{perlver}, $C{perlopts} ) = split_perl( $p );
-			$C{perldist} = $p;
+			( $stuff{perlver}, $stuff{perlopts} ) = split_perl( $p );
+			$stuff{perldist} = $p;
 
 			$sub->();
 		}
@@ -598,7 +598,7 @@ sub save_logs {
 	my $end = shift;
 
 	# Dump the logs into the file
-	my $file = File::Spec->catfile( $C{home}, 'perls', $C{perldist} . ".$end" );
+	my $file = File::Spec->catfile( $C{home}, 'perls', $stuff{perldist} . ".$end" );
 	do_replacefile( $file, join( "\n", @LOGS ), 1 );
 
 	return;
@@ -869,9 +869,9 @@ sub install_perl {
 
 sub can_build_perl {
 	# We skip devel perls if it's not enabled
-	if ( $C{perlver} =~ /^5\.(\d+)/ ) {
+	if ( $stuff{perlver} =~ /^5\.(\d+)/ ) {
 		if ( $1 % 2 != 0 and ! $C{devel} ) {
-			do_log( '[COMPILER] Skipping devel version of perl-' . $C{perlver} . '...' );
+			do_log( '[COMPILER] Skipping devel version of perl-' . $stuff{perlver} . '...' );
 			return 0;
 		}
 	}
@@ -879,7 +879,7 @@ sub can_build_perl {
 	# okay, list the known failures here
 
 	# Skip problematic perls
-	if ( $C{perlver} eq '5.6.0' or $C{perlver} eq '5.8.0' ) {
+	if ( $stuff{perlver} eq '5.6.0' or $stuff{perlver} eq '5.8.0' ) {
 		# CPANPLUS won't work on 5.6.0, also some modules we want to install doesn't like 5.6.x :(
 		#
 		# <Apocalypse> Yeah wish me luck, last year I managed to get 5.6.0 built but couldn't get CPANPLUS to install on it
@@ -888,7 +888,7 @@ sub can_build_perl {
 		# <Apocalypse> Ah, so CPANPLUS definitely won't work on 5.6.0? I should just drop it...
 		#
 		# 5.8.0 blows up horribly in it's tests everywhere I try to compile it...
-		do_log( '[COMPILER] Skipping known problematic perl-' . $C{perlver} . '...' );
+		do_log( '[COMPILER] Skipping known problematic perl-' . $stuff{perlver} . '...' );
 		return 0;
 	}
 
@@ -899,13 +899,13 @@ sub can_build_perl {
 	# sdbm.c:41: error: conflicting types for 'free'
 	# /usr/include/stdlib.h:94: error: previous declaration of 'free' was here
 	# *** Error code 1
-	if ( $^O eq 'freebsd' and $C{perlver} eq '5.6.1' ) {
+	if ( $^O eq 'freebsd' and $stuff{perlver} eq '5.6.1' ) {
 		do_log( '[COMPILER] Skipping perl-5.6.1 on FreeBSD...' );
 		return 0;
 	}
 
 	# Analyze the options
-	if ( defined $C{perlopts} ) {
+	if ( defined $stuff{perlopts} ) {
 		# NetBSD 5.0.1 cannot build -Duselongdouble:
 		#
 		# *** You requested the use of long doubles but you do not seem to have
@@ -921,7 +921,7 @@ sub can_build_perl {
 		# ***     sqrtl
 		# *** Please rerun Configure without -Duselongdouble and/or -Dusemorebits.
 		# *** Cannot continue, aborting.
-		if ( ( $^O eq 'netbsd' or $^O eq 'freebsd' ) and $C{perlopts} =~ /(?<!no)long/ ) {
+		if ( ( $^O eq 'netbsd' or $^O eq 'freebsd' ) and $stuff{perlopts} =~ /(?<!no)long/ ) {
 			do_log( '[COMPILER] Skipping -Duselongdouble on NetBSD/FreeBSD...' );
 			return 0;
 		}
@@ -943,7 +943,7 @@ sub can_build_perl {
 		# -rw-r--r-- 1 cpan other 5568 2009-12-07 10:59 perl-5.8.7-thr-multi-long-nomymalloc-64a.fail
 		# -rw-r--r-- 1 cpan other 5463 2009-12-07 11:28 perl-5.8.7-thr-multi-nolong-mymalloc-64a.fail
 		# -rw-r--r-- 1 cpan other 5479 2009-12-07 11:57 perl-5.8.7-thr-multi-nolong-nomymalloc-64a.fail
-		if ( $^O eq 'solaris' and $C{perlver} eq '5.8.7' and $C{perlopts} =~ /64a/ ) {
+		if ( $^O eq 'solaris' and $stuff{perlver} eq '5.8.7' and $stuff{perlopts} =~ /64a/ ) {
 			do_log( '[COMPILER] Skipping -Duse64bitall on perl-5.8.7 on OpenSolaris' );
 			return 0;
 		}
@@ -959,25 +959,25 @@ sub install_perl_win32 {
 
 	# Strawberry tacks on an extra digit for it's build number
 	if ( $perl =~ /^(\d+\.\d+\.\d+\.\d+)$/ ) {
-		$C{perlver} = $perl;
-		$C{perlopts} = 'default';
-		$C{perldist} = "strawberry_perl_$C{perlver}_$C{perlopts}";
+		$stuff{perlver} = $perl;
+		$stuff{perlopts} = 'default';
+		$stuff{perldist} = "strawberry_perl_$stuff{perlver}_$stuff{perlopts}";
 	} else {
 		die "[PERLBUILDER] Unknown Strawberry Perl version: $perl";
 	}
 
 	# Okay, is this perl installed?
-	my $path = File::Spec->catdir( $C{home}, 'perls', $C{perldist} );
+	my $path = File::Spec->catdir( $C{home}, 'perls', $stuff{perldist} );
 	if ( ! -d $path ) {
 		# Okay, unzip the archive
-		do_archive_extract( File::Spec->catfile( $C{home}, 'build', 'strawberry-perl-' . $C{perlver} . '.zip' ), $path );
+		do_archive_extract( File::Spec->catfile( $C{home}, 'build', 'strawberry-perl-' . $stuff{perlver} . '.zip' ), $path );
 	} else {
 		# all done with configuring?
 		if ( -e File::Spec->catfile( $path, 'ready.smoke' ) ) {
-			do_log( "[PERLBUILDER] $C{perldist} is ready to smoke..." );
+			do_log( "[PERLBUILDER] $stuff{perldist} is ready to smoke..." );
 			return 1;
 		} else {
-			do_log( "[PERLBUILDER] $C{perldist} is already built..." );
+			do_log( "[PERLBUILDER] $stuff{perldist} is already built..." );
 		}
 	}
 
@@ -1003,9 +1003,9 @@ sub install_perl_win32 {
 
 sub build_perl_opts {
 	# set the perl stuff
-	$C{perlver} = shift;
-	$C{perlopts} = shift;
-	$C{perldist} = "perl_$C{perlver}_$C{perlopts}";
+	$stuff{perlver} = shift;
+	$stuff{perlopts} = shift;
+	$stuff{perldist} = "perl_$stuff{perlver}_$stuff{perlopts}";
 
 	# Skip problematic perls
 	if ( ! can_build_perl() ) {
@@ -1014,11 +1014,11 @@ sub build_perl_opts {
 	}
 
 	# have we already compiled+installed this version?
-	my $path = File::Spec->catdir( $C{home}, 'perls', $C{perldist} );
+	my $path = File::Spec->catdir( $C{home}, 'perls', $stuff{perldist} );
 	if ( ! -d $path ) {
 		# did the compile fail?
-		if ( -e File::Spec->catfile( $C{home}, 'perls', "$C{perldist}.fail" ) ) {
-			do_log( "[PERLBUILDER] $C{perldist} already failed, skipping..." );
+		if ( -e File::Spec->catfile( $C{home}, 'perls', "$stuff{perldist}.fail" ) ) {
+			do_log( "[PERLBUILDER] $stuff{perldist} already failed, skipping..." );
 			return 0;
 		}
 
@@ -1026,7 +1026,7 @@ sub build_perl_opts {
 		my $ret = do_build();
 
 		# cleanup the build dir ( lots of space! )
-		do_rmdir( File::Spec->catdir( $C{home}, 'build', $C{perldist} ) );
+		do_rmdir( File::Spec->catdir( $C{home}, 'build', $stuff{perldist} ) );
 
 		if ( ! $ret ) {
 			# failed something during compiling, move on!
@@ -1035,10 +1035,10 @@ sub build_perl_opts {
 	} else {
 		# all done with configuring?
 		if ( -e File::Spec->catfile( $path, 'ready.smoke' ) ) {
-			do_log( "[PERLBUILDER] $C{perldist} is ready to smoke..." );
+			do_log( "[PERLBUILDER] $stuff{perldist} is ready to smoke..." );
 			return 1;
 		} else {
-			do_log( "[PERLBUILDER] $C{perldist} is already built..." );
+			do_log( "[PERLBUILDER] $stuff{perldist} is already built..." );
 		}
 	}
 
@@ -1046,7 +1046,7 @@ sub build_perl_opts {
 }
 
 sub customize_perl {
-	do_log( "[PERLBUILDER] Firing up the $C{perldist} installer..." );
+	do_log( "[PERLBUILDER] Firing up the $stuff{perldist} installer..." );
 
 	# do we have CPANPLUS already extracted?
 	if ( ! do_initCPANP_BOXED() ) {
@@ -1074,7 +1074,7 @@ sub finalize_perl {
 	# Get rid of the man directory!
 	# TODO <@vincent> -Dman1dir=none -Dman3dir=none
 	# <Khisanth> makepl_arg         [INSTALLMAN1DIR=none INSTALLMAN3DIR=none]
-	my $path = File::Spec->catdir( $C{home}, 'perls', $C{perldist} );
+	my $path = File::Spec->catdir( $C{home}, 'perls', $stuff{perldist} );
 	my $mandir = File::Spec->catdir( $path, 'man' );
 	if ( -d $mandir ) {
 		do_rmdir( $mandir );
@@ -1103,7 +1103,7 @@ sub finalize_perl {
 #	/home/cpan/perls/perl-5.10.1-default/lib/5.10.1/pod/perlxs.pod
 #	/home/cpan/perls/perl-5.10.1-default/lib/5.10.1/pod/perlxstut.pod
 #	/home/cpan/perls/perl-5.10.1-default/lib/5.10.1/pod/a2p.pod
-	my $perlver = $C{perlver};
+	my $perlver = $stuff{perlver};
 	$perlver =~ s/\-.+$//;	# Get rid of the 5.12.0-RC0 stuff
 	my $poddir = File::Spec->catdir( $path, 'lib', $perlver, 'pod' );
 	if ( -d $poddir ) {
@@ -1117,7 +1117,7 @@ sub finalize_perl {
 	}
 
 	# we're really done, dump the log into the ready.smoke file!
-	do_log( "[FINALIZER] All done with $C{perldist}..." );
+	do_log( "[FINALIZER] All done with $stuff{perldist}..." );
 	do_replacefile( File::Spec->catfile( $path, 'ready.smoke' ), join( "\n", @LOGS ), 1 );
 
 	return 1;
@@ -1125,10 +1125,10 @@ sub finalize_perl {
 
 sub do_prebuild {
 	# get the tarball location on the CPAN mirror
-	my $cpan_path = perl_tarballs( $C{perlver} );
+	my $cpan_path = perl_tarballs( $stuff{perlver} );
 	if ( ! defined $cpan_path or ! exists $cpan_path->{'tar.gz'} ) {
 		# TODO use bz2 or whatever?
-		do_log( "[PERLBUILDER] Unable to obtain Perl tarball info for $C{perlver}!" );
+		do_log( "[PERLBUILDER] Unable to obtain Perl tarball info for $stuff{perlver}!" );
 		return 0;
 	}
 	my $localpath = File::Spec->catfile( $C{home}, 'build', 'PERL.tar.gz' );
@@ -1146,7 +1146,7 @@ sub do_prebuild {
 #	Could not open file '/export/home/cpan/build/perl-5.11.4/AUTHORS': Permission denied at /usr/perl5/site_perl/5.8.4/Archive/Extract.pm line 812
 #	Unable to read '/export/home/cpan/build/perl-5.11.4.tar.gz': Could not open file '/export/home/cpan/build/perl-5.11.4/AUTHORS': Permission denied at ./compile.pl line 1072
 	# Just remove any old dir that was there ( script exited in the middle so it was not cleaned up )
-	my $extract_dir = File::Spec->catdir( $C{home}, 'build', "perl-$C{perlver}" );
+	my $extract_dir = File::Spec->catdir( $C{home}, 'build', "perl-$stuff{perlver}" );
 	if ( -d $extract_dir ) {
 		do_rmdir( $extract_dir );
 	}
@@ -1156,7 +1156,7 @@ sub do_prebuild {
 	do_unlink( $localpath );
 
 	# remove the old dir so we have a consistent build process
-	my $build_dir = File::Spec->catdir( $C{home}, 'build', $C{perldist} );
+	my $build_dir = File::Spec->catdir( $C{home}, 'build', $stuff{perldist} );
 	if ( -d $build_dir ) {
 		do_rmdir( $build_dir );
 	}
@@ -1164,7 +1164,7 @@ sub do_prebuild {
 
 	# We defer to the excellent Devel::PatchPerl to do our dirty work :)
 	eval {	
-		Devel::PatchPerl->patch_source( $C{perlver}, $build_dir );
+		Devel::PatchPerl->patch_source( $stuff{perlver}, $build_dir );
 	};
 	if ( $@ ) {
 		do_log( "[PERLBUILDER] Error in patching source: $@" );
@@ -1450,7 +1450,7 @@ sub do_replacements {
 	$str =~ s/XXXBUILDFLAGSXXX/uninst=1/g;
 	$str =~ s/XXXMAKEFLAGSXXX/UNINST=1/g;
 
-	$str =~ s/XXXPERLDISTXXX/$C{perldist}/g;
+	$str =~ s/XXXPERLDISTXXX/$stuff{perldist}/g;
 	$str =~ s/XXXCPANPLUSXXX/$stuff{cpanp_ver}/g;
 	$str =~ s/XXXTIMEXXX/scalar localtime()/ge;
 
@@ -1541,7 +1541,7 @@ sub do_installCPANPLUS {
 
 	# force an update to make sure it's ready for smoking
 	# not needed because we use CPANIDX now
-#	if ( ! do_cpanp_action( $C{perldist}, "x --update_source" ) ) {
+#	if ( ! do_cpanp_action( $stuff{perldist}, "x --update_source" ) ) {
 #		return 0;
 #	}
 
@@ -1708,7 +1708,7 @@ END
 	# TODO save the old cpansmoke.dat files?
 
 	# blow away the old cpanplus dir if it's there
-	my $oldcpanplus = File::Spec->catdir( $C{home}, 'cpanp_conf', $C{perldist} );
+	my $oldcpanplus = File::Spec->catdir( $C{home}, 'cpanp_conf', $stuff{perldist} );
 	if ( -d $oldcpanplus ) {
 		do_rmdir( $oldcpanplus );
 	}
@@ -1736,7 +1736,7 @@ sub do_cpanpboxed_action {
 
 		return analyze_cpanp_install( $action, do_shellcommand( "perl " . File::Spec->catfile( $C{home}, "CPANPLUS-$stuff{cpanp_ver}", 'bin', 'cpanp-boxed' ) . " $action" ) );
 	} else {
-		return analyze_cpanp_install( $action, do_shellcommand( File::Spec->catfile( $C{home}, 'perls', $C{perldist}, 'bin', 'perl' ) . " " . File::Spec->catfile( $C{home}, "CPANPLUS-$stuff{cpanp_ver}", 'bin', 'cpanp-boxed' ) . " $action" ) );
+		return analyze_cpanp_install( $action, do_shellcommand( File::Spec->catfile( $C{home}, 'perls', $stuff{perldist}, 'bin', 'perl' ) . " " . File::Spec->catfile( $C{home}, "CPANPLUS-$stuff{cpanp_ver}", 'bin', 'cpanp-boxed' ) . " $action" ) );
 	}
 }
 
@@ -1968,7 +1968,7 @@ sub do_shellcommand {
 
 sub do_build {
 	# ignore the args for now, as we use globals :(
-	do_log( "[PERLBUILDER] Preparing to build $C{perldist}" );
+	do_log( "[PERLBUILDER] Preparing to build $stuff{perldist}" );
 
 	# do prebuild stuff
 	if ( ! do_prebuild() ) {
@@ -1976,7 +1976,7 @@ sub do_build {
 	}
 
 	# We start with the standard Configure options
-	my $stdoptions = "-des -Dprefix=$C{home}/perls/$C{perldist}";
+	my $stdoptions = "-des -Dprefix=$C{home}/perls/$stuff{perldist}";
 
 	# Prohibit man/html to be built, saving us time and disk space
 	# TODO doesn't work?
@@ -1986,7 +1986,7 @@ sub do_build {
 
 	# we start off with the Configure step
 	my $extraoptions = '';
-	if ( $C{perlver} =~ /^5\.(\d+)\./ ) {
+	if ( $stuff{perlver} =~ /^5\.(\d+)\./ ) {
 		my $v = $1;
 
 		# Are we running a devel version?
@@ -1999,71 +1999,71 @@ sub do_build {
 	}
 
 	# parse the perlopts
-	if ( defined $C{perlopts} ) {
-		if ( $C{perlopts} =~ /nothr/ ) {
+	if ( defined $stuff{perlopts} ) {
+		if ( $stuff{perlopts} =~ /nothr/ ) {
 			$extraoptions .= ' -Uusethreads';
-		} elsif ( $C{perlopts} =~ /thr/ ) {
+		} elsif ( $stuff{perlopts} =~ /thr/ ) {
 			$extraoptions .= ' -Dusethreads';
 		}
 
-		if ( $C{perlopts} =~ /nomulti/ ) {
+		if ( $stuff{perlopts} =~ /nomulti/ ) {
 			$extraoptions .= ' -Uusemultiplicity';
-		} elsif ( $C{perlopts} =~ /multi/ ) {
+		} elsif ( $stuff{perlopts} =~ /multi/ ) {
 			$extraoptions .= ' -Dusemultiplicity';
 		}
 
-		if ( $C{perlopts} =~ /nolong/ ) {
+		if ( $stuff{perlopts} =~ /nolong/ ) {
 			$extraoptions .= ' -Uuselongdouble';
-		} elsif ( $C{perlopts} =~ /long/ ) {
+		} elsif ( $stuff{perlopts} =~ /long/ ) {
 			$extraoptions .= ' -Duselongdouble';
 		}
 
-		if ( $C{perlopts} =~ /nomymalloc/ ) {
+		if ( $stuff{perlopts} =~ /nomymalloc/ ) {
 			$extraoptions .= ' -Uusemymalloc';
-		} elsif ( $C{perlopts} =~ /mymalloc/ ) {
+		} elsif ( $stuff{perlopts} =~ /mymalloc/ ) {
 			$extraoptions .= ' -Dusemymalloc';
 		}
 
-		if ( $C{perlopts} =~ /64a/ ) {
+		if ( $stuff{perlopts} =~ /64a/ ) {
 			$extraoptions .= ' -Duse64bitall';
-		} elsif ( $C{perlopts} =~ /64i/ ) {
+		} elsif ( $stuff{perlopts} =~ /64i/ ) {
 			$extraoptions .= ' -Duse64bitint';
-		} elsif ( $C{perlopts} =~ /32/ ) {
+		} elsif ( $stuff{perlopts} =~ /32/ ) {
 			$extraoptions .= ' -Uuse64bitall -Uuse64bitint';
 		}
 	}
 
 	# actually do the configure!
-	do_shellcommand( "cd $C{home}/build/$C{perldist}; sh Configure $stdoptions $extraoptions" );
+	do_shellcommand( "cd $C{home}/build/$stuff{perldist}; sh Configure $stdoptions $extraoptions" );
 
 	# generate dependencies - not needed because Configure -des defaults to automatically doing it
-	#do_shellcommand( "cd build/$C{perldist}; make depend" );
+	#do_shellcommand( "cd build/$stuff{perldist}; make depend" );
 
 	# actually compile!
-	my $output = do_shellcommand( "cd $C{home}/build/$C{perldist}; make" );
+	my $output = do_shellcommand( "cd $C{home}/build/$stuff{perldist}; make" );
 	if ( $output->[-1] !~ /to\s+run\s+test\s+suite/ ) {
 		# Is it ok to proceed?
 		if ( ! check_perl_build( $output ) ) {
-			do_log( "[PERLBUILDER] Unable to compile $C{perldist}!" );
+			do_log( "[PERLBUILDER] Unable to compile $stuff{perldist}!" );
 			return 0;
 		}
 	}
 
 	# make sure we pass tests
-	$output = do_shellcommand( "cd $C{home}/build/$C{perldist}; make test" );
+	$output = do_shellcommand( "cd $C{home}/build/$stuff{perldist}; make test" );
 	if ( ! fgrep( '^All\s+tests\s+successful\.$', $output ) ) {
 		# Is it ok to proceed?
 		if ( ! check_perl_test( $output ) ) {
-			do_log( "[PERLBUILDER] Testsuite failed for $C{perldist}!" );
+			do_log( "[PERLBUILDER] Testsuite failed for $stuff{perldist}!" );
 			return 0;
 		}
 	}
 
 	# okay, do the install!
-	do_shellcommand( "cd $C{home}/build/$C{perldist}; make install" );
+	do_shellcommand( "cd $C{home}/build/$stuff{perldist}; make install" );
 
 	# all done!
-	do_log( "[PERLBUILDER] Installed $C{perldist} successfully!" );
+	do_log( "[PERLBUILDER] Installed $stuff{perldist} successfully!" );
 	return 1;
 }
 
@@ -2076,7 +2076,7 @@ sub check_perl_build {
 	#
 	#	Everything is up to date. Type 'make test' to run test suite.
 	#*** Error code 1 (ignored)
-	if ( $^O eq 'freebsd' and $C{perlver} =~ /^5\.8\./ and $output->[-1] eq '*** Error code 1 (ignored)' ) {
+	if ( $^O eq 'freebsd' and $stuff{perlver} =~ /^5\.8\./ and $output->[-1] eq '*** Error code 1 (ignored)' ) {
 		do_log( "[PERLBUILDER] Detected FreeBSD ignored error code 1, ignoring it..." );
 		return 1;
 	}
@@ -2089,7 +2089,7 @@ sub check_perl_build {
 	#*** Error code 1
 	#        Everything is up to date. Type 'make test' to run test suite.
 	# (ignored)
-	if ( $^O eq 'netbsd' and $C{perlver} =~ /^5\.8\./ and $output->[-1] eq ' (ignored)' ) {
+	if ( $^O eq 'netbsd' and $stuff{perlver} =~ /^5\.8\./ and $output->[-1] eq ' (ignored)' ) {
 		do_log( "[PERLBUILDER] Detected NetBSD ignored error code 1, ignoring it..." );
 		return 1;
 	}
@@ -2125,14 +2125,14 @@ sub check_perl_test {
 		# had problems.
 		#
 		#FAILED at test 116
-		if ( $^O eq 'netbsd' and $C{perlver} =~ /^5\.6\./ and fgrep( 'pragma/locale\.+(?!ok)', $output ) ) {
+		if ( $^O eq 'netbsd' and $stuff{perlver} =~ /^5\.6\./ and fgrep( 'pragma/locale\.+(?!ok)', $output ) ) {
 			do_log( "[PERLBUILDER] Detected locale test failure on NetBSD for perl-5.6.x, ignoring it..." );
 			return 1;
 		}
 
 		# TODO 5.8.x < 5.8.9 on freebsd has hostname problems... dunno why
 		#lib/Net/t/hostname........................FAILED at test 1
-		if ( $^O eq 'freebsd' and $C{perlver} =~ /^5\.8\./ and fgrep( '^lib/Net/t/hostname\.+(?!ok)', $output ) ) {
+		if ( $^O eq 'freebsd' and $stuff{perlver} =~ /^5\.8\./ and fgrep( '^lib/Net/t/hostname\.+(?!ok)', $output ) ) {
 			do_log( "[PERLBUILDER] Detected hostname test failure on FreeBSD for perl-5.8.x, ignoring it..." );
 			return 1;
 		}
@@ -2140,7 +2140,7 @@ sub check_perl_test {
 		# 5.8.8 has known problems with sprintf.t and sprintf2.t
 		#t/op/sprintf..............................FAILED--no leader found
 		#t/op/sprintf2.............................FAILED--expected 263 tests, saw 3
-		if ( $C{perlver} eq '5.8.8' and fgrep( '^t/op/sprintf\.+(?!ok)', $output ) ) {
+		if ( $stuff{perlver} eq '5.8.8' and fgrep( '^t/op/sprintf\.+(?!ok)', $output ) ) {
 			do_log( "[PERLBUILDER] Detected sprintf test failure for perl-5.8.8, ignoring it..." );
 			return 1;
 		}
