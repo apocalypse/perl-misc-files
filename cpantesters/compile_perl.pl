@@ -110,8 +110,6 @@ my %C = (
 	'matrix'	=> 1,			# compile the matrix of perl options or not?
 	'devel'		=> 0,			# compile the devel versions of perl?
 	'home'		=> $ENV{HOME},		# the home path where we do our stuff ( also used for local CPANPLUS config! )
-	'cpanp_path'	=> undef,		# the CPANPLUS tarball path we use
-	'cpanp_ver'	=> undef,		# the CPANPLUS version we'll use for cpanp-boxed
 	'perlver'	=> undef,		# the perl version we're processing now
 	'perlopts'	=> undef,		# the perl options we're using for this run
 	'perldist'	=> undef,		# the full perl dist ( perl_5.6.2_default or perl_$perlver_$perlopts )
@@ -126,6 +124,11 @@ if ( $^O eq 'MSWin32' ) {
 
 # Holds our cached logs
 my @LOGS = ();
+
+# Internal variables for bookkeeping
+my %stuff = (
+	'cpanp_ver'	=> undef,		# the CPANPLUS version we'll use for cpanp-boxed
+);
 
 # Set a nice term title ( hostname first so we can see it easily in the task switcher )
 set_titlebar( hostname() . ' Perl-Compiler' );
@@ -607,60 +610,6 @@ sub do_log {
 	print $line . "\n";
 	push( @LOGS, $line );
 	return;
-}
-
-sub get_CPANPLUS_ver {
-	# TODO fix hardcoded version - it's nice as a backup but...
-
-	return $C{cpanp_ver} if defined $C{cpanp_ver};
-
-	# TODO argh, win32 needs different quoting schematics!
-
-	# Spawn a shell to find the answer
-	my $output = do_shellcommand( $^X . ' -MCPANPLUS::Backend -e \'$cb=CPANPLUS::Backend->new;$mod=$cb->module_tree("CPANPLUS");$ver=defined $mod ? $mod->package_version : undef; print "VER: " . ( defined $ver ? $ver : "UNDEF" ) . "\n";\'' );
-	if ( $output->[-1] =~ /^VER\:\s+(.+)$/ ) {
-		my $ver = $1;
-		if ( $ver ne 'UNDEF' ) {
-			$C{cpanp_ver} = $ver;
-		}
-	}
-
-	# default answer
-	$C{cpanp_ver} = '0.9003' if ! defined $C{cpanp_ver};
-	return $C{cpanp_ver};
-
-	# Not a good idea, because it consumed gobs of RAM unnecessarily...
-#	require CPANPLUS::Backend;
-#	my $cb = CPANPLUS::Backend->new;
-#	my $mod = $cb->module_tree( "CPANPLUS" );
-#	my $ver = defined $mod ? $mod->package_version : undef;
-#	if ( defined $ver ) {
-#		return $ver;
-#	} else {
-#		# the default
-#		return "0.88";
-#	}
-}
-
-sub get_CPANPLUS_tarball_path {
-	# TODO fix hardcoded path - it's nice as a backup but...
-
-	return $C{cpanp_path} if defined $C{cpanp_path};
-
-	# TODO argh, win32 needs different quoting schematics!
-
-	# Spawn a shell to find the answer
-	my $output = do_shellcommand( $^X . ' -MCPANPLUS::Backend -e \'$cb=CPANPLUS::Backend->new;$mod=$cb->module_tree("CPANPLUS");$ver=defined $mod ? $mod->path . "/" . $mod->package : undef; print "TARBALL: " . ( defined $ver ? $ver : "UNDEF" ) . "\n";\'' );
-	if ( $output->[-1] =~ /^TARBALL\:\s+(.+)$/ ) {
-		my $tar = $1;
-		if ( $tar ne 'UNDEF' ) {
-			$C{cpanp_path} = $tar;
-		}
-	}
-
-	# default answer
-	$C{cpanp_path} = 'authors/id/B/BI/BINGOS/CPANPLUS-0.9003.tar.gz' if ! defined $C{cpanp_path};
-	return $C{cpanp_path};
 }
 
 # Look at do_installCPANP_BOXED_config for more details
@@ -1290,21 +1239,41 @@ sub do_unlink {
 sub do_initCPANP_BOXED {
 	do_log( "[CPANPLUS] Configuring CPANPLUS::Boxed..." );
 
-	# Get the cpanplus data
-	get_CPANPLUS_ver();
-	get_CPANPLUS_tarball_path();
+	# Execute a query against our CPANIDX server, this is the default version as of 10/18/14 :)
+	my $cpanp_ver = '0.9152';
+	my $cpanp_tarball = 'B/BI/BINGOS/CPANPLUS-0.9152.tar.gz';
+#$ lwp-request http://smoker-master:11110/CPANIDX/yaml/mod/CPANPLUS
+#---
+#-
+#  cpan_id: BINGOS
+#  dist_file: B/BI/BINGOS/CPANPLUS-0.9152.tar.gz
+#  dist_name: CPANPLUS
+#  dist_vers: '0.9152'
+#  mod_name: CPANPLUS
+#  mod_vers: '0.9152'
+	my $output = do_shellcommand( "lwp-request http://$C{server}:11110/CPANIDX/yaml/mod/CPANPLUS" );
+	if ( $output =~ /dist_vers\:\s+\'(.+)\'$/ ) {
+		$cpanp_ver = $1;
+	} else {
+		do_log( "[CPANPLUS] Unable to retrieve CPANPLUS version: $output" );
+	}
+	if ( $output =~ /dist_file\:\s+(.+)$/ ) {
+		$cpanp_tarball = $1;
+	} else {
+		do_log( "[CPANPLUS] Unable to retrieve CPANPLUS tarball: $output" );
+	}
 
 	# do we have CPANPLUS already extracted?
-	my $cpandir = File::Spec->catdir( $C{home}, "CPANPLUS-$C{cpanp_ver}" );
+	my $cpandir = File::Spec->catdir( $C{home}, "CPANPLUS-$cpanp_ver" );
 	if ( -d $cpandir ) {
 		do_rmdir( $cpandir );
 	}
 
 	# do we have the tarball?
-	my $cpantarball = File::Spec->catfile( $C{home}, ( File::Spec->splitpath( $C{cpanp_path} ) )[2] );
+	my $cpantarball = File::Spec->catfile( $C{home}, ( File::Spec->splitpath( $cpanp_tarball ) )[2] );
 	if ( ! -f $cpantarball ) {
 		# get it!
-		do_shellcommand( "lwp-mirror ftp://$C{server}$C{serverftpdir}$C{cpanp_path} $cpantarball" );
+		do_shellcommand( "lwp-mirror ftp://$C{server}$C{serverftpdir}$cpanp_tarball $cpantarball" );
 	}
 
 	# extract it!
@@ -1313,6 +1282,7 @@ sub do_initCPANP_BOXED {
 	}
 
 	# configure the Boxed.pm file
+	$stuff{cpanp_ver} = $cpanp_ver;
 	do_installCPANP_BOXED_config();
 
 	# force an update
@@ -1441,9 +1411,9 @@ END
 	# save it!
 	my $cpanp_dir;
 	if ( $^O eq 'MSWin32' ) {
-		$cpanp_dir = File::Spec->catdir( $C{home}, "CPANPLUS-$C{cpanp_ver}", '.cpanplus', $ENV{USERNAME}, 'lib', 'CPANPLUS', 'Config' );
+		$cpanp_dir = File::Spec->catdir( $C{home}, "CPANPLUS-$stuff{cpanp_ver}", '.cpanplus', $ENV{USERNAME}, 'lib', 'CPANPLUS', 'Config' );
 	} else {
-		$cpanp_dir = File::Spec->catdir( $C{home}, "CPANPLUS-$C{cpanp_ver}", '.cpanplus', $ENV{USER}, 'lib', 'CPANPLUS', 'Config' );
+		$cpanp_dir = File::Spec->catdir( $C{home}, "CPANPLUS-$stuff{cpanp_ver}", '.cpanplus', $ENV{USER}, 'lib', 'CPANPLUS', 'Config' );
 	}
 	do_mkdir( $cpanp_dir );
 	do_replacefile( File::Spec->catfile( $cpanp_dir, 'Boxed.pm' ), $boxed );
@@ -1481,7 +1451,7 @@ sub do_replacements {
 	$str =~ s/XXXMAKEFLAGSXXX/UNINST=1/g;
 
 	$str =~ s/XXXPERLDISTXXX/$C{perldist}/g;
-	$str =~ s/XXXCPANPLUSXXX/$C{cpanp_ver}/g;
+	$str =~ s/XXXCPANPLUSXXX/$stuff{cpanp_ver}/g;
 	$str =~ s/XXXTIMEXXX/scalar localtime()/ge;
 
 	# find binary locations
@@ -1764,9 +1734,9 @@ sub do_cpanpboxed_action {
 		# Make sure we have the proper path
 		local $ENV{PATH} = cleanse_strawberry_path();
 
-		return analyze_cpanp_install( $action, do_shellcommand( "perl " . File::Spec->catfile( $C{home}, "CPANPLUS-$C{cpanp_ver}", 'bin', 'cpanp-boxed' ) . " $action" ) );
+		return analyze_cpanp_install( $action, do_shellcommand( "perl " . File::Spec->catfile( $C{home}, "CPANPLUS-$stuff{cpanp_ver}", 'bin', 'cpanp-boxed' ) . " $action" ) );
 	} else {
-		return analyze_cpanp_install( $action, do_shellcommand( File::Spec->catfile( $C{home}, 'perls', $C{perldist}, 'bin', 'perl' ) . " " . File::Spec->catfile( $C{home}, "CPANPLUS-$C{cpanp_ver}", 'bin', 'cpanp-boxed' ) . " $action" ) );
+		return analyze_cpanp_install( $action, do_shellcommand( File::Spec->catfile( $C{home}, 'perls', $C{perldist}, 'bin', 'perl' ) . " " . File::Spec->catfile( $C{home}, "CPANPLUS-$stuff{cpanp_ver}", 'bin', 'cpanp-boxed' ) . " $action" ) );
 	}
 }
 
