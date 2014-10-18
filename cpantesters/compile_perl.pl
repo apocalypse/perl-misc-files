@@ -105,6 +105,7 @@ use File::Which qw( which );
 use Term::Title qw( set_titlebar );
 use Shell::Command qw( mv );
 use File::Find::Rule;
+use CPAN::Perl::Releases qw( perl_tarballs perl_versions );
 
 # Global config hash
 my %C = (
@@ -187,24 +188,6 @@ sub do_sanity_checks {
 			do_mkdir( $localdir );
 		}
 	}
-
-	# Do we have the perl tarballs?
-	my $path = File::Spec->catdir( $C{home}, 'build' );
-	opendir( DIR, $path ) or die "Unable to opendir ($path): $!";
-	my @entries = readdir( DIR );
-	closedir( DIR ) or die "Unable to closedir ($path): $!";
-
-	# less than 3 entries means only the '.' and '..' entries present..
-	# TODO compare number of entries with mirror and get new dists?
-	if ( @entries < 3 ) {
-		my $res = lc( do_prompt( "Do you want me to automatically get the perl dists?", 'y' ) );
-		if ( $res eq 'y' ) {
-			downloadPerlTarballs();
-		} else {
-			do_log( "[SANITYCHECK] No perl dists available..." );
-			exit;
-		}
-	}
 }
 
 sub do_prompt {
@@ -222,61 +205,21 @@ sub do_prompt {
 	}
 }
 
-sub downloadPerlTarballs {
-	# Download all the tarballs we see
-	do_log( "[SANITYCHECK] Downloading the perl dists..." );
-
-	# TODO hardcoded perl_dists path on ftp?
-	my $ftpdir = 'ftp://' . $C{server} . '/perl_dists/';
-	if ( $^O eq 'MSWin32' ) {
-		$ftpdir .= 'strawberry';
-	} else {
-		$ftpdir .= 'src';
-	}
-
-	my $files = get_directory_contents( $ftpdir );
-	foreach my $f ( @$files ) {
-		do_log( "[SANITYCHECK] Downloading perl dist '$f'" );
-
-		my $localpath = File::Spec->catfile( $C{home}, 'build', $f );
-		if ( -f $localpath ) {
-			do_unlink( $localpath );
-		}
-		do_shellcommand( "lwp-mirror $ftpdir/$f $localpath" );
-	}
-
-	return;
-}
-
-# this is hackish but it does what we want... hah!
-sub get_directory_contents {
-	my $url = shift;
-
-	my @files;
-	my $output = do_shellcommand( "lwp-request $url" );
-
-#	apoc@blackhole:~$ lwp-request ftp://192.168.0.200/perl_dists/strawberry
-#	drwxr-xr-x    2 1001     1002         4096 Dec 19 17:36 bootstrap
-#	-rw-r--r--    1 1001     1002     38632105 Jul 29 23:06 strawberry-perl-5.10.0.6.zip
-#	-rw-r--r--    1 1001     1002     41407550 Oct 21 16:19 strawberry-perl-5.10.1.0.zip
-#	-rw-r--r--    1 1001     1002     34893520 Jan 29  2009 strawberry-perl-5.8.8.4.zip
-#	-rw-r--r--    1 1001     1002     40478661 Oct 17 21:44 strawberry-perl-5.8.9.3.zip
-	foreach my $l ( @$output ) {
-		if ( $l =~ /^\-.+\s+([^\s]+)$/ ) {
-			push( @files, $1 );
-		}
-	}
-
-	return \@files;
-}
 
 sub prompt_action {
 	my $res;
 	while ( ! defined $res ) {
-		$res = lc( do_prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/use (d)evel perl/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(p)rint ready perls/(r)econfig cpanp/(s)ystem toolchain update/perl (t)arballs/(u)ninstall/cho(w)n]", 'e' ) );
+		$res = lc( do_prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/use (d)evel perl/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(p)rint ready perls/(r)econfig cpanp/(s)ystem toolchain update/(u)ninstall/cho(w)n]", 'e' ) );
 		if ( $res eq 'b' ) {
+			# get list of perls to compile
+			my @perls_list = perl_versions();
+			@perls_list = grep { $_ !~ /(?:RC|TRIAL|_|5\.004|5\.005)/ } @perls_list;
+			if ( ! $C{devel} ) {
+				@perls_list = grep { $_ !~ /\.\d?[13579]\./ } @perls_list;
+			}
+
 			# prompt user for perl version to compile
-			$res = prompt_perlver_tarballs();
+			$res = _prompt_perlver( \@perls_list );
 			if ( defined $res ) {
 				# Loop through all versions, starting from newest to oldest
 				foreach my $p ( reverse @$res ) {
@@ -313,9 +256,6 @@ sub prompt_action {
 					do_log( "[CPANPLUS] Failed to update CPANPLUS on '$C{perldist}'" );
 				}
 			} );
-		} elsif ( $res eq 't' ) {
-			# Mirror the perl tarballs
-			downloadPerlTarballs();
 		} elsif ( $res eq 'm' ) {
 			# Should we compile/configure/use/etc the perlmatrix?
 			prompt_perlmatrix();
@@ -901,10 +841,6 @@ sub prompt_perlver_ready {
 	return _prompt_perlver( getReadyPerls() );
 }
 
-sub prompt_perlver_tarballs {
-	return _prompt_perlver( getAvailablePerls() );
-}
-
 # prompt the user for perl version
 # TODO allow the user to make multiple choices? (m)ultiple option?
 sub _prompt_perlver {
@@ -937,32 +873,6 @@ sub _prompt_perlver {
 	}
 
 	return undef;
-}
-
-# cache the @perls array
-{
-	my $perls = undef;
-
-	# gets the perls
-	sub getAvailablePerls {
-		return $perls if defined $perls;
-
-		my $path = File::Spec->catdir( $C{home}, 'build' );
-		opendir( PERLS, $path ) or die "Unable to opendir ($path): $!";
-		$perls = [ sort versioncmp
-
-			# TODO this is a fragile regex
-			map { $_ =~ /perl\-([\d\.\w\-]+)\.(?:zip|tar\.(?:gz|bz2|lzma))$/; $_ = $1; }
-			grep { /perl/ &&
-			-f File::Spec->catfile( $path, $_ ) }
-			readdir( PERLS )
-		];
-		closedir( PERLS ) or die "Unable to closedir ($path): $!";
-
-		do_log( "[AVAILABLEPERLS] Available Perls: " . scalar @$perls );
-
-		return $perls;
-	}
 }
 
 sub install_perl {
@@ -1266,12 +1176,20 @@ sub finalize_perl {
 }
 
 sub do_prebuild {
-	# remove the old dir so we have a consistent build process
-	my $build_dir = File::Spec->catdir( $C{home}, 'build', $C{perldist} );
-	if ( -d $build_dir ) {
-		do_rmdir( $build_dir );
+	# get the tarball location on the CPAN mirror
+	my $cpan_path = perl_tarballs( $C{perlver} );
+	if ( ! defined $cpan_path or ! exists $cpan_path->{'tar.gz'} ) {
+		# TODO use bz2 or whatever?
+		do_log( "[PERLBUILDER] Unable to obtain Perl tarball info for $C{perlver}!" );
+		return 0;
 	}
+	my $localpath = File::Spec->catfile( $C{home}, 'build', 'PERL.tar.gz' );
+	if ( -f $localpath ) {
+		do_unlink( $localpath );
+	}
+	do_shellcommand( "lwp-mirror ftp://$C{server}/CPAN/authors/id/$cpan_path $localpath" );	
 
+	# extract the tarball!
 #	[PERLBUILDER] Firing up the perl-5.11.5-default installer...
 #	[PERLBUILDER] perl-5.11.5-default is ready to smoke...
 #	[PERLBUILDER] Firing up the perl-5.11.4-default installer...
@@ -1284,23 +1202,16 @@ sub do_prebuild {
 	if ( -d $extract_dir ) {
 		do_rmdir( $extract_dir );
 	}
-
-	# Argh, we need to figure out the tarball - tar.gz or tar.bz2 or what??? ( thanks to perl-5.11.3 which didn't have a tar.gz file heh )
-	opendir( PERLDIR, File::Spec->catdir( $C{home}, 'build' ) ) or die "Unable to opendir: $!";
-	my @tarballs = grep { /^perl\-$C{perlver}\..+/ } readdir( PERLDIR );
-	closedir( PERLDIR ) or die "Unable to closedir: $!";
-	if ( scalar @tarballs != 1 ) {
-		# hmpf!
-		do_log( "[PERLBUILDER] Perl tarball for $C{perlver} not found!" );
+	if ( ! do_archive_extract( $localpath, File::Spec->catdir( $C{home}, 'build' ) ) ) {
 		return 0;
 	}
+	do_unlink( $localpath );
 
-	# extract the tarball!
-	if ( ! do_archive_extract( File::Spec->catfile( $C{home}, 'build', $tarballs[0] ), File::Spec->catdir( $C{home}, 'build' ) ) ) {
-		return 0;
+	# remove the old dir so we have a consistent build process
+	my $build_dir = File::Spec->catdir( $C{home}, 'build', $C{perldist} );
+	if ( -d $build_dir ) {
+		do_rmdir( $build_dir );
 	}
-
-	# Move the extracted tarball to our "custom" build dir
 	do_mv( $extract_dir, $build_dir );
 
 	# reset the patch counter

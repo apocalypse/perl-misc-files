@@ -41,6 +41,7 @@ metabase_relay.pl
 ci_bot.pl
 	when it prints "finished smoking block" in IRC, the time is totally wrong!
 
+when I start making windows VMs and smoke based on strawberry, make CPAN::Perl::Releases::Strawberry or something?
 
 CPAN BAD DISTS
 --------------
