@@ -1126,12 +1126,12 @@ sub do_initCPANP_BOXED {
 #  mod_name: CPANPLUS
 #  mod_vers: '0.9152'
 	my $output = do_shellcommand( "lwp-request http://$C{server}:$C{s_cpanidx_port}$C{s_cpanidx_path}yaml/mod/CPANPLUS" );
-	if ( $output =~ /dist_vers\:\s+\'(.+)\'$/ ) {
+	if ( $output =~ /dist_vers\:\s+\'(.+)\'$/m ) {
 		$cpanp_ver = $1;
 	} else {
 		do_log( "[CPANPLUS] Unable to retrieve CPANPLUS version: $output" );
 	}
-	if ( $output =~ /dist_file\:\s+(.+)$/ ) {
+	if ( $output =~ /dist_file\:\s+(.+)$/m ) {
 		$cpanp_tarball = $1;
 	} else {
 		do_log( "[CPANPLUS] Unable to retrieve CPANPLUS tarball: $output" );
@@ -1147,7 +1147,7 @@ sub do_initCPANP_BOXED {
 	my $cpantarball = File::Spec->catfile( $C{home}, ( File::Spec->splitpath( $cpanp_tarball ) )[2] );
 	if ( ! -f $cpantarball ) {
 		# get it!
-		do_shellcommand( "lwp-mirror ftp://$C{server}$C{s_ftpdir}$cpanp_tarball $cpantarball" );
+		do_shellcommand( "lwp-mirror ftp://$C{server}$C{s_ftpdir}authors/id/$cpanp_tarball $cpantarball" );
 	}
 
 	# extract it!
