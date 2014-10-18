@@ -54,10 +54,8 @@ use strict; use warnings;
 #		- that way, we can know what perl versions to skip and etc
 #		- maybe we can autodetect it?
 #		- Sys::Info::Device::CPU::bitness() for a start...
-#	- for the patch_hints thing, auto-detect the latest perl tarball and copy it from there instead of hardcoding it here...
 #	- fix all TODO lines in this code :)
 #	- we should run 3 CPANPLUS configs per perl - "prefer_makefile" = true + false + autodetect
-#	- consider "perl-5.12.0-RC1.tar.gz" and "perl-5.6.1-TRIAL1.tar.gz" devel releases and skip them?
 #	- put all our module prereqs into a BEGIN { eval } check so we can pretty-print the missing modules
 #	- add $C{perltarball} that tracks the tarball of "current" perl so we can use it in some places instead of manually hunting it...
 #	- Use ActiveState perl?
@@ -69,8 +67,6 @@ use strict; use warnings;
 #		- <@TonyC> http://software.intel.com/en-us/articles/non-commercial-software-development/ # free icc for linux!
 #		- <@TonyC> opencc: http://developer.amd.com/cpu/open64/Pages/default.aspx # free amd 64bit compiler
 #		- <TonyC> Apocalypse: http://www.thefreecountry.com/compilers/cpp.shtml # a nice page with lots of compilers
-#	- make the perl tarball downloader skip local tarballs that is OK ( size comparison with ftpd? )
-#	- don't store perl tarballs in a "custom" directory - just use the CPAN/src/ directory??
 #	- URI tests always hang on my fbsd smoker - "freebsd64.0ne.us" somehow hangs it... for now I'm forcing install it on all perls
 #		- maybe I need to investigate a better DNS setup for my VMs? freebsd64.smoking.0ne.us
 #		- then set my dns config for all VMs in *.smoking.0ne.us?
@@ -93,6 +89,7 @@ use strict; use warnings;
 #		<b_jonas> theory: look at INSTALL, it tells about that
 #		<b_jonas> theory: -Dinc_version_list=none
 #		<@theory> b_jonas: Right-o, thanks.
+#	- look into porting/maintainers.t fail because of aggressive patching?
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
