@@ -243,7 +243,7 @@ sub prompt_action {
 	while ( ! defined $res ) {
 		$res = lc( do_prompt( "What action do you want to do today? [(b)uild/use (d)evel perl/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(p)rint ready perls/(r)econfig cpanp/(s)ystem toolchain update/(u)ninstall/cho(w)n]", 'e' ) );
 		if ( $res eq 'b' ) {
-			# get list of perls to compile
+			# get list of perls that is known
 			my @perls_list = perl_versions();
 			@perls_list = grep { $_ !~ /(?:RC|TRIAL|_|5\.004|5\.005)/ } @perls_list;
 			if ( ! $C{devel} ) {
@@ -251,7 +251,7 @@ sub prompt_action {
 			}
 
 			# prompt user for perl version to compile
-			$res = _prompt_perlver( \@perls_list );
+			$res = prompt_perlver( \@perls_list );
 			if ( defined $res ) {
 				# Loop through all versions, starting from newest to oldest
 				foreach my $p ( reverse @$res ) {
@@ -379,6 +379,8 @@ sub do_config_systemCPANPLUS {
 
 # We let CPANPLUS automatically figure it out!
 #	$conf->set_conf( prefer_makefile => 1 );
+
+# We don't let the system perl use CPANIDX as a nice "differentiator" and as a way for it to remain as close to "default" as possible...
 
 	# configure the system Config settings
 	my $uconfig = <<'END';
@@ -655,12 +657,12 @@ sub do_config_CPANPLUS_cfg {
 }
 
 sub prompt_perlver_ready {
-	return _prompt_perlver( getReadyPerls() );
+	return prompt_perlver( getReadyPerls() );
 }
 
 # prompt the user for perl version
 # TODO allow the user to make multiple choices? (m)ultiple option?
-sub _prompt_perlver {
+sub prompt_perlver {
 	my $perls = shift;
 
 	if ( ! defined $perls or scalar @$perls == 0 ) {
