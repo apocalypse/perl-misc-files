@@ -107,13 +107,14 @@ use Devel::PatchPerl;
 
 # Global config hash
 my %C = (
-	'matrix'	=> 1,			# compile the matrix of perl options or not?
-	'devel'		=> 0,			# compile the devel versions of perl?
-	'home'		=> $ENV{HOME},		# the home path where we do our stuff ( also used for local CPANPLUS config! )
-	'server'	=> 'smoker-master',	# our local CPAN server ( used for mirror/cpantesters upload/etc )
-	'serverctport'	=> '11111',		# our local CPAN server CT2.0 socket/httpgateway port
-	'serverftpdir'	=> '/CPAN/',		# our local CPAN server ftp dir
-	'email'		=> 'apocal@cpan.org',	# the email address to use for CPANPLUS config
+	'matrix'		=> 1,			# compile the matrix of perl options or not?
+	'devel'			=> 0,			# compile the devel versions of perl?
+	'home'			=> $ENV{HOME},		# the home path where we do our stuff ( also used for local CPANPLUS config! )
+	'server'		=> 'smoker-master',	# our local CPAN server ( used for mirror/cpantesters upload/etc )
+	's_ct_port'		=> '11111',		# our local CT2.0 socket/httpgateway port
+	's_cpanidx_port'	=> '11110',		# our local CPANIDX port
+	's_ftpdir'		=> '/CPAN/',		# our local CPAN mirror ftp dir
+	'email'			=> 'apocal@cpan.org',	# the email address to use for CPANPLUS config
 );
 if ( $^O eq 'MSWin32' ) {
 	$C{home} = "C:\\cpansmoke";
@@ -146,6 +147,14 @@ prompt_action();
 exit;
 
 sub do_sanity_checks {
+	if ( $< == 0 ) {
+		do_log( "[SANITYCHECK] You are running this as root! Be careful in what you do!" );
+		$res = lc( do_prompt( "Are you really sure you want to run this?", 'n' ) );
+		if ( $res eq 'n' ) {
+			exit;
+		}
+	}
+
 	# Move to our path!
 	chdir( $C{home} ) or die "Unable to chdir($C{home})";
 
@@ -173,22 +182,43 @@ sub do_sanity_checks {
 		}
 	}
 
-	# Don't auto-create dirs if we're root
-	if ( $< == 0 ) {
-		do_log( "[SANITYCHECK] You are running this as root! Be careful in what you do!" );
-		my $res = lc( do_prompt( "Do you want us to auto-create the build dirs?", 'n' ) );
-		if ( $res eq 'n' ) {
-			return;
+	# Create some directories we need
+	$res = lc( do_prompt( "Do you want us to auto-create the build dirs?", 'n' ) );
+	if ( $res eq 'y' ) {
+		foreach my $dir ( qw( build tmp perls cpanp_conf ) ) {
+			my $localdir = File::Spec->catdir( $C{home}, $dir );
+			if ( ! -d $localdir ) {
+				do_mkdir( $localdir );
+			}
+		}
+	}	
+
+	# blow away any annoying .cpan directories that remain
+	$res = lc( do_prompt( "Do you want us to purge/fix the CPAN config dir?", 'n' ) );
+	if ( $res eq 'y' ) {
+		my $cpan;
+		if ( $^O eq 'MSWin32' ) {
+			# TODO is it always in this path?
+			# commit: wrote 'C:\Documents and Settings\cpan\Local Settings\Application Data\.cpan\CPAN\MyConfig.pm'
+			$cpan = 'C:\\Documents and Settings\\' . $ENV{USERNAME} . '\\Local Settings\\Application Data\\.cpan';
+		} else {
+			$cpan = File::Spec->catdir( $C{home}, '.cpan' );
+		}
+
+		if ( -d $cpan ) {
+			do_rmdir( $cpan );
+		}
+
+		# thanks to BinGOs for the idea to prevent rogue module installs via CPAN
+		do_mkdir( $cpan );
+		if ( $^O eq 'MSWin32' ) {
+			# TODO use cacls.exe or something?
+		} else {
+			do_shellcommand( "sudo chown root $cpan" );
 		}
 	}
 
-	# Create some directories we need
-	foreach my $dir ( qw( build tmp perls cpanp_conf ) ) {
-		my $localdir = File::Spec->catdir( $C{home}, $dir );
-		if ( ! -d $localdir ) {
-			do_mkdir( $localdir );
-		}
-	}
+	return 1;
 }
 
 sub do_prompt {
@@ -210,7 +240,7 @@ sub do_prompt {
 sub prompt_action {
 	my $res;
 	while ( ! defined $res ) {
-		$res = lc( do_prompt( "What action do you want to do today? [(b)uild/(c)onfigure local cpanp/use (d)evel perl/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(p)rint ready perls/(r)econfig cpanp/(s)ystem toolchain update/(u)ninstall/cho(w)n]", 'e' ) );
+		$res = lc( do_prompt( "What action do you want to do today? [(b)uild/use (d)evel perl/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(p)rint ready perls/(r)econfig cpanp/(s)ystem toolchain update/(u)ninstall/cho(w)n]", 'e' ) );
 		if ( $res eq 'b' ) {
 			# get list of perls to compile
 			my @perls_list = perl_versions();
@@ -260,9 +290,6 @@ sub prompt_action {
 		} elsif ( $res eq 'm' ) {
 			# Should we compile/configure/use/etc the perlmatrix?
 			prompt_perlmatrix();
-		} elsif ( $res eq 'c' ) {
-			# configure the local user's CPANPLUS
-			do_config_localCPANPLUS();
 		} elsif ( $res eq 'i' ) {
 			# install a specific module
 			my $module = do_prompt( "What module(s) should we install?", '' );
@@ -324,13 +351,6 @@ sub prompt_action {
 			do_log( "[CPANPLUS] Reconfiguring CPANPLUS instances..." );
 			iterate_perls( sub {
 				do_installCPANPLUS_config();
-
-				# No longer needed because of CPANIDX
-#				if ( do_cpanp_action( $stuff{perldist}, "x --update_source" ) ) {
-#					do_log( "[CPANPLUS] Reconfigured CPANPLUS on '$stuff{perldist}'" );
-#				} else {
-#					do_log( "[CPANPLUS] Error in updating sources for '$stuff{perldist}'" );
-#				}
 			} );
 		} else {
 			do_log( "[COMPILER] Unknown action, please try again." );
@@ -439,7 +459,7 @@ sub setup {
 END
 
 	# actually config CPANPLUS!
-	do_config_CPANPLUS_actions( $uconfig );
+	do_config_CPANPLUS_cfg( $uconfig );
 
 	# update the indexes
 	if ( ! do_cpanp_action( undef, 'x --update_source' ) ) {
@@ -612,166 +632,15 @@ sub do_log {
 	return;
 }
 
-# Look at do_installCPANP_BOXED_config for more details
-sub do_config_localCPANPLUS {
-	# Not needed for MSWin32?
-	if ( $^O eq 'MSWin32' ) {
-		my $res = lc( do_prompt( "[CPANPLUS] No need to configure local CPANPLUS on MSWin32. Are you sure?", 'n' ) );
-		if ( $res ne 'y' ) {
-			return 1;
-		}
-	}
-
-# We let CPANPLUS automatically figure it out!
-#	$conf->set_conf( prefer_makefile => 1 );
-
-# The HTTPGateway solution via POEGateway
-#	$conf->set_conf( cpantest_reporter_args => {
-#		transport => 'HTTPGateway',
-#		transport_args => [ 'http://XXXCONFIG-SERVERXXX:XXXCONFIG-SERVERCTPORTXXX/submit' ],
-#	} );
-
-# The CT2.0 Metabase transport
-#	$conf->set_conf( cpantest_reporter_args => {
-#		transport => 'Metabase',
-#		transport_args => [
-#			uri => "https://metabase.cpantesters.org/beta/",
-#			id_file => "XXXCATDIR-XXXPATHXXX/.metabase/id.jsonXXX",
-#		],
-#	} );
-
-# We now use CPANIDX to speed up our smoking!
-#	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::Memory' );
-
-	# configure the local user Config settings
-	my $uconfig = <<'END';
-###############################################
-###
-###  Configuration for CPANPLUS::Config::User
-###
-###############################################
-
-#last changed: XXXTIMEXXX
-
-=pod
-
-=head1 NAME
-
-CPANPLUS::Config::User
-
-=head1 DESCRIPTION
-
-This is a CPANPLUS configuration file.
-
-=cut
-
-package CPANPLUS::Config::User;
-
-use strict;
-
-sub setup {
-	my $conf = shift;
-
-	### conf section
-	$conf->set_conf( allow_build_interactivity => 0 );
-	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/.cpanplusXXX' );
-	$conf->set_conf( buildflags => 'XXXBUILDFLAGSXXX' );
-	$conf->set_conf( cpantest => 1 );
-	$conf->set_conf( cpantest_mx => '' );
-
-# The Socket proxied transport, best for my setup - thanks BinGOs!
-	$conf->set_conf( cpantest_reporter_args => {
-		transport => 'Socket',
-		transport_args => [
-			host => 'XXXCONFIG-SERVERXXX',
-			port => 'XXXCONFIG-SERVERCTPORTXXX',
-		],
-	} );
-
-	$conf->set_conf( debug => 1 );
-	$conf->set_conf( dist_type => '' );
-	$conf->set_conf( email => 'XXXCONFIG-EMAILXXX' );
-	$conf->set_conf( enable_custom_sources => 0 );
-	$conf->set_conf( extractdir => '' );
-	$conf->set_conf( fetchdir => '' );
-	$conf->set_conf( flush => 1 );
-	$conf->set_conf( force => 0 );
-	$conf->set_conf( hosts => [
-		{
-			'path' => 'XXXCONFIG-SERVERFTPDIRXXX',
-			'scheme' => 'ftp',
-			'host' => 'XXXCONFIG-SERVERXXX',
-		},
-	] );
-	$conf->set_conf( lib => [] );
-	$conf->set_conf( makeflags => 'XXXMAKEFLAGSXXX' );
-	$conf->set_conf( makemakerflags => '' );
-	$conf->set_conf( md5 => 1 );
-	$conf->set_conf( no_update => 1 );
-	$conf->set_conf( passive => 1 );
-	$conf->set_conf( prefer_bin => XXXPREFERBINXXX );
-	$conf->set_conf( prereqs => 1 );
-	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
-	$conf->set_conf( show_startup_tip => 0 );
-	$conf->set_conf( signature => 0 );
-	$conf->set_conf( skiptest => 0 );
-	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::CPANIDX' );
-	$conf->set_conf( storable => 1 );
-	$conf->set_conf( timeout => 300 );
-	$conf->set_conf( verbose => 1 );
-	$conf->set_conf( write_install_logs => 0 );
-
-	$conf->set_program( editor => undef );
-	$conf->set_program( make => 'XXXWHICH-makeXXX' );
-	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
-	$conf->set_program( perlwrapper => 'XXXWHICH-cpanp-run-perlXXX' );
-	$conf->set_program( shell => 'XXXWHICH-bashXXX' );
-	$conf->set_program( sudo => undef );
-
-	return 1;
-}
-1;
-END
-
-	# actually config CPANPLUS!
-	do_config_CPANPLUS_actions( $uconfig );
-
-	# blow away any annoying .cpan directories that remain
-	my $cpan;
-	if ( $^O eq 'MSWin32' ) {
-		# TODO is it always in this path?
-		# commit: wrote 'C:\Documents and Settings\cpan\Local Settings\Application Data\.cpan\CPAN\MyConfig.pm'
-		$cpan = 'C:\\Documents and Settings\\' . $ENV{USERNAME} . '\\Local Settings\\Application Data\\.cpan';
-	} else {
-		$cpan = File::Spec->catdir( $C{home}, '.cpan' );
-	}
-
-	if ( -d $cpan ) {
-		do_rmdir( $cpan );
-	}
-
-	# thanks to BinGOs for the idea to prevent rogue module installs via CPAN
-	do_mkdir( $cpan );
-	if ( $^O eq 'MSWin32' ) {
-		# TODO use cacls.exe or something?
-	} else {
-		do_shellcommand( "sudo chown root $cpan" );
-	}
-
-	return 1;
-}
-
-sub do_config_CPANPLUS_actions {
+sub do_config_CPANPLUS_cfg {
 	my $uconfig = shift;
+	do_log( "[CPANPLUS] Configuring the CPANPLUS config..." );
 
 	# blow away the old cpanplus dir if it's there
 	my $cpanplus = File::Spec->catdir( $C{home}, '.cpanplus' );
 	if ( -d $cpanplus ) {
 		do_rmdir( $cpanplus );
 	}
-
-	# overwrite any old config, just in case...
-	do_log( "[CPANPLUS] Configuring the CPANPLUS config..." );
 
 	# transform the XXXargsXXX
 	$uconfig = do_replacements( $uconfig );
@@ -1135,7 +1004,7 @@ sub do_prebuild {
 	if ( -f $localpath ) {
 		do_unlink( $localpath );
 	}
-	do_shellcommand( "lwp-mirror ftp://$C{server}/CPAN/authors/id/" . $cpan_path->{'tar.gz'} . " $localpath" );
+	do_shellcommand( "lwp-mirror ftp://$C{server}$C{s_ftpdir}authors/id/" . $cpan_path->{'tar.gz'} . " $localpath" );
 
 	# extract the tarball!
 #	[PERLBUILDER] Firing up the perl-5.11.5-default installer...
@@ -1251,7 +1120,7 @@ sub do_initCPANP_BOXED {
 #  dist_vers: '0.9152'
 #  mod_name: CPANPLUS
 #  mod_vers: '0.9152'
-	my $output = do_shellcommand( "lwp-request http://$C{server}:11110/CPANIDX/yaml/mod/CPANPLUS" );
+	my $output = do_shellcommand( "lwp-request http://$C{server}:$C{s_cpanidx_port}/CPANIDX/yaml/mod/CPANPLUS" );
 	if ( $output =~ /dist_vers\:\s+\'(.+)\'$/ ) {
 		$cpanp_ver = $1;
 	} else {
@@ -1273,7 +1142,7 @@ sub do_initCPANP_BOXED {
 	my $cpantarball = File::Spec->catfile( $C{home}, ( File::Spec->splitpath( $cpanp_tarball ) )[2] );
 	if ( ! -f $cpantarball ) {
 		# get it!
-		do_shellcommand( "lwp-mirror ftp://$C{server}$C{serverftpdir}$cpanp_tarball $cpantarball" );
+		do_shellcommand( "lwp-mirror ftp://$C{server}$C{s_ftpdir}$cpanp_tarball $cpantarball" );
 	}
 
 	# extract it!
@@ -1588,22 +1457,6 @@ sub get_CPANPLUS_toolchain {
 
 # Look at do_installCPANP_BOXED_config for more details
 sub do_installCPANPLUS_config {
-
-# The HTTPGateway solution via POEGateway
-#	$conf->set_conf( cpantest_reporter_args => {
-#		transport => 'HTTPGateway',
-#		transport_args => [ 'http://XXXCONFIG-SERVERXXX:XXXCONFIG-SERVERCTPORTXXX/submit' ],
-#	} );
-
-# The CT2.0 Metabase transport
-#	$conf->set_conf( cpantest_reporter_args => {
-#		transport => 'Metabase',
-#		transport_args => [
-#			uri => "https://metabase.cpantesters.org/beta/",
-#			id_file => "XXXCATDIR-XXXPATHXXX/.metabase/id.jsonXXX",
-#		],
-#	} );
-
 # TODO seems like this causes weird caching issues - better to split off the stuff for now...
 #	$conf->set_conf( fetchdir => 'XXXCATDIR-XXXPATHXXX/.cpanplus/authorsXXX' );
 
