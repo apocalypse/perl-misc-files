@@ -148,6 +148,8 @@ prompt_action();
 exit;
 
 sub do_sanity_checks {
+	my $res;
+
 	if ( $< == 0 ) {
 		do_log( "[SANITYCHECK] You are running this as root! Be careful in what you do!" );
 		$res = lc( do_prompt( "Are you really sure you want to run this?", 'n' ) );

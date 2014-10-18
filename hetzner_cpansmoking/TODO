@@ -1,5 +1,3 @@
-
-
 add irc command: !cq to clear queues
 	this is especially for the irc backlog buffer, so the bots can send faster because of server flooding limits
 	i think this is solved now but have to check again!
