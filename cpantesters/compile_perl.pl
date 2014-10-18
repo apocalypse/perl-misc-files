@@ -113,6 +113,7 @@ my %C = (
 	'server'		=> 'smoker-master',	# our local CPAN server ( used for mirror/cpantesters upload/etc )
 	's_ct_port'		=> '11111',		# our local CT2.0 socket/httpgateway port
 	's_cpanidx_port'	=> '11110',		# our local CPANIDX port
+	's_cpanidx_path'	=> '/CPANIDX/',		# our local CPANIDX path
 	's_ftpdir'		=> '/CPAN/',		# our local CPAN mirror ftp dir
 	'email'			=> 'apocal@cpan.org',	# the email address to use for CPANPLUS config
 );
@@ -1120,7 +1121,7 @@ sub do_initCPANP_BOXED {
 #  dist_vers: '0.9152'
 #  mod_name: CPANPLUS
 #  mod_vers: '0.9152'
-	my $output = do_shellcommand( "lwp-request http://$C{server}:$C{s_cpanidx_port}/CPANIDX/yaml/mod/CPANPLUS" );
+	my $output = do_shellcommand( "lwp-request http://$C{server}:$C{s_cpanidx_port}$C{s_cpanidx_path}yaml/mod/CPANPLUS" );
 	if ( $output =~ /dist_vers\:\s+\'(.+)\'$/ ) {
 		$cpanp_ver = $1;
 	} else {
@@ -1740,7 +1741,7 @@ sub do_cpanp_action {
 	local $ENV{PERL_MM_USE_DEFAULT} = 1;
 	local $ENV{PERL_EXTUTILS_AUTOINSTALL} = '--defaultdeps';
 	local $ENV{TMPDIR} = File::Spec->catdir( $C{home}, 'tmp' );
-	local $ENV{PERL5_CPANIDX_URL} = 'http://' . $C{server} . ':11110/CPANIDX/';	# TODO fix this hardcoded stuff
+	local $ENV{PERL5_CPANIDX_URL} = 'http://' . $C{server} . ':' . $C{s_cpanidx_port} . $C{s_cpanidx_path};
 
 	# special way for MSWin32...
 	if ( $^O eq 'MSWin32' ) {
