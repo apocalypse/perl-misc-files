@@ -1,0 +1,39 @@
+This is the smoker-5 VM
+-----------------------
+
+install OpenBSD 5.5 (64bit)
+
+	wget http://ftp.spline.de/pub/OpenBSD/5.5/amd64/install55.iso
+	mv install55.iso OpenBSD-5.5-amd64-install.iso
+	virt-install --name=smoker-5 --ram=1024 --vcpus=1 --cpu kvm64 --os-type unix --os-variant openbsd4 --hvm --accelerate --cdrom=/home/apoc/OpenBSD-5.5-amd64-install.iso --disk pool=zpool-data,size=100,sparse=true,format=qcow2 --network=network=default,model=e1000 --vnc --noautoconsole
+
+	follow normal instructions, bla bla
+	set hostname: smoker-5
+	don't forget to add apoc user!
+	don't install the x* and game sets!
+		I installed just bsd, bsd.rd, base55.tgz, etc55.tgz, and comp55.tgz packages!
+
+install steps:
+
+	vi .profile	
+		export PKG_PATH=http://ftp.spline.de/pub/OpenBSD/5.5/packages/`machine -a`/
+	pkg_add -i nano
+	pkg_add -i wget
+	pkg_add -i unzip
+	pkg_add -i screen
+	nano /etc/sudoers
+		enable wheel to su without pw
+		add cpan ALL=/sbin/chown
+	usermod -G wheel apoc
+	useradd -m cpan
+	nano /etc/login.conf
+		# in default group:		
+		#       :tc=auth-defaults:\
+		#       :tc=auth-ftp-defaults:\
+			:auth=passwd:\
+			:passwordcheck=/usr/bin/true:\
+			:minpasswordlen=0:
+	cap_mkdb /etc/login.conf
+	passwd cpan
+	
+	rest is the same perl stuff, look at smoker-1
