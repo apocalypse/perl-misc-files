@@ -1490,7 +1490,7 @@ sub setup {
 		transport => 'Socket',
 		transport_args => [
 			host => 'XXXCONFIG-SERVERXXX',
-			port => 'XXXCONFIG-S_CTPORTXXX',
+			port => 'XXXCONFIG-S_CT_PORTXXX',
 		],
 	} );
 
