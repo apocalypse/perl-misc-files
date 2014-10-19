@@ -253,7 +253,7 @@ sub prompt_action {
 			}
 
 			# prompt user for perl version to compile
-			$res = prompt_perlver( \@perls_list );
+			$res = prompt_select_perlver( \@perls_list );
 			if ( defined $res ) {
 				# Loop through all versions, starting from newest to oldest
 				foreach my $p ( reverse @$res ) {
@@ -271,7 +271,13 @@ sub prompt_action {
 			do_config_systemCPANPLUS();
 		} elsif ( $res eq 'd' ) {
 			# should we use the perl devel versions?
-			prompt_develperl();
+			do_log( "[COMPILER] Current devel perl status: " . ( $C{devel} ? 'Y' : 'N' ) );
+			$res = lc( do_prompt( "Compile/use the devel perls?", 'n' ) );
+			if ( $res eq 'y' ) {
+				$C{devel} = 1;
+			} else {
+				$C{devel} = 0;
+			}
 		} elsif ( $res eq 'l' ) {
 			# Update the entire toolchain + Metabase deps
 			do_log( "[CPANPLUS] Executing toolchain update on CPANPLUS installs..." );
@@ -292,7 +298,13 @@ sub prompt_action {
 			} );
 		} elsif ( $res eq 'm' ) {
 			# Should we compile/configure/use/etc the perlmatrix?
-			prompt_perlmatrix();
+			do_log( "[COMPILER] Current matrix perl status: " . ( $C{matrix} ? 'Y' : 'N' ) );
+			$res = lc( do_prompt( "Compile/use the perl matrix?", 'n' ) );
+			if ( $res eq 'y' ) {
+				$C{matrix} = 1;
+			} else {
+				$C{matrix} = 0;
+			}
 		} elsif ( $res eq 'i' ) {
 			# install a specific module
 			my $module = do_prompt( "What module(s) should we install?", '' );
@@ -482,8 +494,6 @@ END
 		return 0;
 	}
 
-	# TODO change config to use CPANIDX?
-
 	return 1;
 }
 
@@ -512,7 +522,7 @@ sub iterate_perls {
 	my $sub = shift;
 
 	# prompt user for perl version to iterate on
-	my $res = prompt_perlver_ready();
+	my $res = prompt_select_perlver( getReadyPerls() );
 	if ( ! defined $res ) {
 		do_log( "[ITERATOR] No perls specified, aborting!" );
 		return;
@@ -590,30 +600,6 @@ sub getReadyPerls {
 	}
 }
 
-sub prompt_develperl {
-	do_log( "[COMPILER] Current devel perl status: " . ( $C{devel} ? 'Y' : 'N' ) );
-	my $res = lc( do_prompt( "Compile/use the devel perls?", 'n' ) );
-	if ( $res eq 'y' ) {
-		$C{devel} = 1;
-	} else {
-		$C{devel} = 0;
-	}
-
-	return;
-}
-
-sub prompt_perlmatrix {
-	do_log( "[COMPILER] Current matrix perl status: " . ( $C{matrix} ? 'Y' : 'N' ) );
-	my $res = lc( do_prompt( "Compile/use the perl matrix?", 'n' ) );
-	if ( $res eq 'y' ) {
-		$C{matrix} = 1;
-	} else {
-		$C{matrix} = 0;
-	}
-
-	return;
-}
-
 sub reset_logs {
 	@LOGS = ();
 	return;
@@ -658,13 +644,9 @@ sub do_config_CPANPLUS_cfg {
 	return 1;
 }
 
-sub prompt_perlver_ready {
-	return prompt_perlver( getReadyPerls() );
-}
-
 # prompt the user for perl version
 # TODO allow the user to make multiple choices? (m)ultiple option?
-sub prompt_perlver {
+sub prompt_select_perlver {
 	my $perls = shift;
 
 	if ( ! defined $perls or scalar @$perls == 0 ) {
@@ -1508,7 +1490,7 @@ sub setup {
 		transport => 'Socket',
 		transport_args => [
 			host => 'XXXCONFIG-SERVERXXX',
-			port => 'XXXCONFIG-SERVERCTPORTXXX',
+			port => 'XXXCONFIG-S_CTPORTXXX',
 		],
 	} );
 
