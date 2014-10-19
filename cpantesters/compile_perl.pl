@@ -428,7 +428,7 @@ sub setup {
 	$conf->set_conf( force => 0 );
 	$conf->set_conf( hosts => [
 		{
-			'path' => 'XXXCONFIG-SERVERFTPDIRXXX',
+			'path' => 'XXXCONFIG-S_FTPDIRXXX',
 			'scheme' => 'ftp',
 			'host' => 'XXXCONFIG-SERVERXXX',
 		},
@@ -1126,6 +1126,7 @@ sub do_initCPANP_BOXED {
 #  mod_name: CPANPLUS
 #  mod_vers: '0.9152'
 	my $output = do_shellcommand( "lwp-request http://$C{server}:$C{s_cpanidx_port}$C{s_cpanidx_path}yaml/mod/CPANPLUS" );
+	$output = join "\n", @$output;
 	if ( $output =~ /dist_vers\:\s+\'(.+)\'$/m ) {
 		$cpanp_ver = $1;
 	} else {
@@ -1241,7 +1242,7 @@ sub setup {
 	$conf->set_conf( force => 0 );
 	$conf->set_conf( hosts => [
 		{
-			'path' => 'XXXCONFIG-SERVERFTPDIRXXX',
+			'path' => 'XXXCONFIG-S_FTPDIRXXX',
 			'scheme' => 'ftp',
 			'host' => 'XXXCONFIG-SERVERXXX',
 		},
@@ -1521,7 +1522,7 @@ sub setup {
 	$conf->set_conf( force => 0 );
 	$conf->set_conf( hosts => [
 		{
-			'path' => 'XXXCONFIG-SERVERFTPDIRXXX',
+			'path' => 'XXXCONFIG-S_FTPDIRXXX',
 			'scheme' => 'ftp',
 			'host' => 'XXXCONFIG-SERVERXXX',
 		},
