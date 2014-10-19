@@ -15,6 +15,7 @@ install steps:
 	pw usermod apoc -G wheel
 	cd /usr/ports/editors/nano && make install
 	cd /usr/ports/ftp/wget && make install
+	cd /usr/ports/security/ca_root_nss && make install # be sure to enable the ETCSYMLINK option!
 	cd /usr/ports/archivers/unzip && make install
 	cd /usr/ports/security/sudo && make install
 	cd /usr/ports/sysutils/screen && make install
@@ -24,16 +25,7 @@ install steps:
 	cpanp x --update_source && cpanp s selfupdate all
 	cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased Filesys::DfPortable File::Path::Tiny Number::Bytes::Human File::Which Term::Title Archive::Tar Archive::Zip Archive::Extract Shell::Command File::Find::Rule CPAN::Perl::Releases Devel::PatchPerl
 
-	#TODO why did it complain about being unable to check cert?
-wget https://raw.githubusercontent.com/apocalypse/perl-misc-files/master/cpantesters/compile_perl.pl
---2014-10-14 08:21:10--  https://raw.githubusercontent.com/apocalypse/perl-misc-files/master/cpantesters/compile_perl.pl
-Resolving raw.githubusercontent.com (raw.githubusercontent.com)... 185.31.17.133
-Connecting to raw.githubusercontent.com (raw.githubusercontent.com)|185.31.17.133|:443... connected.
-ERROR: cannot verify raw.githubusercontent.com's certificate, issued by '/C=US/O=DigiCert Inc/OU=www.digicert.com/CN=DigiCert High Assurance CA-3':
-  Unable to locally verify the issuer's authority.
-To connect to raw.githubusercontent.com insecurely, use `--no-check-certificate'.
-
-	wget --no-check-certificate https://raw.githubusercontent.com/apocalypse/perl-misc-files/master/cpantesters/compile_perl.pl
+	wget https://raw.githubusercontent.com/apocalypse/perl-misc-files/master/cpantesters/compile_perl.pl
 	nano compile_perl.pl
 	screen -d -m perl compile_perl.pl
 	# get a coffee or something :)
