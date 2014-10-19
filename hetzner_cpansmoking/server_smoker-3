@@ -8,6 +8,7 @@ install freebsd 10 (64bit)
 
 	follow normal instructions, bla bla
 	set hostname: smoker-3
+	install ports and sshd!
 	don't forget to add apoc and cpan users!
 
 install steps:
@@ -19,6 +20,19 @@ install steps:
 	cd /usr/ports/archivers/unzip && make install
 	cd /usr/ports/security/sudo && make install
 	cd /usr/ports/sysutils/screen && make install
+	nano /etc/rc.conf
+		root@smoker-3:~ # cat /etc/rc.conf
+		hostname="smoker-3.0ne.us"
+		ifconfig_em0="DHCP"
+		sshd_enable="YES"
+		ntpd_enable="YES"
+		dumpdev="NO"
+
+		sendmail_enable="NO"
+		sendmail_submit_enable="NO"
+		sendmail_outbound_enable="NO"
+		sendmail_msp_queue_enabled="NO"
+
 	nano /usr/local/etc/sudoers # and add "cpan ALL=/usr/sbin/chown"
 	cpanp "s conf prereqs 1; s conf verbose 1; s save"
 	nano .cpanplus/lib/CPANPLUS/Config/User.pm	# use smoker-master as ftp
