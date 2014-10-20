@@ -35,5 +35,5 @@ install steps:
 			:minpasswordlen=0:
 	cap_mkdb /etc/login.conf
 	passwd cpan
-	
+
 	rest is the same perl stuff, look at smoker-1

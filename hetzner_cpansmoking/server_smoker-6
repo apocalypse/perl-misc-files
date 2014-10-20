@@ -1,0 +1,18 @@
+This is the smoker-6 VM
+-----------------------
+
+install OpenBSD 5.5 (32bit)
+
+	wget http://ftp.spline.de/pub/OpenBSD/5.5/i386/install55.iso
+	mv install55.iso OpenBSD-5.5-i386-install.iso
+	virt-install --name=smoker-6 --ram=1024 --vcpus=1 --cpu kvm32 --os-type unix --os-variant openbsd4 --hvm --accelerate --cdrom=/home/apoc/OpenBSD-5.5-i386-install.iso --disk pool=zpool-data,size=100,sparse=true,format=qcow2 --network=network=default,model=e1000 --vnc --noautoconsole
+
+	follow normal instructions, bla bla
+	set hostname: smoker-6
+	don't forget to add apoc user!
+	don't install the x* and game sets!
+		I installed just bsd, bsd.rd, base55.tgz, etc55.tgz, and comp55.tgz packages!
+
+install steps:
+
+	same as smoker-5
