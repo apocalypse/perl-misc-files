@@ -107,14 +107,14 @@ use Devel::PatchPerl;
 
 # Global config hash
 my %C = (
-	'matrix'		=> 1,			# compile the matrix of perl options or not?
+	'matrix'			=> 1,			# compile the matrix of perl options or not?
 	'devel'			=> 0,			# compile the devel versions of perl?
 	'home'			=> $ENV{HOME},		# the home path where we do our stuff ( also used for local CPANPLUS config! )
-	'server'		=> 'smoker-master',	# our local CPAN server ( used for mirror/cpantesters upload/etc )
+	'server'			=> 'smoker-master',	# our local CPAN server ( used for mirror/cpantesters upload/etc )
 	's_ct_port'		=> '11111',		# our local CT2.0 socket/httpgateway port
 	's_cpanidx_port'	=> '11110',		# our local CPANIDX port
 	's_cpanidx_path'	=> '/CPANIDX/',		# our local CPANIDX path
-	's_ftpdir'		=> '/CPAN/',		# our local CPAN mirror ftp dir
+	's_ftpdir'			=> '/CPAN/',		# our local CPAN mirror ftp dir
 	'email'			=> 'apocal@cpan.org',	# the email address to use for CPANPLUS config
 );
 if ( $^O eq 'MSWin32' ) {
@@ -194,7 +194,7 @@ sub do_sanity_checks {
 				do_mkdir( $localdir );
 			}
 		}
-	}	
+	}
 
 	# blow away any annoying .cpan directories that remain
 	$res = lc( do_prompt( "Do you want us to purge/fix the CPAN config dir?", 'n' ) );
@@ -865,7 +865,7 @@ sub build_perl_opts {
 
 	# Skip problematic perls
 	if ( ! can_build_perl() ) {
-		# TODO skip for testing		
+		# TODO skip for testing
 		#return 0;
 	}
 
@@ -1019,7 +1019,7 @@ sub do_prebuild {
 	do_mv( $extract_dir, $build_dir );
 
 	# We defer to the excellent Devel::PatchPerl to do our dirty work :)
-	eval {	
+	eval {
 		Devel::PatchPerl->patch_source( $stuff{perlver}, $build_dir );
 	};
 	if ( $@ ) {
