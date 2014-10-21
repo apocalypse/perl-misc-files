@@ -1,0 +1,18 @@
+This is the smoker-7 VM
+-----------------------
+
+install Windows 8.1 Professional (64bit)
+
+	torrent Win8.1.x64.en-US.Sep2014.iso
+	virt-install --name=smoker-7 --ram=1024 --vcpus=1 --cpu host --os-type windows --os-variant win7 --hvm --accelerate --cdrom=/home/apoc/Win8.1.x64.en-US.Sep2014.iso --disk pool=zpool-data,size=100,sparse=true,format=qcow2 --network=network=default,model=e1000 --vnc --noautoconsole
+
+	follow normal instructions, bla bla
+	set hostname: smoker-7
+	set apoc as the user
+
+install steps:
+
+	make sure windows is activated n bla bla
+	double-check time settings
+	download the latest portableZIP strawberry: http://strawberryperl.com/download/5.18.4.1/strawberry-perl-5.18.4.1-64bit-portable.zip
+	extract it to c:\bootperl

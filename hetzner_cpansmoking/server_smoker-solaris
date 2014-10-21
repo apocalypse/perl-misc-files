@@ -1,0 +1,25 @@
+This is the smoker-7 VM
+-----------------------
+
+install OmniOS (64bit)
+
+	wget http://omnios.omniti.com/media/OmniOS_Text_r151012.iso
+	virt-install --name=smoker-7 --ram=1024 --vcpus=1 --cpu host --os-type solaris --os-variant opensolaris --hvm --accelerate --cdrom=/home/apoc/OmniOS_Text_r151012.iso --disk pool=zpool-data,size=100,sparse=true,format=qcow2 --network=network=default,model=e1000 --vnc --noautoconsole
+
+	follow normal instructions, bla bla
+	set hostname: smoker-7
+
+install steps:
+
+	su
+	rem_drv uhci # this resolves the No SOF interrupts have been received..USB UHCI is unusable messages on boot
+	svcadm disable network/physical:nwam
+	svcadm enable network/physical:default
+	nano /etc/resolv.conf
+		nameserver 192.168.122.1
+	pfexec cp -f /etc/nsswitch.dns /etc/nsswitch.conf
+	ipadm create-if e1000g0
+	ipadm create-addr -T static -a 192.168.122.18/24 e1000g0/v4	# TODO WHY DOESNT DHCP WORK???
+	route -p add default 192.168.122.1
+	reboot
+
