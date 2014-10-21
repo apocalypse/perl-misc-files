@@ -6,6 +6,7 @@ use HTML::LinkExtor;
 use URI::URL;
 use File::Spec;
 use IO::Handle;
+use File::Path::Tiny;
 
 # the url of the perl versions
 my $url = "http://strawberryperl.com/releases.html";
@@ -33,7 +34,7 @@ sub get_perl_versions {
 	} else {
 		# process the list!
 		print " SUCCESS\n";
-		#download_perl_versions( $res->base );
+		download_perl_versions( $res->base );
 	}
 
 	return;
@@ -43,8 +44,13 @@ sub get_perl_versions {
 sub download_perl_versions {
 	my $base = shift;
 
+	# Make sure the dir we want is writable!
+	if ( ! -d $dir ) {
+		File::Path::Tiny::mk( $dir ) or die "Unable to mkdir '$dir': $!";
+	}
+
 	foreach my $p ( sort keys %perls ) {
-		my $path = File::Spec->catfile( $dir, $p );
+		my $path = File::Spec->catfile( $dir, ( File::Spec->splitpath( $p ) )[2] );
 
 		# skip download if we already have it
 		if ( -f $path ) {

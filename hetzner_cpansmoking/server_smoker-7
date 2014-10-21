@@ -16,3 +16,6 @@ install steps:
 	double-check time settings
 	download the latest portableZIP strawberry: http://strawberryperl.com/download/5.18.4.1/strawberry-perl-5.18.4.1-64bit-portable.zip
 	extract it to c:\bootperl
+	copy the portableshell shortcut to desktop for ease of use then execute it
+
+	rest is the same perl stuff, look at smoker-1
