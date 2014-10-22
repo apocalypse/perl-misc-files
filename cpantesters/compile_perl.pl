@@ -69,7 +69,7 @@ use strict; use warnings;
 #	- use "make test_harness" for parallel testing and set $ENV{TEST_JOBS} and "make -jN" to the same number
 #	- use this? http://yellow-perl.berlios.de/
 #	- http://win32.perl.org/wiki/index.php?title=Win32_Distributions # for more win32 dists :)
-
+#      - as seen in App::SmokeBrew::Plugin::CPANPLUS::YACSmoke, we should symlink the authors dir
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
@@ -2017,6 +2017,7 @@ sub check_perl_test {
 	if ( fgrep( '^Failed\s+1\s+test', $output ) ) {
 		# TODO argh, file::find often fails, need to track down why it happens
 		if ( fgrep( '^lib/File/Find/t/find\.+(?!ok)', $output ) ) {
+			# TODO App::perlall seems to bypass this problem by copying 5.8.0 lib/File/Find.pm over to 5.6.2??
 			do_log( 'COMPILER', "Detected File::Find test failure, ignoring it..." );
 			return 1;
 		}
