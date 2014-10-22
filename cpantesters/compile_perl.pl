@@ -2,11 +2,7 @@
 use strict; use warnings;
 
 # We have successfully compiled those perl versions:
-# 5.6.1, 5.6.2
-# 5.8.1, 5.8.2, 5.8.3, 5.8.4, 5.8.5, 5.8.6, 5.8.7, 5.8.8, 5.8.9
-# 5.10.0, 5.10.1
-# 5.11.0, 5.11.1, 5.11.2, 5.11.3, 5.11.4, 5.11.5
-# 5.12.0
+#
 
 # We skip 5.6.0 and 5.8.0 because they are problematic builds
 
@@ -15,9 +11,9 @@ use strict; use warnings;
 
 # We have successfully compiled perl on those OSes:
 # x86_64/x64/amd64 (64bit) OSes:
-#	OpenSolaris 2009.6, FreeBSD 5.2-RELEASE, Ubuntu-server 9.10, NetBSD 5.0.1
+#	ubuntu trusty 14.04, freebsd 10, OpenBSD 5.5
 # x86 (32bit) OSes:
-#
+#	ubuntu trusty 14.04, freebsd 10, OpenBSD 5.5
 
 # This compiler builds each perl with a matrix of 49 possible combinations.
 # The options are: threads multiplicity longdouble mymalloc 32/64bitness
@@ -55,7 +51,6 @@ use strict; use warnings;
 #	- put all our module prereqs into a BEGIN { eval } check so we can pretty-print the missing modules
 #	- Use ActiveState perl?
 #		- use their binary builds + source build?
-#	- Some areas of the code print "\n" but maybe we need a portable way for that? use $/ ?
 #	- What is "pager" really for in CPANPLUS config? Can we undef it?
 #	- on some systems with the possibility of different compilers, can we use them all?
 #		- i.e. OpenSolaris - Sun's cc and gcc?
@@ -71,17 +66,11 @@ use strict; use warnings;
 #	- look at BinGOs' excellent work in CPAN smoking
 #		- http://github.com/bingos/cpan-smoke-tools
 #		- App::Smokebrew
-#	- change the logger from "[FOOBAR] msg" to "<<FOOBAR>> msg" so it's easier to differentiate it vs CPANPLUS output?
 #	- investigate http://www.citrusperl.org/ as an extra perl for win32?
 #	- use "make test_harness" for parallel testing and set $ENV{TEST_JOBS} and "make -jN" to the same number
 #	- use this? http://yellow-perl.berlios.de/
 #	- http://win32.perl.org/wiki/index.php?title=Win32_Distributions # for more win32 dists :)
-#	- does -des already do that?
-#		<@theory> What's the configure option to prevent the @INC paths of alread-installed Perls from being included in @INC?
-#		<b_jonas> theory: look at INSTALL, it tells about that
-#		<b_jonas> theory: -Dinc_version_list=none
-#		<@theory> b_jonas: Right-o, thanks.
-#	- look into porting/maintainers.t fail because of aggressive patching?
+
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
@@ -1873,25 +1862,14 @@ sub do_build {
 	# We start with the standard Configure options
 	my $stdoptions = "-des -Dprefix=$C{home}/perls/$stuff{perldist}";
 
-	#=head2 Disabling older versions of Perl
-	#
-	#Configure will search for binary compatible versions of previously
-	#installed perl binaries in the tree that is specified as target tree,
-	#and these will be used as locations to search for modules by the perl
-	#being built. The list of perl versions found will be put in the Configure
-	#variable inc_version_list.
-	#
-	#To disable this use of older perl modules, even completely valid pure perl
-	#modules, you can specify to not include the paths found:
-	#
-	#sh Configure -Dinc_version_list=none ...
+	# <@theory> What's the configure option to prevent the @INC paths of alread-installed Perls from being included in @INC?
+	# <b_jonas> theory: look at INSTALL, it tells about that
+	# <b_jonas> theory: -Dinc_version_list=none
+	# <@theory> b_jonas: Right-o, thanks.
 	$stdoptions .= ' -Dinc_version_list=none';
 
-	# Prohibit man/html to be built, saving us time and disk space
-	# TODO doesn't work?
-#	foreach my $d ( qw( installman1dir installman3dir installhtml1dir installhtml3dir ) ) {
-#		$stdoptions .= " -D$d=none";
-#	}
+	# Prohibit man/html to be built, saving us time and disk space, thanks BinGOs!
+	$stdoptions .= ' -Dman1dir=none -Dman3dir=none';
 
 	# we start off with the Configure step
 	my $extraoptions = '';
