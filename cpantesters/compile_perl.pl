@@ -70,6 +70,18 @@ use strict; use warnings;
 #	- use this? http://yellow-perl.berlios.de/
 #	- http://win32.perl.org/wiki/index.php?title=Win32_Distributions # for more win32 dists :)
 #      - as seen in App::SmokeBrew::Plugin::CPANPLUS::YACSmoke, we should symlink the authors dir
+#	- witnessed on OpenBSD, how do I fix this without resorting to CPANIDX earlier in the build process?
+#		[MSG] Updating source file '02packages.details.txt.gz'
+#		[MSG] Trying to get 'ftp://smoker-master/CPAN/modules/02packages.details.txt.gz'
+#		[MSG] Rebuilding author tree, this might take a while
+#		        0%.....20%.....40%.....60%.....80%.....100%
+#		[MSG] Rebuilding module tree, this might take a while
+#		        0%.....20%.....40%.....60%.....80%.....100%
+#		[MSG] Writing compiled source information to disk. This might take a little while.
+#		Out of memory during request for 8192 bytes, total sbrk() is 534432384 bytes!
+#		<<Wed Oct 22 12:47:50 2014-SHELLCMD>> Done executing, retval = 1
+#		<<Wed Oct 22 12:47:50 2014-CPANPLUS>> Detected error while indexing$
+
 
 # load our dependencies
 use Capture::Tiny qw( tee_merged );
@@ -609,12 +621,13 @@ sub reset_logs {
 	return;
 }
 
-sub save_logs {
-	my $end = shift;
+sub save_logs_failure {
+	save_logs( File::Spec->catfile( $C{home}, 'perls', $stuff{perldist} . '.fail' ) );
+}
 
-	# Dump the logs into the file
-	my $file = File::Spec->catfile( $C{home}, 'perls', $stuff{perldist} . ".$end" );
-	do_replacefile( $file, join( "\n", @LOGS ), 1 );
+sub save_logs {
+	my $file = shift;
+	do_replacefile( $file, join( "\n", @LOGS ) . "\n", 1 );
 
 	return;
 }
@@ -700,7 +713,7 @@ sub install_perl {
 	if ( $^O eq 'MSWin32' ) {
 		# special way of installing perls!
 		if ( ! install_perl_win32( $perl ) ) {
-			save_logs( 'fail' );
+			save_logs_failure();
 		}
 
 		reset_logs();
@@ -709,7 +722,7 @@ sub install_perl {
 
 	# build a default build
 	if ( ! build_perl_opts( $perl, 'default' ) ) {
-		save_logs( 'fail' );
+		save_logs_failure();
 	}
 	reset_logs();
 
@@ -724,7 +737,7 @@ sub install_perl {
 							foreach my $dbg ( qw( debug nodebug ) ) {
 								foreach my $bitness ( qw( 32 64i 64a ) ) {
 									if ( ! build_perl_opts( $perl, $thr . '-' . $multi . '-' . $long . '-' . $malloc . '-' . $shrp . '-' . $dbg . '-' . $bitness ) ) {
-										save_logs( 'fail' );
+										save_logs_failure();
 									}
 									reset_logs();
 								}
@@ -1043,7 +1056,7 @@ sub finalize_perl {
 
 	# we're really done, dump the log into the ready.smoke file!
 	do_log( 'COMPILER', "All done with $stuff{perldist}..." );
-	do_replacefile( File::Spec->catfile( $path, 'ready.smoke' ), join( "\n", @LOGS ), 1 );
+	save_logs( File::Spec->catfile( $path, 'ready.smoke' ) );
 
 	return 1;
 }
@@ -1901,7 +1914,7 @@ sub do_build {
 	}
 
 	# parse the perlopts
-	if ( defined $stuff{perlopts} ) {
+	if ( defined $stuff{perlopts} and $stuff{perlopts} ne 'default' ) {
 		if ( $stuff{perlopts} =~ /nothr/ ) {
 			$extraoptions .= ' -Uusethreads';
 		} else {
