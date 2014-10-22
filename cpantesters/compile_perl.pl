@@ -99,7 +99,6 @@ use Sys::Hostname qw( hostname );
 use File::Spec;
 use File::Path::Tiny;
 use File::Which qw( which );
-use Term::Title qw( set_titlebar );
 use Shell::Command qw( mv );
 use File::Find::Rule;
 use CPAN::Perl::Releases qw( perl_tarballs perl_versions );
@@ -132,17 +131,11 @@ my %stuff = (
 	'perldist'	=> undef,		# the full perl dist ( perl_5.6.2_default or perl_$perlver_$perlopts )
 );
 
-# Set a nice term title ( hostname first so we can see it easily in the task switcher )
-set_titlebar( hostname() . ' Perl-Compiler' );
-
 # Do some basic sanity checks
 do_sanity_checks();
 
 # What option do we want to do?
 prompt_action();
-
-# TODO doesn't do what I expect... how do I restore the old terminal title?
-#set_titlebar( undef );
 
 # all done!
 exit;
