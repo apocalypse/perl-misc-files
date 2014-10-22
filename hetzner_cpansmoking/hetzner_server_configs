@@ -274,30 +274,7 @@ Now that we've done the "base config" it's time to set it up for virtualization!
 
 	# setup the networking
 	nano /etc/libvirt/qemu/networks/default.xml
-		# modify DHCP range so we can assign .100 to smoker-master and .101-254 to rest
-
-root@perl:/home/apoc# cat /etc/libvirt/qemu/networks/default.xml
-<!--
-WARNING: THIS IS AN AUTO-GENERATED FILE. CHANGES TO IT ARE LIKELY TO BE
-OVERWRITTEN AND LOST. Changes to this xml configuration should be made using:
-  virsh net-edit default
-or other application using the libvirt API.
--->
-
-<network>
-  <name>default</name>
-  <uuid>08ee0536-f7d0-7ac9-9ab5-563516f67c07</uuid>
-  <forward mode='nat'/>
-  <bridge name='virbr0' stp='on' delay='0' />
-  <mac address='52:54:00:4B:EA:8A'/>
-  <ip address='192.168.122.1' netmask='255.255.255.0'>
-    <dhcp>
-      <range start='192.168.122.101' end='192.168.122.254' />
-      <host mac='52:54:00:29:f4:69' name='smoker-master' ip='192.168.122.100' />
-    </dhcp>
-  </ip>
-</network>
-
+		# modify the network range if needed
 
 	nano /etc/resolv.conf
 		# add the dnsmasq server so we can resolve
@@ -329,9 +306,192 @@ Okay, time to do some tuning on the server :)
 			add elevator=deadline to GRUB_CMDLINE_LINUX
 		update-grub
 
+We install OpenVPN and configure it for bridged mode
+
+	# http://koofr.net/bridging-two-host-local-virtual-networks-with-openvpn/
+	# http://teeks99.com/sys/OpenVPN-VMs/Tryout.html
+	# http://www.slsmk.com/getting-started-with-openvpn/installing-openvpn-on-ubuntu-server-12-04-or-14-04-using-tap/
+	apt-get install openvpn easy-rsa
+	nano /etc/openvpn/cnxup.sh
+		#!/bin/sh
+		BR=$1
+		DEV=$2
+		MTU=$3
+		/sbin/ip link set "$DEV" up promisc on mtu "$MTU"
+		/sbin/brctl addif "$BR" "$DEV"
+
+	nano /etc/openvpn/cnxdown.sh
+		#!/bin/sh
+		BR=$1
+		DEV=$2
+		/sbin/brctl delif "$BR" "$DEV"
+		/sbin/ip link set "$DEV" down
+
+	chmod +x /etc/openvpn/cnx*.sh
+	make-cadir /etc/openvpn/easy-rsa
+	nano /etc/openvpn/easy-rsa/vars
+root@perl /etc/openvpn # cat /etc/openvpn/easy-rsa/vars
+# This variable should point to
+# the top level of the easy-rsa
+# tree.
+export EASY_RSA="`pwd`"
+
+#
+# This variable should point to
+# the requested executables
+#
+export OPENSSL="openssl"
+export PKCS11TOOL="pkcs11-tool"
+export GREP="grep"
+
+
+# This variable should point to
+# the openssl.cnf file included
+# with easy-rsa.
+export KEY_CONFIG=`$EASY_RSA/whichopensslcnf $EASY_RSA`
+
+# Edit this variable to point to
+# your soon-to-be-created key
+# directory.
+#
+# WARNING: clean-all will do
+# a rm -rf on this directory
+# so make sure you define
+# it correctly!
+export KEY_DIR="$EASY_RSA/keys"
+
+# Issue rm -rf warning
+echo NOTE: If you run ./clean-all, I will be doing a rm -rf on $KEY_DIR
+
+# PKCS11 fixes
+export PKCS11_MODULE_PATH="dummy"
+export PKCS11_PIN="dummy"
+
+# Increase this to 2048 if you
+# are paranoid.  This will slow
+# down TLS negotiation performance
+# as well as the one-time DH parms
+# generation process.
+export KEY_SIZE=2048
+
+# In how many days should the root CA key expire?
+export CA_EXPIRE=3650
+
+# In how many days should certificates expire?
+export KEY_EXPIRE=3650
+
+# These are the default values for fields
+# which will be placed in the certificate.
+# Don't leave any of these fields blank.
+export KEY_COUNTRY="US"
+export KEY_PROVINCE="CA"
+export KEY_CITY="SanFrancisco"
+export KEY_ORG="0ne.us"
+export KEY_EMAIL="APOCAL@0ne.us"
+export KEY_OU="perl.0ne.us"
+
+# X509 Subject Field
+export KEY_NAME="EasyRSA"
+
+# PKCS11 Smart Card
+# export PKCS11_MODULE_PATH="/usr/lib/changeme.so"
+# export PKCS11_PIN=1234
+
+# If you'd like to sign all keys with the same Common Name, uncomment the KEY_CN export below
+# You will also need to make sure your OpenVPN server config has the duplicate-cn option set
+#export KEY_CN=""
+
+	cd /etc/openvpn/easy-rsa
+	source vars
+	./clean-all
+	./build-dh
+	./pkitool --initca
+	./pkitool --server server
+	./pkitool box
+	cd keys
+	openvpn --genkey --secret ta.key
+	cp server.crt server.key ca.crt dh2048.pem ta.key /etc/openvpn/
+	cp ca.crt box.crt box.key ta.key /home/apoc # and sftp it over to client
+	nano /etc/openvpn/server.conf
+mode server
+tls-server
+local 176.9.1.18
+port 1194
+proto udp
+dev tap0
+up "/etc/openvpn/cnxup.sh virbr0 tap0 1500"
+down "/etc/openvpn/cnxdown.sh virbr0 tap0"
+persist-key
+persist-tun
+ca ca.crt
+cert server.crt
+key server.key
+dh dh2048.pem
+tls-auth ta.key 0
+cipher BF-CBC
+comp-lzo
+ifconfig-pool-persist ipp.txt
+server-bridge 192.168.1.1 255.255.255.0 192.168.1.201 192.168.1.250
+max-clients 50
+user nobody
+group nogroup
+keepalive 10 120
+status server.log
+verb 3
+push "dhcp-option DNS 192.168.122.1"
+push "redirect-gateway def1 bypass-dhcp"
+
+	/etc/init.d/openvpn restart
+
+The client OpenVPN configs:
+
+	# the client hosts VMs on virbr1, not the default virbr0!
+	# virbr1 is configured as a separate route
+root@box:/home/apoc# virsh net-dumpxml vpn
+<network connections='1'>
+  <name>vpn</name>
+  <uuid>91383b47-50f3-4832-aa1b-702c8b119345</uuid>
+  <forward dev='tap0' mode='route'>
+    <interface dev='tap0'/>
+  </forward>
+  <bridge name='virbr1' stp='on' delay='0'/>
+  <mac address='52:54:00:31:a6:d4'/>
+  <ip address='192.168.122.1' netmask='255.255.255.0'>
+  </ip>
+</network>
+
+	# and clients are created to be configured as routed on the "vpn" interface
+	# don't use NAT or whatever!@#
+
+	# setup the client
+	root@box:/etc/openvpn# cat client.conf
+client
+dev tap0
+remote 176.9.1.18
+nobind
+resolv-retry infinite
+persist-key
+persist-tun
+ca ca.crt
+cert client.crt
+key client.key
+tls-auth ta.key 1
+cipher BF-CBC
+comp-lzo
+verb 3
+remote-cert-tls server
+up "/etc/openvpn/cnxup.sh virbr1 tap0 1500"
+down "/etc/openvpn/cnxdown.sh virbr1 tap0"
+
 Finally, we can now create our first VM!
 
 	apt-get install virtinst
+
+	# we need to fix cgroups sometimes if you see: Failed to create controller cpu for group: No such file or directory
+	# https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=707201
+	umount /sys/fs/cgroup/* && umount /sys/fs/cgroup
+	/etc/init.d/libvirt-bin restart
+
 	wget http://archive.ubuntu.com/ubuntu/dists/trusty/main/installer-amd64/current/images/netboot/mini.iso
 	mv mini.iso trusty-amd64-mini.iso
 	virt-install --name=smoker-master --ram=768 --vcpus=1 --cpu host --os-type linux --os-variant ubuntutrusty --hvm --accelerate --cdrom=/home/apoc/trusty-amd64-mini.iso --disk pool=zpool-data,size=100,sparse=true,format=qcow2 --network=network=default,model=e1000 --vnc --noautoconsole
