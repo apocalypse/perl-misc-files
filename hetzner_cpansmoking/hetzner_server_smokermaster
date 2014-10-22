@@ -130,9 +130,8 @@ Next is the CI master
 
 Finally, we setup misc things our smokers need
 
-	mkdir -p /home/cpan/perl_dists/src
-	wget https://raw.githubusercontent.com/apocalypse/perl-misc-files/master/cpantesters/get_perls.pl
-	perl get_perls.pl
+	wget https://raw.githubusercontent.com/apocalypse/perl-misc-files/master/cpantesters/get_strawberries.pl
+	perl get_strawberries.pl
 
 # Putting it all together:
 

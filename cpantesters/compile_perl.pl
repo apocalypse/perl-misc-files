@@ -103,6 +103,7 @@ use Shell::Command qw( mv );
 use File::Find::Rule;
 use CPAN::Perl::Releases qw( perl_tarballs perl_versions );
 use Devel::PatchPerl;
+use Sys::Info;
 
 # Global config hash
 my %C = (
@@ -813,9 +814,26 @@ sub can_build_perl {
 	return 1;
 }
 
+sub check_os_bits {
+	my $bits = Sys::Info->new->device( 'CPU' );
+	if ( $bits ) {
+		return $bits;
+	} else {
+		die "Unable to retrieve bitness of the CPU!";
+	}
+}
+
+# Special method to install strawberry perls for win32
 sub install_perl_win32 {
-	# Special method to install strawberry perls for win32
 	my $perl = shift;
+
+	# First of all, check for 64bit mismatch in 32bit env
+	my $os_bitness = check_os_bits();
+	if ( $os_bitness == 32 and $perl =~ /64bit/ ) {
+		do_log( "[COMPILER] Skipping $perl due to 32bit system!" );
+		return 0;
+	}
+
 	$stuff{perlver} = $perl;
 	$stuff{perldist} = "strawberry_$stuff{perlver}";
 
