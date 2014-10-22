@@ -33,7 +33,7 @@ Now, configure our perl compiler:
 	cpanp "s conf prereqs 1; s conf verbose 1; s save"
 	nano .cpanplus/lib/CPANPLUS/Config/User.pm	# use smoker-master as ftp
 	cpanp x --update_source && cpanp s selfupdate all
-	cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased Filesys::DfPortable File::Path::Tiny Number::Bytes::Human File::Which Archive::Tar Archive::Zip Archive::Extract Shell::Command File::Find::Rule CPAN::Perl::Releases Devel::PatchPerl
+	cpanp i LWP::UserAgent Capture::Tiny Prompt::Timeout Sort::Versions CPANPLUS::YACSmoke Test::Reporter POE::Component::SmokeBox Time::Duration POE::Component::IRC POE::Session::AttributeBased Filesys::DfPortable File::Path::Tiny Number::Bytes::Human File::Which Archive::Tar Archive::Zip Archive::Extract Shell::Command File::Find::Rule CPAN::Perl::Releases Devel::PatchPerl Sys::Info
 
 	wget https://raw.githubusercontent.com/apocalypse/perl-misc-files/master/cpantesters/compile_perl.pl
 	nano compile_perl.pl

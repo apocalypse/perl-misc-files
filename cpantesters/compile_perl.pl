@@ -50,14 +50,9 @@ use strict; use warnings;
 # c:\cpansmoke\compile_perl.pl					<-- where this script should be
 
 # TODO LIST
-#	- create "hints" file that sets operating system, 64bit, etc
-#		- that way, we can know what perl versions to skip and etc
-#		- maybe we can autodetect it?
-#		- Sys::Info::Device::CPU::bitness() for a start...
 #	- fix all TODO lines in this code :)
 #	- we should run 3 CPANPLUS configs per perl - "prefer_makefile" = true + false + autodetect
 #	- put all our module prereqs into a BEGIN { eval } check so we can pretty-print the missing modules
-#	- add $C{perltarball} that tracks the tarball of "current" perl so we can use it in some places instead of manually hunting it...
 #	- Use ActiveState perl?
 #		- use their binary builds + source build?
 #	- Some areas of the code print "\n" but maybe we need a portable way for that? use $/ ?
@@ -67,9 +62,6 @@ use strict; use warnings;
 #		- <@TonyC> http://software.intel.com/en-us/articles/non-commercial-software-development/ # free icc for linux!
 #		- <@TonyC> opencc: http://developer.amd.com/cpu/open64/Pages/default.aspx # free amd 64bit compiler
 #		- <TonyC> Apocalypse: http://www.thefreecountry.com/compilers/cpp.shtml # a nice page with lots of compilers
-#	- URI tests always hang on my fbsd smoker - "freebsd64.0ne.us" somehow hangs it... for now I'm forcing install it on all perls
-#		- maybe I need to investigate a better DNS setup for my VMs? freebsd64.smoking.0ne.us
-#		- then set my dns config for all VMs in *.smoking.0ne.us?
 #	- <@rafl> i wonder if running a smoker with parallel testing would be useful
 #		- <@Tux> I'm wondering how big a percentage of CPAN actually fails under prove --shuffle -j4
 #		- we need to do that kind of insanity!
@@ -737,6 +729,24 @@ sub can_build_perl {
 		}
 	}
 
+	# Obviously, don't build 64a perl on 32bit OS!
+	#Checking to see how big your pointers are...
+	#
+	#*** You have chosen a maximally 64-bit build,
+	#*** but your pointers are only 4 bytes wide.
+	#*** Please rerun Configure without -Duse64bitall.
+	#*** Since you have quads, you could possibly try with -Duse64bitint.
+	#*** Cannot continue, aborting.
+	#[SHELLCMD] Done executing, retval = 1
+	#[SHELLCMD] Executing 'cd /home/cpan/build/perl_5.18.1_thr-nomulti-long-nomymalloc-64a; make'
+	#make: *** No targets specified and no makefile found.  Stop.
+	#[SHELLCMD] Done executing, retval = 2
+	#[PERLBUILDER] Unable to compile perl_5.18.1_thr-nomulti-long-nomymalloc-64a!
+	if ( check_os_bits() == 32 and $stuff{perlopts} =~ /64a/ ) {
+		do_log( '[COMPILER] Skipping -Duse64bitall on a 32bit platform...' );
+		return 0;
+	}
+
 	# okay, list the known failures here
 
 	# Skip problematic perls
@@ -828,8 +838,7 @@ sub install_perl_win32 {
 	my $perl = shift;
 
 	# First of all, check for 64bit mismatch in 32bit env
-	my $os_bitness = check_os_bits();
-	if ( $os_bitness == 32 and $perl =~ /64bit/ ) {
+	if ( check_os_bits() == 32 and $perl =~ /64bit/ ) {
 		do_log( "[COMPILER] Skipping $perl due to 32bit system!" );
 		return 0;
 	}
