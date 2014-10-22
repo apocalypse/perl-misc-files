@@ -699,17 +699,19 @@ sub install_perl {
 	# Should we also compile the matrix?
 	if ( $C{matrix} ) {
 		# loop over all the options we have
-		# TODO use hints to figure out if this is 64bit or 32bit OS
 		foreach my $thr ( qw( thr nothr ) ) {
 			foreach my $multi ( qw( multi nomulti ) ) {
 				foreach my $long ( qw( long nolong ) ) {
 					foreach my $malloc ( qw( mymalloc nomymalloc ) ) {
-						foreach my $bitness ( qw( 32 64i 64a ) ) {
-							if ( ! build_perl_opts( $perl, $thr . '-' . $multi . '-' . $long . '-' . $malloc . '-' . $bitness ) ) {
-								save_logs( 'fail' );
+						foreach my $shrp ( qw( shrplib noshrplib ) ) {
+							foreach my $dbg ( qw( debug nodebug ) ) {
+								foreach my $bitness ( qw( 32 64i 64a ) ) {
+									if ( ! build_perl_opts( $perl, $thr . '-' . $multi . '-' . $long . '-' . $malloc . '-' . $shrp . '-' . $dbg . '-' . $bitness ) ) {
+										save_logs( 'fail' );
+									}
+									reset_logs();
+								}
 							}
-
-							reset_logs();
 						}
 					}
 				}
@@ -1850,6 +1852,20 @@ sub do_build {
 	# We start with the standard Configure options
 	my $stdoptions = "-des -Dprefix=$C{home}/perls/$stuff{perldist}";
 
+	#=head2 Disabling older versions of Perl
+	#
+	#Configure will search for binary compatible versions of previously
+	#installed perl binaries in the tree that is specified as target tree,
+	#and these will be used as locations to search for modules by the perl
+	#being built. The list of perl versions found will be put in the Configure
+	#variable inc_version_list.
+	#
+	#To disable this use of older perl modules, even completely valid pure perl
+	#modules, you can specify to not include the paths found:
+	#
+	#sh Configure -Dinc_version_list=none ...
+	$stdoptions .= ' -Dinc_version_list=none';
+
 	# Prohibit man/html to be built, saving us time and disk space
 	# TODO doesn't work?
 #	foreach my $d ( qw( installman1dir installman3dir installhtml1dir installhtml3dir ) ) {
@@ -1874,25 +1890,25 @@ sub do_build {
 	if ( defined $stuff{perlopts} ) {
 		if ( $stuff{perlopts} =~ /nothr/ ) {
 			$extraoptions .= ' -Uusethreads';
-		} elsif ( $stuff{perlopts} =~ /thr/ ) {
+		} else {
 			$extraoptions .= ' -Dusethreads';
 		}
 
 		if ( $stuff{perlopts} =~ /nomulti/ ) {
 			$extraoptions .= ' -Uusemultiplicity';
-		} elsif ( $stuff{perlopts} =~ /multi/ ) {
+		} else {
 			$extraoptions .= ' -Dusemultiplicity';
 		}
 
 		if ( $stuff{perlopts} =~ /nolong/ ) {
 			$extraoptions .= ' -Uuselongdouble';
-		} elsif ( $stuff{perlopts} =~ /long/ ) {
+		} else {
 			$extraoptions .= ' -Duselongdouble';
 		}
 
 		if ( $stuff{perlopts} =~ /nomymalloc/ ) {
 			$extraoptions .= ' -Uusemymalloc';
-		} elsif ( $stuff{perlopts} =~ /mymalloc/ ) {
+		} else {
 			$extraoptions .= ' -Dusemymalloc';
 		}
 
@@ -1902,6 +1918,18 @@ sub do_build {
 			$extraoptions .= ' -Duse64bitint';
 		} elsif ( $stuff{perlopts} =~ /32/ ) {
 			$extraoptions .= ' -Uuse64bitall -Uuse64bitint';
+		}
+
+		if ( $stuff{perlopts} =~ /noshrplib/ ) {
+			$extraoptions .= ' -Uuseshrplib';
+		} else {
+			$extraoptions .= ' -Duseshrplib';
+		}
+
+		if ( $stuff{perlopts} =~ /nodebug/ ) {
+			$extraoptions .= ' -DDEBUGGING=none';
+		} else {
+			$extraoptions .= ' -DDEBUGGING=both';
 		}
 	}
 
