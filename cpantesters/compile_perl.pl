@@ -186,38 +186,38 @@ sub do_sanity_checks {
 	}
 
 	# Create some directories we need
-	$res = lc( do_prompt( "Do you want us to auto-create the build dirs?", 'n' ) );
-	if ( $res eq 'y' ) {
-		foreach my $dir ( qw( build tmp perls cpanp_conf ) ) {
-			my $localdir = File::Spec->catdir( $C{home}, $dir );
-			if ( ! -d $localdir ) {
+	foreach my $dir ( qw( build tmp perls cpanp_conf ) ) {
+		my $localdir = File::Spec->catdir( $C{home}, $dir );
+		if ( ! -d $localdir ) {
+			$res = lc( do_prompt( "Do you want us to auto-create the build dirs?", 'y' ) );
+			if ( $res eq 'y' ) {
 				do_mkdir( $localdir );
 			}
 		}
 	}
 
 	# blow away any annoying .cpan directories that remain
-	$res = lc( do_prompt( "Do you want us to purge/fix the CPAN config dir?", 'n' ) );
-	if ( $res eq 'y' ) {
-		my $cpan;
-		if ( $^O eq 'MSWin32' ) {
-			# TODO is it always in this path?
-			# commit: wrote 'C:\Documents and Settings\cpan\Local Settings\Application Data\.cpan\CPAN\MyConfig.pm'
-			$cpan = 'C:\\Documents and Settings\\' . $ENV{USERNAME} . '\\Local Settings\\Application Data\\.cpan';
-		} else {
-			$cpan = File::Spec->catdir( $C{home}, '.cpan' );
-		}
+	my $cpan;
+	if ( $^O eq 'MSWin32' ) {
+		# TODO is it always in this path?
+		# commit: wrote 'C:\Documents and Settings\cpan\Local Settings\Application Data\.cpan\CPAN\MyConfig.pm'
+		$cpan = 'C:\\Documents and Settings\\' . $ENV{USERNAME} . '\\Local Settings\\Application Data\\.cpan';
+	} else {
+		$cpan = File::Spec->catdir( $C{home}, '.cpan' );
+	}
 
-		if ( -d $cpan ) {
+	if ( -d $cpan && (stat(_))[4] != 0 ) {
+		$res = lc( do_prompt( "Do you want us to purge/fix the CPAN config dir?", 'n' ) );
+		if ( $res eq 'y' ) {
 			do_rmdir( $cpan );
-		}
 
-		# thanks to BinGOs for the idea to prevent rogue module installs via CPAN
-		do_mkdir( $cpan );
-		if ( $^O eq 'MSWin32' ) {
-			# TODO use cacls.exe or something?
-		} else {
-			do_shellcommand( "sudo chown root $cpan" );
+			# thanks to BinGOs for the idea to prevent rogue module installs via CPAN
+			do_mkdir( $cpan );
+			if ( $^O eq 'MSWin32' ) {
+				# TODO use cacls.exe or something?
+			} else {
+				do_shellcommand( "sudo chown root $cpan" );
+			}
 		}
 	}
 
@@ -246,10 +246,21 @@ sub prompt_action {
 		$res = lc( do_prompt( "What action do you want to do today? [(b)uild/use (d)evel perl/(e)xit/(i)nstall/too(l)chain update/perl(m)atrix/unchow(n)/(p)rint ready perls/(r)econfig cpanp/(s)ystem toolchain update/(u)ninstall/cho(w)n]", 'e' ) );
 		if ( $res eq 'b' ) {
 			# get list of perls that is known
-			my @perls_list = perl_versions();
-			@perls_list = grep { $_ !~ /(?:RC|TRIAL|_|5\.004|5\.005)/ } @perls_list;
-			if ( ! $C{devel} ) {
-				@perls_list = grep { $_ !~ /\.\d?[13579]\./ } @perls_list;
+			my @perls_list;
+			if ( $^O eq 'MSWin32' ) {
+				# we use strawberries!
+				my $output = do_shellcommand( "lwp-request ftp://$C{server}/STRAWBERRY_PERL" );
+				foreach my $l ( @$output ) {
+					if ( $l =~ /^\-.+\s+strawberry\-perl\-([^\s]+)\.zip$/ ) {
+						push( @perls_list, $1 );
+					}
+				}
+			} else {
+				@perls_list = perl_versions();
+				@perls_list = grep { $_ !~ /(?:RC|TRIAL|_|5\.004|5\.005)/ } @perls_list;
+				if ( ! $C{devel} ) {
+					@perls_list = grep { $_ !~ /\.\d?[13579]\./ } @perls_list;
+				}
 			}
 
 			# prompt user for perl version to compile
@@ -812,21 +823,25 @@ sub can_build_perl {
 sub install_perl_win32 {
 	# Special method to install strawberry perls for win32
 	my $perl = shift;
-
-	# Strawberry tacks on an extra digit for it's build number
-	if ( $perl =~ /^(\d+\.\d+\.\d+\.\d+)$/ ) {
-		$stuff{perlver} = $perl;
-		$stuff{perlopts} = 'default';
-		$stuff{perldist} = "strawberry_perl_$stuff{perlver}_$stuff{perlopts}";
-	} else {
-		die "[PERLBUILDER] Unknown Strawberry Perl version: $perl";
-	}
+	$stuff{perlver} = $perl;
+	$stuff{perldist} = "strawberry_$stuff{perlver}";
 
 	# Okay, is this perl installed?
 	my $path = File::Spec->catdir( $C{home}, 'perls', $stuff{perldist} );
 	if ( ! -d $path ) {
+		# We need to download the zip!
+		my $localpath = File::Spec->catfile( $C{home}, 'build', 'PERL.zip' );
+		if ( -f $localpath ) {
+			do_unlink( $localpath );
+		}
+		do_shellcommand( "lwp-mirror ftp://$C{server}/STRAWBERRY_PERL/strawberry-perl-" . $perl . ".zip $localpath" );
+
 		# Okay, unzip the archive
-		do_archive_extract( File::Spec->catfile( $C{home}, 'build', 'strawberry-perl-' . $stuff{perlver} . '.zip' ), $path );
+		if ( ! do_archive_extract( $localpath, $path ) ) {
+			return 0;
+		} else {
+			do_unlink( $localpath );
+		}
 	} else {
 		# all done with configuring?
 		if ( -e File::Spec->catfile( $path, 'ready.smoke' ) ) {
