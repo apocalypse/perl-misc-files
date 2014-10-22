@@ -51,7 +51,6 @@ use strict; use warnings;
 #	- put all our module prereqs into a BEGIN { eval } check so we can pretty-print the missing modules
 #	- Use ActiveState perl?
 #		- use their binary builds + source build?
-#	- What is "pager" really for in CPANPLUS config? Can we undef it?
 #	- on some systems with the possibility of different compilers, can we use them all?
 #		- i.e. OpenSolaris - Sun's cc and gcc?
 #		- <@TonyC> http://software.intel.com/en-us/articles/non-commercial-software-development/ # free icc for linux!
@@ -84,7 +83,6 @@ use Shell::Command qw( mv );
 use File::Find::Rule;
 use CPAN::Perl::Releases qw( perl_tarballs perl_versions );
 use Devel::PatchPerl;
-use Sys::Info;
 
 # Global config hash
 my %C = (
@@ -846,11 +844,26 @@ sub can_build_perl {
 }
 
 sub check_os_bits {
-	my $bits = Sys::Info->new->device( 'CPU' );
-	if ( $bits ) {
-		return $bits;
+	# Depends on the OS, we have to do wacky things??
+	if ( $^O eq 'openbsd' ) {
+		# ARGH, we have to use uname...
+		#[MSG] Extracted 'BSD::Sysctl' to '/root/.cpanplus/5.16.3/build/BSD-Sysctl-0.11'
+		#Running [/usr/bin/perl -e use strict; BEGIN { my $old = select STDERR; $|++; select $old; $|++; $0 = shift(@ARGV); my $rv = do($0); die $@ if $@; } /root/.cpanplus/5.16.3/build/BSD-Sysctl-0.11/Makefile.PL]...
+		#OS unsupported (openbsd). Here's a nickel, go buy yourself a real OS.
+		my $output = do_shellcommand( 'uname -a' );
+		if ( $output->[0] =~ /amd64/ ) {
+			return 64;
+		} else {
+			return 32;
+		}
 	} else {
-		do_error( 'UTILS', "Unable to retrieve bitness of the CPU!" );
+		require Sys::Info;
+		my $bits = Sys::Info->new->device( 'CPU' );
+		if ( $bits ) {
+			return $bits;
+		} else {
+			do_error( 'UTILS', "Unable to retrieve bitness of the CPU!" );
+		}
 	}
 }
 
@@ -921,7 +934,6 @@ sub build_perl_opts {
 
 	# Skip problematic perls
 	if ( ! can_build_perl() ) {
-		# TODO skip for testing
 		return 0;
 	}
 
@@ -984,8 +996,6 @@ sub customize_perl {
 
 sub finalize_perl {
 	# Get rid of the man directory!
-	# TODO <@vincent> -Dman1dir=none -Dman3dir=none
-	# <Khisanth> makepl_arg         [INSTALLMAN1DIR=none INSTALLMAN3DIR=none]
 	my $path = File::Spec->catdir( $C{home}, 'perls', $stuff{perldist} );
 	my $mandir = File::Spec->catdir( $path, 'man' );
 	if ( -d $mandir ) {
@@ -1868,7 +1878,9 @@ sub do_build {
 	# <@theory> b_jonas: Right-o, thanks.
 	$stdoptions .= ' -Dinc_version_list=none';
 
-	# Prohibit man/html to be built, saving us time and disk space, thanks BinGOs!
+	# Prohibit man/html to be built, saving us time and disk space
+	# <@vincent> -Dman1dir=none -Dman3dir=none
+	# <Khisanth> makepl_arg         [INSTALLMAN1DIR=none INSTALLMAN3DIR=none]
 	$stdoptions .= ' -Dman1dir=none -Dman3dir=none';
 
 	# we start off with the Configure step
