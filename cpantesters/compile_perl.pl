@@ -853,13 +853,16 @@ sub check_os_bits {
 		my $output = do_shellcommand( 'uname -a' );
 		if ( $output->[0] =~ /amd64/ ) {
 			return 64;
-		} else {
+		} elsif ( $output->[0] =~ /i386/ ) {
 			return 32;
+		} else {
+			do_error( 'UTILS', 'Unable to determine bitness of the platform!' );
 		}
 	} else {
 		require Sys::Info;
-		my $bits = Sys::Info->new->device( 'CPU' );
+		my $bits = Sys::Info->new->device( 'CPU' )->bitness;
 		if ( $bits ) {
+			do_log( 'UTILS', "Detected a ${bits}-bit platform..." );
 			return $bits;
 		} else {
 			do_error( 'UTILS', "Unable to retrieve bitness of the CPU!" );
