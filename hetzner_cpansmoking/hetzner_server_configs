@@ -274,7 +274,19 @@ Now that we've done the "base config" it's time to set it up for virtualization!
 
 	# setup the networking
 	nano /etc/libvirt/qemu/networks/default.xml
-		# modify the network range if needed
+<network>
+  <name>default</name>
+  <uuid>03483035-657f-4d9a-92ef-618a3a44b501</uuid>
+  <forward mode='nat'/>
+  <bridge name='virbr0' stp='on' delay='0'/>
+  <mac address='52:54:00:14:a1:c3'/>
+  <domain name='perl.0ne.us'/>
+  <ip address='192.168.122.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='192.168.122.2' end='192.168.122.254'/>
+    </dhcp>
+  </ip>
+</network>
 
 	nano /etc/resolv.conf
 		# add the dnsmasq server so we can resolve
@@ -312,6 +324,8 @@ We install OpenVPN and configure it for bridged mode
 	# http://teeks99.com/sys/OpenVPN-VMs/Tryout.html
 	# http://www.slsmk.com/getting-started-with-openvpn/installing-openvpn-on-ubuntu-server-12-04-or-14-04-using-tap/
 	apt-get install openvpn easy-rsa
+	nano /etc/default/openvpn
+		AUTOSTART="all"
 	nano /etc/openvpn/cnxup.sh
 		#!/bin/sh
 		BR=$1
@@ -456,7 +470,7 @@ root@box:/home/apoc# virsh net-dumpxml vpn
   </forward>
   <bridge name='virbr1' stp='on' delay='0'/>
   <mac address='52:54:00:31:a6:d4'/>
-  <ip address='192.168.122.1' netmask='255.255.255.0'>
+  <ip address='192.168.123.1' netmask='255.255.255.0'>
   </ip>
 </network>
 
