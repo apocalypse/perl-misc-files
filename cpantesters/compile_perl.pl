@@ -1217,6 +1217,14 @@ sub do_initCPANP_BOXED {
 
 	# force an update
 	if ( ! do_cpanpboxed_action( "x --update_source" ) ) {
+		# on my win32 smoker I had issues installing perls older than 5.10 and was hitting Term::ReadKey issues
+		# the problem manifests itself as https://rt.cpan.org/Public/Bug/Display.html?id=24598
+		# And the workaround is to just update the old version in the dist!
+		if ( $^O eq 'MSWin32' ) {
+			local $ENV{PATH} = cleanse_strawberry_path();
+			do_shellcommand( 'cpan Term::ReadKey' );
+			return 0 if ! do_cpanpboxed_action( "x --update_source" );
+		}
 		return 0;
 	}
 
@@ -1360,6 +1368,9 @@ sub do_replacements {
 
 		# We cannot use binaries on MSWin32!
 		$str =~ s/XXXPREFERBINXXX/0/g;
+
+		# No shell either!
+		$str =~ s/XXXENV\-shellXXX//g;
 	} else {
 		$str =~ s/XXXUSERXXX/$ENV{USER}/g;
 		$str =~ s/XXXPREFERBINXXX/1/g;
@@ -1847,6 +1858,9 @@ sub do_shellcommand {
 	# we need to tell tee_merged to automatically insert a \t before each line...
 	my( $output, $retval );
 	do_log( 'SHELLCMD', "Executing '$cmd'" );
+
+	# after some struggles on win32 and other platforms this is indispensable :)
+	do_log( 'ENV', join( "\n", map { $_ . "\t\t=> '" . $ENV{$_} . "'" } keys %ENV ) );
 
 	# TODO work with DAGOLDEN to figure out this crapola on my FreeBSD vm...
 	# It happens under heavy load, under no load, under whatever load :(
