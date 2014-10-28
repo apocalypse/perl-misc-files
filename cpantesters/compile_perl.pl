@@ -478,7 +478,7 @@ sub setup {
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
 	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
 	$conf->set_program( perlwrapper => 'XXXWHICH-cpanp-run-perlXXX' );
-	$conf->set_program( shell => 'XXXWHICH-bashXXX' );
+	$conf->set_program( shell => 'XXXENV-shellXXX' );
 	$conf->set_program( sudo => undef );
 
 	return 1;
@@ -1328,7 +1328,7 @@ sub setup {
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
 	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
 	$conf->set_program( perlwrapper => 'XXXCATDIR-XXXPATHXXX/CPANPLUS-XXXCPANPLUSXXX/bin/cpanp-run-perlXXX' );
-	$conf->set_program( shell => 'XXXWHICH-bashXXX' );
+	$conf->set_program( shell => 'XXXENV-shellXXX' );
 	$conf->set_program( sudo => undef );
 
 	return 1;
@@ -1394,7 +1394,21 @@ sub do_replacements {
 	# Smart file::spec->catdir support
 	$str =~ s/XXXCATDIR\-(.+)XXX/do_replacements_slash( do_replacements_catdir( $1 ) )/ge;
 
+	# Smart ENV support
+	$str =~ s/XXXENV\-(.+)XXX/do_replacements_env( $1 )/ge;
+
 	return $str;
+}
+
+sub do_replacements_env {
+	# automatically uppercase it!
+	my $str = uc( shift );
+
+	if ( exists $ENV{ $str } ) {
+		return $ENV{ $str };
+	} else {
+		do_error( 'CONFIGER', "Unknown ENV key: $str" );
+	}
 }
 
 sub do_replacements_config {
@@ -1440,6 +1454,8 @@ sub get_binary_path {
 		if ( $binary eq 'less' ) {
 			$binary = 'more';
 		}
+
+		# TODO this is the last place in the script where "bash" is mentioned - need to double-check CPANPLUS before we can auto-config on windoze!
 		if ( $binary eq 'bash' ) {
 			$binary = 'cmd';
 		}
@@ -1605,7 +1621,7 @@ sub setup {
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
 	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
 	$conf->set_program( perlwrapper => 'XXXPERLWRAPPERXXX' );
-	$conf->set_program( shell => 'XXXWHICH-bashXXX' );
+	$conf->set_program( shell => 'XXXENV-shellXXX' );
 	$conf->set_program( sudo => undef );
 
 	return 1;
