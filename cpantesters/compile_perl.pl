@@ -477,7 +477,6 @@ sub setup {
 	$conf->set_program( editor => undef );
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
 	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
-	$conf->set_program( perlwrapper => 'XXXWHICH-cpanp-run-perlXXX' );
 	$conf->set_program( shell => 'XXXENV-shellXXX' );
 	$conf->set_program( sudo => undef );
 
@@ -1319,7 +1318,7 @@ sub setup {
 	$conf->set_conf( storable => 1 );
 	$conf->set_conf( timeout => 300 );
 	$conf->set_conf( verbose => 1 );
-	$conf->set_conf( write_install_logs => 0 );
+	$conf->set_conf( write_install_log => 0 );
 
 # Because we're bootstrapping, Module::Build and friends often aren't "ready"
 	$conf->set_conf( prefer_makefile => 1 );
@@ -1327,7 +1326,6 @@ sub setup {
 	$conf->set_program( editor => undef );
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
 	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
-	$conf->set_program( perlwrapper => 'XXXCATDIR-XXXPATHXXX/CPANPLUS-XXXCPANPLUSXXX/bin/cpanp-run-perlXXX' );
 	$conf->set_program( shell => 'XXXENV-shellXXX' );
 	$conf->set_program( sudo => undef );
 
@@ -1362,13 +1360,9 @@ sub do_replacements {
 
 		# We cannot use binaries on MSWin32!
 		$str =~ s/XXXPREFERBINXXX/0/g;
-
-		# Naturally, on MSWin32 we need to use the strawberry path...
-		$str =~ s/XXXPERLWRAPPERXXX/C:\\\\strawberry\\\\perl\\\\bin\\\\cpanp-run-perl\.BAT/g;
 	} else {
 		$str =~ s/XXXUSERXXX/$ENV{USER}/g;
 		$str =~ s/XXXPREFERBINXXX/1/g;
-		$str =~ s/XXXPERLWRAPPERXXX/XXXCATDIR-XXXPATHXXX\/perls\/XXXPERLDISTXXX\/bin\/cpanp-run-perlXXX/g;
 	}
 	$str =~ s/XXXPATHXXX/do_replacements_slash( $C{home} )/ge;
 
@@ -1620,7 +1614,6 @@ sub setup {
 	$conf->set_program( editor => undef );
 	$conf->set_program( make => 'XXXWHICH-makeXXX' );
 	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
-	$conf->set_program( perlwrapper => 'XXXPERLWRAPPERXXX' );
 	$conf->set_program( shell => 'XXXENV-shellXXX' );
 	$conf->set_program( sudo => undef );
 
