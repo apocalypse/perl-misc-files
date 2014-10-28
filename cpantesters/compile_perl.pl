@@ -402,52 +402,19 @@ sub do_config_systemCPANPLUS {
 		}
 	}
 
-# We let CPANPLUS automatically figure it out!
-#	$conf->set_conf( prefer_makefile => 1 );
-
-# We don't let the system perl use CPANIDX as a nice "differentiator" and as a way for it to remain as close to "default" as possible...
-
 	# configure the system Config settings
 	my $uconfig = <<'END';
-###############################################
-###
-###  Configuration for CPANPLUS::Config::User
-###
-###############################################
-
-# Last changed: XXXTIMEXXX
-
-=pod
-
-=head1 NAME
-
-CPANPLUS::Config::User
-
-=head1 DESCRIPTION
-
-This is a CPANPLUS configuration file.
-
-=cut
-
+# Config auto-generated on XXXTIMEXXX
 package CPANPLUS::Config::User;
-
 use strict;
-
 sub setup {
 	my $conf = shift;
-
 	$conf->set_conf( allow_build_interactivity => 0 );
 	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/.cpanplusXXX' );
 	$conf->set_conf( buildflags => 'XXXBUILDFLAGSXXX' );
-	$conf->set_conf( cpantest => 0 );
-	$conf->set_conf( cpantest_mx => '' );
 	$conf->set_conf( debug => 1 );
-	$conf->set_conf( dist_type => '' );
 	$conf->set_conf( email => 'XXXCONFIG-EMAILXXX' );
 	$conf->set_conf( enable_custom_sources => 0 );
-	$conf->set_conf( extractdir => '' );
-	$conf->set_conf( fetchdir => '' );
-	$conf->set_conf( flush => 1 );
 	$conf->set_conf( force => 0 );
 	$conf->set_conf( hosts => [
 		{
@@ -456,30 +423,16 @@ sub setup {
 			'host' => 'XXXCONFIG-SERVERXXX',
 		},
 	] );
-	$conf->set_conf( lib => [] );
 	$conf->set_conf( makeflags => 'XXXMAKEFLAGSXXX' );
-	$conf->set_conf( makemakerflags => '' );
-	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
-	$conf->set_conf( passive => 1 );
 	$conf->set_conf( prefer_bin => XXXPREFERBINXXX );
 	$conf->set_conf( prereqs => 1 );
-	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
 	$conf->set_conf( show_startup_tip => 0 );
 	$conf->set_conf( signature => 0 );
-	$conf->set_conf( skiptest => 0 );
 	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::Memory' );
-	$conf->set_conf( storable => 1 );
-	$conf->set_conf( timeout => 300 );
 	$conf->set_conf( verbose => 1 );
-	$conf->set_conf( write_install_logs => 0 );
-
-	$conf->set_program( editor => undef );
-	$conf->set_program( make => 'XXXWHICH-makeXXX' );
-	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
-	$conf->set_program( shell => 'XXXENV-shellXXX' );
-	$conf->set_program( sudo => undef );
-
+	$conf->set_conf( write_install_log => 0 );
+	$conf->set_program( sudo => '' );
 	return 1;
 }
 1;
@@ -1262,46 +1215,17 @@ sub do_archive_extract {
 sub do_installCPANP_BOXED_config {
 	# configure the Boxed Config settings
 	my $boxed = <<'END';
-##############################################
-###
-###  Configuration for CPANPLUS::Config::Boxed
-###
-###############################################
-
-#last changed: XXXTIMEXXX
-
-=pod
-
-=head1 NAME
-
-CPANPLUS::Config::Boxed
-
-=head1 DESCRIPTION
-
-This is a CPANPLUS configuration file.
-
-=cut
-
+# Config auto-generated on XXXTIMEXXX
 package CPANPLUS::Config::Boxed;
-
 use strict;
-
 sub setup {
 	my $conf = shift;
-
 	$conf->set_conf( allow_build_interactivity => 0 );
 	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/CPANPLUS-XXXCPANPLUSXXX/.cpanplus/XXXUSERXXXXXX' );
 	$conf->set_conf( buildflags => 'XXXBUILDFLAGSXXX' );
-	$conf->set_conf( cpantest => 0 );
-	$conf->set_conf( cpantest_mx => '' );
-	$conf->set_conf( cpantest_reporter_args => {} );
 	$conf->set_conf( debug => 1 );
-	$conf->set_conf( dist_type => '' );
 	$conf->set_conf( email => 'XXXCONFIG-EMAILXXX' );
 	$conf->set_conf( enable_custom_sources => 0 );
-	$conf->set_conf( extractdir => '' );
-	$conf->set_conf( fetchdir => '' );
-	$conf->set_conf( flush => 1 );
 	$conf->set_conf( force => 0 );
 	$conf->set_conf( hosts => [
 		{
@@ -1310,33 +1234,18 @@ sub setup {
 			'host' => 'XXXCONFIG-SERVERXXX',
 		},
 	] );
-	$conf->set_conf( lib => [] );
 	$conf->set_conf( makeflags => 'XXXMAKEFLAGSXXX' );
-	$conf->set_conf( makemakerflags => '' );
-	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
-	$conf->set_conf( passive => 1 );
 	$conf->set_conf( prefer_bin => XXXPREFERBINXXX );
 	$conf->set_conf( prereqs => 1 );
-	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
 	$conf->set_conf( show_startup_tip => 0 );
 	$conf->set_conf( signature => 0 );
 	$conf->set_conf( skiptest => 1 );
 	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::Memory' );
-	$conf->set_conf( storable => 1 );
-	$conf->set_conf( timeout => 300 );
 	$conf->set_conf( verbose => 1 );
 	$conf->set_conf( write_install_log => 0 );
-
-# Because we're bootstrapping, Module::Build and friends often aren't "ready"
-	$conf->set_conf( prefer_makefile => 1 );
-
-	$conf->set_program( editor => undef );
-	$conf->set_program( make => 'XXXWHICH-makeXXX' );
-	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
-	$conf->set_program( shell => 'XXXENV-shellXXX' );
-	$conf->set_program( sudo => undef );
-
+	$conf->set_conf( prefer_makefile => 1 ); # Because we're bootstrapping, Module::Build and friends often aren't "ready"
+	$conf->set_program( sudo => '' );
 	return 1;
 }
 1;
@@ -1539,38 +1448,11 @@ sub do_installCPANPLUS_config {
 # TODO seems like this causes weird caching issues - better to split off the stuff for now...
 #	$conf->set_conf( fetchdir => 'XXXCATDIR-XXXPATHXXX/.cpanplus/authorsXXX' );
 
-# We let CPANPLUS automatically figure it out!
-#	$conf->set_conf( prefer_makefile => 1 );
-
-# We now use CPANIDX to speed up our smoking!
-#	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::Memory' );
-
 	# configure the CPANPLUS config
 	my $cpanplus = <<'END';
-###############################################
-###
-###  Configuration for CPANPLUS::Config::User
-###
-###############################################
-
-#last changed: XXXTIMEXXX
-
-=pod
-
-=head1 NAME
-
-CPANPLUS::Config::User
-
-=head1 DESCRIPTION
-
-This is a CPANPLUS configuration file.
-
-=cut
-
+# Config auto-generated on XXXTIMEXXX
 package CPANPLUS::Config::User;
-
 use strict;
-
 sub setup {
 	my $conf = shift;
 
@@ -1578,24 +1460,16 @@ sub setup {
 	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/cpanp_conf/XXXPERLDISTXXX/.cpanplusXXX' );
 	$conf->set_conf( buildflags => 'XXXBUILDFLAGSXXX' );
 	$conf->set_conf( cpantest => 1 );
-	$conf->set_conf( cpantest_mx => '' );
-
-# The Socket proxied transport, best for my setup - thanks BinGOs!
 	$conf->set_conf( cpantest_reporter_args => {
-		transport => 'Socket',
+		transport => 'Socket', # BinGOs++
 		transport_args => [
 			host => 'XXXCONFIG-SERVERXXX',
 			port => 'XXXCONFIG-S_CT_PORTXXX',
 		],
 	} );
-
 	$conf->set_conf( debug => 1 );
-	$conf->set_conf( dist_type => '' );
 	$conf->set_conf( email => 'XXXCONFIG-EMAILXXX' );
 	$conf->set_conf( enable_custom_sources => 0 );
-	$conf->set_conf( extractdir => '' );
-	$conf->set_conf( fetchdir => '' );
-	$conf->set_conf( flush => 1 );
 	$conf->set_conf( force => 0 );
 	$conf->set_conf( hosts => [
 		{
@@ -1604,30 +1478,16 @@ sub setup {
 			'host' => 'XXXCONFIG-SERVERXXX',
 		},
 	] );
-	$conf->set_conf( lib => [] );
 	$conf->set_conf( makeflags => 'XXXMAKEFLAGSXXX' );
-	$conf->set_conf( makemakerflags => '' );
-	$conf->set_conf( md5 => 1 );
 	$conf->set_conf( no_update => 1 );
-	$conf->set_conf( passive => 1 );
 	$conf->set_conf( prefer_bin => XXXPREFERBINXXX );
 	$conf->set_conf( prereqs => 1 );
-	$conf->set_conf( shell => 'CPANPLUS::Shell::Default' );
 	$conf->set_conf( show_startup_tip => 0 );
 	$conf->set_conf( signature => 0 );
-	$conf->set_conf( skiptest => 0 );
 	$conf->set_conf( source_engine => 'CPANPLUS::Internals::Source::CPANIDX' );
-	$conf->set_conf( storable => 1 );
-	$conf->set_conf( timeout => 300 );
 	$conf->set_conf( verbose => 1 );
-	$conf->set_conf( write_install_logs => 0 );
-
-	$conf->set_program( editor => undef );
-	$conf->set_program( make => 'XXXWHICH-makeXXX' );
-	$conf->set_program( pager => 'XXXWHICH-lessXXX' );
-	$conf->set_program( shell => 'XXXENV-shellXXX' );
-	$conf->set_program( sudo => undef );
-
+	$conf->set_conf( write_install_log => 0 );
+	$conf->set_program( sudo => '' );
 	return 1;
 }
 1;
