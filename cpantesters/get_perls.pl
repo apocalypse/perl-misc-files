@@ -1,10 +1,6 @@
 #!/usr/bin/perl
 use strict; use warnings;
 
-# TODO This doesn't get strawberry perls...
-# http://strawberryperl.com/beta/
-# http://strawberryperl.com/releases.html
-
 use LWP::UserAgent;
 use HTML::LinkExtor;
 use URI::URL;
