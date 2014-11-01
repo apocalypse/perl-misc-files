@@ -110,6 +110,8 @@ Configure our VM storage pool:
 		options zfs zfs_arc_max=2147483648
 		options zfs zfs_prefetch_disable=1
 		options zfs zfs_vdev_cache_bshift=13
+	nano /etc/default/zfs
+		# make it automount/etc :)
 
 root@perl:~# zpool status
   pool: data

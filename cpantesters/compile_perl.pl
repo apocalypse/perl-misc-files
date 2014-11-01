@@ -1,24 +1,219 @@
 #!/usr/bin/env perl
 use strict; use warnings;
 
-# We have successfully compiled those perl versions:
-#
-
-# We skip 5.6.0 and 5.8.0 because they are problematic builds
-
 # The MSWin32 code in here cheats - it doesn't actually "compile" perl, it just
 # uses Strawberries and bootstraps everything from there...
 
-# We have successfully compiled perl on those OSes:
-# x86_64/x64/amd64 (64bit) OSes:
-#	ubuntu trusty 14.04, freebsd 10, OpenBSD 5.5
-# x86 (32bit) OSes:
-#	ubuntu trusty 14.04, freebsd 10, OpenBSD 5.5
+# This compiler builds each perl version with a matrix of 192 possible combinations + 1 more for the default build for a GRAND total of 193 perls!
+# The options are: threads multiplicity longdouble mymalloc shrplib debug 32/64a/64i
 
-# This compiler builds each perl with a matrix of 49 possible combinations.
-# The options are: threads multiplicity longdouble mymalloc 32/64bitness
-# Compiling the entire perl suite listed above will result in: 931 perls!
-# Each perl averages 40M with all the necessary modules to smoke CPAN preinstalled. ( ~37GB total! )
+#Perl versions (37):
+# 5.6.0 5.6.1 5.6.2
+# 5.8.0 5.8.1 5.8.2 5.8.3 5.8.4 5.8.5 5.8.6 5.8.7 5.8.8 5.8.9
+# 5.10.0 5.10.1
+# 5.12.0 5.12.1 5.12.2 5.12.3 5.12.4 5.12.5
+# 5.14.0 5.14.1 5.14.2 5.14.3 5.14.4
+# 5.16.0 5.16.1 5.16.2 5.16.3
+# 5.18.0 5.18.1 5.18.2 5.18.3 5.18.4
+# 5.20.0 5.20.1
+
+#cpan@smoker-1:~/perls$ du -hs perl_5.18.4_* | cut -c1,2 | perl -ne 'BEGIN { my $s = 0; } $s += $_; END { print $s."M\n" }'
+#11240M
+
+#cpan@smoker-1:~/perls$ du -hs perl_5.18.4_*
+#47M	perl_5.18.4_default
+#82M	perl_5.18.4_nothr-multi-long-mymalloc-noshrplib-debug-32
+#82M	perl_5.18.4_nothr-multi-long-mymalloc-noshrplib-debug-64a
+#82M	perl_5.18.4_nothr-multi-long-mymalloc-noshrplib-debug-64i
+#47M	perl_5.18.4_nothr-multi-long-mymalloc-noshrplib-nodebug-32
+#47M	perl_5.18.4_nothr-multi-long-mymalloc-noshrplib-nodebug-64a
+#47M	perl_5.18.4_nothr-multi-long-mymalloc-noshrplib-nodebug-64i
+#61M	perl_5.18.4_nothr-multi-long-mymalloc-shrplib-debug-32
+#61M	perl_5.18.4_nothr-multi-long-mymalloc-shrplib-debug-64a
+#61M	perl_5.18.4_nothr-multi-long-mymalloc-shrplib-debug-64i
+#44M	perl_5.18.4_nothr-multi-long-mymalloc-shrplib-nodebug-32
+#44M	perl_5.18.4_nothr-multi-long-mymalloc-shrplib-nodebug-64a
+#44M	perl_5.18.4_nothr-multi-long-mymalloc-shrplib-nodebug-64i
+#81M	perl_5.18.4_nothr-multi-long-nomymalloc-noshrplib-debug-32
+#81M	perl_5.18.4_nothr-multi-long-nomymalloc-noshrplib-debug-64a
+#81M	perl_5.18.4_nothr-multi-long-nomymalloc-noshrplib-debug-64i
+#47M	perl_5.18.4_nothr-multi-long-nomymalloc-noshrplib-nodebug-32
+#47M	perl_5.18.4_nothr-multi-long-nomymalloc-noshrplib-nodebug-64a
+#47M	perl_5.18.4_nothr-multi-long-nomymalloc-noshrplib-nodebug-64i
+#60M	perl_5.18.4_nothr-multi-long-nomymalloc-shrplib-debug-32
+#60M	perl_5.18.4_nothr-multi-long-nomymalloc-shrplib-debug-64a
+#60M	perl_5.18.4_nothr-multi-long-nomymalloc-shrplib-debug-64i
+#44M	perl_5.18.4_nothr-multi-long-nomymalloc-shrplib-nodebug-32
+#44M	perl_5.18.4_nothr-multi-long-nomymalloc-shrplib-nodebug-64a
+#44M	perl_5.18.4_nothr-multi-long-nomymalloc-shrplib-nodebug-64i
+#82M	perl_5.18.4_nothr-multi-nolong-mymalloc-noshrplib-debug-32
+#82M	perl_5.18.4_nothr-multi-nolong-mymalloc-noshrplib-debug-64a
+#82M	perl_5.18.4_nothr-multi-nolong-mymalloc-noshrplib-debug-64i
+#47M	perl_5.18.4_nothr-multi-nolong-mymalloc-noshrplib-nodebug-32
+#47M	perl_5.18.4_nothr-multi-nolong-mymalloc-noshrplib-nodebug-64a
+#47M	perl_5.18.4_nothr-multi-nolong-mymalloc-noshrplib-nodebug-64i
+#61M	perl_5.18.4_nothr-multi-nolong-mymalloc-shrplib-debug-32
+#61M	perl_5.18.4_nothr-multi-nolong-mymalloc-shrplib-debug-64a
+#61M	perl_5.18.4_nothr-multi-nolong-mymalloc-shrplib-debug-64i
+#44M	perl_5.18.4_nothr-multi-nolong-mymalloc-shrplib-nodebug-32
+#44M	perl_5.18.4_nothr-multi-nolong-mymalloc-shrplib-nodebug-64a
+#44M	perl_5.18.4_nothr-multi-nolong-mymalloc-shrplib-nodebug-64i
+#82M	perl_5.18.4_nothr-multi-nolong-nomymalloc-noshrplib-debug-32
+#82M	perl_5.18.4_nothr-multi-nolong-nomymalloc-noshrplib-debug-64a
+#82M	perl_5.18.4_nothr-multi-nolong-nomymalloc-noshrplib-debug-64i
+#47M	perl_5.18.4_nothr-multi-nolong-nomymalloc-noshrplib-nodebug-32
+#47M	perl_5.18.4_nothr-multi-nolong-nomymalloc-noshrplib-nodebug-64a
+#47M	perl_5.18.4_nothr-multi-nolong-nomymalloc-noshrplib-nodebug-64i
+#60M	perl_5.18.4_nothr-multi-nolong-nomymalloc-shrplib-debug-32
+#60M	perl_5.18.4_nothr-multi-nolong-nomymalloc-shrplib-debug-64a
+#60M	perl_5.18.4_nothr-multi-nolong-nomymalloc-shrplib-debug-64i
+#44M	perl_5.18.4_nothr-multi-nolong-nomymalloc-shrplib-nodebug-32
+#44M	perl_5.18.4_nothr-multi-nolong-nomymalloc-shrplib-nodebug-64a
+#44M	perl_5.18.4_nothr-multi-nolong-nomymalloc-shrplib-nodebug-64i
+#78M	perl_5.18.4_nothr-nomulti-long-mymalloc-noshrplib-debug-32
+#78M	perl_5.18.4_nothr-nomulti-long-mymalloc-noshrplib-debug-64a
+#78M	perl_5.18.4_nothr-nomulti-long-mymalloc-noshrplib-debug-64i
+#47M	perl_5.18.4_nothr-nomulti-long-mymalloc-noshrplib-nodebug-32
+#47M	perl_5.18.4_nothr-nomulti-long-mymalloc-noshrplib-nodebug-64a
+#47M	perl_5.18.4_nothr-nomulti-long-mymalloc-noshrplib-nodebug-64i
+#58M	perl_5.18.4_nothr-nomulti-long-mymalloc-shrplib-debug-32
+#58M	perl_5.18.4_nothr-nomulti-long-mymalloc-shrplib-debug-64a
+#58M	perl_5.18.4_nothr-nomulti-long-mymalloc-shrplib-debug-64i
+#44M	perl_5.18.4_nothr-nomulti-long-mymalloc-shrplib-nodebug-32
+#44M	perl_5.18.4_nothr-nomulti-long-mymalloc-shrplib-nodebug-64a
+#44M	perl_5.18.4_nothr-nomulti-long-mymalloc-shrplib-nodebug-64i
+#78M	perl_5.18.4_nothr-nomulti-long-nomymalloc-noshrplib-debug-32
+#78M	perl_5.18.4_nothr-nomulti-long-nomymalloc-noshrplib-debug-64a
+#78M	perl_5.18.4_nothr-nomulti-long-nomymalloc-noshrplib-debug-64i
+#47M	perl_5.18.4_nothr-nomulti-long-nomymalloc-noshrplib-nodebug-32
+#47M	perl_5.18.4_nothr-nomulti-long-nomymalloc-noshrplib-nodebug-64a
+#47M	perl_5.18.4_nothr-nomulti-long-nomymalloc-noshrplib-nodebug-64i
+#58M	perl_5.18.4_nothr-nomulti-long-nomymalloc-shrplib-debug-32
+#58M	perl_5.18.4_nothr-nomulti-long-nomymalloc-shrplib-debug-64a
+#58M	perl_5.18.4_nothr-nomulti-long-nomymalloc-shrplib-debug-64i
+#44M	perl_5.18.4_nothr-nomulti-long-nomymalloc-shrplib-nodebug-32
+#44M	perl_5.18.4_nothr-nomulti-long-nomymalloc-shrplib-nodebug-64a
+#44M	perl_5.18.4_nothr-nomulti-long-nomymalloc-shrplib-nodebug-64i
+#78M	perl_5.18.4_nothr-nomulti-nolong-mymalloc-noshrplib-debug-32
+#78M	perl_5.18.4_nothr-nomulti-nolong-mymalloc-noshrplib-debug-64a
+#78M	perl_5.18.4_nothr-nomulti-nolong-mymalloc-noshrplib-debug-64i
+#47M	perl_5.18.4_nothr-nomulti-nolong-mymalloc-noshrplib-nodebug-32
+#47M	perl_5.18.4_nothr-nomulti-nolong-mymalloc-noshrplib-nodebug-64a
+#47M	perl_5.18.4_nothr-nomulti-nolong-mymalloc-noshrplib-nodebug-64i
+#58M	perl_5.18.4_nothr-nomulti-nolong-mymalloc-shrplib-debug-32
+#58M	perl_5.18.4_nothr-nomulti-nolong-mymalloc-shrplib-debug-64a
+#58M	perl_5.18.4_nothr-nomulti-nolong-mymalloc-shrplib-debug-64i
+#44M	perl_5.18.4_nothr-nomulti-nolong-mymalloc-shrplib-nodebug-32
+#44M	perl_5.18.4_nothr-nomulti-nolong-mymalloc-shrplib-nodebug-64a
+#44M	perl_5.18.4_nothr-nomulti-nolong-mymalloc-shrplib-nodebug-64i
+#78M	perl_5.18.4_nothr-nomulti-nolong-nomymalloc-noshrplib-debug-32
+#78M	perl_5.18.4_nothr-nomulti-nolong-nomymalloc-noshrplib-debug-64a
+#78M	perl_5.18.4_nothr-nomulti-nolong-nomymalloc-noshrplib-debug-64i
+#47M	perl_5.18.4_nothr-nomulti-nolong-nomymalloc-noshrplib-nodebug-32
+#47M	perl_5.18.4_nothr-nomulti-nolong-nomymalloc-noshrplib-nodebug-64a
+#47M	perl_5.18.4_nothr-nomulti-nolong-nomymalloc-noshrplib-nodebug-64i
+#58M	perl_5.18.4_nothr-nomulti-nolong-nomymalloc-shrplib-debug-32
+#58M	perl_5.18.4_nothr-nomulti-nolong-nomymalloc-shrplib-debug-64a
+#58M	perl_5.18.4_nothr-nomulti-nolong-nomymalloc-shrplib-debug-64i
+#44M	perl_5.18.4_nothr-nomulti-nolong-nomymalloc-shrplib-nodebug-32
+#44M	perl_5.18.4_nothr-nomulti-nolong-nomymalloc-shrplib-nodebug-64a
+#44M	perl_5.18.4_nothr-nomulti-nolong-nomymalloc-shrplib-nodebug-64i
+#83M	perl_5.18.4_thr-multi-long-mymalloc-noshrplib-debug-32
+#83M	perl_5.18.4_thr-multi-long-mymalloc-noshrplib-debug-64a
+#83M	perl_5.18.4_thr-multi-long-mymalloc-noshrplib-debug-64i
+#47M	perl_5.18.4_thr-multi-long-mymalloc-noshrplib-nodebug-32
+#47M	perl_5.18.4_thr-multi-long-mymalloc-noshrplib-nodebug-64a
+#47M	perl_5.18.4_thr-multi-long-mymalloc-noshrplib-nodebug-64i
+#61M	perl_5.18.4_thr-multi-long-mymalloc-shrplib-debug-32
+#61M	perl_5.18.4_thr-multi-long-mymalloc-shrplib-debug-64a
+#61M	perl_5.18.4_thr-multi-long-mymalloc-shrplib-debug-64i
+#45M	perl_5.18.4_thr-multi-long-mymalloc-shrplib-nodebug-32
+#45M	perl_5.18.4_thr-multi-long-mymalloc-shrplib-nodebug-64a
+#45M	perl_5.18.4_thr-multi-long-mymalloc-shrplib-nodebug-64i
+#83M	perl_5.18.4_thr-multi-long-nomymalloc-noshrplib-debug-32
+#83M	perl_5.18.4_thr-multi-long-nomymalloc-noshrplib-debug-64a
+#83M	perl_5.18.4_thr-multi-long-nomymalloc-noshrplib-debug-64i
+#47M	perl_5.18.4_thr-multi-long-nomymalloc-noshrplib-nodebug-32
+#47M	perl_5.18.4_thr-multi-long-nomymalloc-noshrplib-nodebug-64a
+#47M	perl_5.18.4_thr-multi-long-nomymalloc-noshrplib-nodebug-64i
+#61M	perl_5.18.4_thr-multi-long-nomymalloc-shrplib-debug-32
+#61M	perl_5.18.4_thr-multi-long-nomymalloc-shrplib-debug-64a
+#61M	perl_5.18.4_thr-multi-long-nomymalloc-shrplib-debug-64i
+#45M	perl_5.18.4_thr-multi-long-nomymalloc-shrplib-nodebug-32
+#45M	perl_5.18.4_thr-multi-long-nomymalloc-shrplib-nodebug-64a
+#45M	perl_5.18.4_thr-multi-long-nomymalloc-shrplib-nodebug-64i
+#84M	perl_5.18.4_thr-multi-nolong-mymalloc-noshrplib-debug-32
+#84M	perl_5.18.4_thr-multi-nolong-mymalloc-noshrplib-debug-64a
+#84M	perl_5.18.4_thr-multi-nolong-mymalloc-noshrplib-debug-64i
+#47M	perl_5.18.4_thr-multi-nolong-mymalloc-noshrplib-nodebug-32
+#47M	perl_5.18.4_thr-multi-nolong-mymalloc-noshrplib-nodebug-64a
+#47M	perl_5.18.4_thr-multi-nolong-mymalloc-noshrplib-nodebug-64i
+#61M	perl_5.18.4_thr-multi-nolong-mymalloc-shrplib-debug-32
+#61M	perl_5.18.4_thr-multi-nolong-mymalloc-shrplib-debug-64a
+#61M	perl_5.18.4_thr-multi-nolong-mymalloc-shrplib-debug-64i
+#45M	perl_5.18.4_thr-multi-nolong-mymalloc-shrplib-nodebug-32
+#45M	perl_5.18.4_thr-multi-nolong-mymalloc-shrplib-nodebug-64a
+#45M	perl_5.18.4_thr-multi-nolong-mymalloc-shrplib-nodebug-64i
+#83M	perl_5.18.4_thr-multi-nolong-nomymalloc-noshrplib-debug-32
+#83M	perl_5.18.4_thr-multi-nolong-nomymalloc-noshrplib-debug-64a
+#83M	perl_5.18.4_thr-multi-nolong-nomymalloc-noshrplib-debug-64i
+#47M	perl_5.18.4_thr-multi-nolong-nomymalloc-noshrplib-nodebug-32
+#47M	perl_5.18.4_thr-multi-nolong-nomymalloc-noshrplib-nodebug-64a
+#47M	perl_5.18.4_thr-multi-nolong-nomymalloc-noshrplib-nodebug-64i
+#61M	perl_5.18.4_thr-multi-nolong-nomymalloc-shrplib-debug-32
+#61M	perl_5.18.4_thr-multi-nolong-nomymalloc-shrplib-debug-64a
+#61M	perl_5.18.4_thr-multi-nolong-nomymalloc-shrplib-debug-64i
+#45M	perl_5.18.4_thr-multi-nolong-nomymalloc-shrplib-nodebug-32
+#45M	perl_5.18.4_thr-multi-nolong-nomymalloc-shrplib-nodebug-64a
+#45M	perl_5.18.4_thr-multi-nolong-nomymalloc-shrplib-nodebug-64i
+#83M	perl_5.18.4_thr-nomulti-long-mymalloc-noshrplib-debug-32
+#83M	perl_5.18.4_thr-nomulti-long-mymalloc-noshrplib-debug-64a
+#83M	perl_5.18.4_thr-nomulti-long-mymalloc-noshrplib-debug-64i
+#47M	perl_5.18.4_thr-nomulti-long-mymalloc-noshrplib-nodebug-32
+#47M	perl_5.18.4_thr-nomulti-long-mymalloc-noshrplib-nodebug-64a
+#47M	perl_5.18.4_thr-nomulti-long-mymalloc-noshrplib-nodebug-64i
+#61M	perl_5.18.4_thr-nomulti-long-mymalloc-shrplib-debug-32
+#61M	perl_5.18.4_thr-nomulti-long-mymalloc-shrplib-debug-64a
+#61M	perl_5.18.4_thr-nomulti-long-mymalloc-shrplib-debug-64i
+#45M	perl_5.18.4_thr-nomulti-long-mymalloc-shrplib-nodebug-32
+#45M	perl_5.18.4_thr-nomulti-long-mymalloc-shrplib-nodebug-64a
+#45M	perl_5.18.4_thr-nomulti-long-mymalloc-shrplib-nodebug-64i
+#83M	perl_5.18.4_thr-nomulti-long-nomymalloc-noshrplib-debug-32
+#83M	perl_5.18.4_thr-nomulti-long-nomymalloc-noshrplib-debug-64a
+#83M	perl_5.18.4_thr-nomulti-long-nomymalloc-noshrplib-debug-64i
+#47M	perl_5.18.4_thr-nomulti-long-nomymalloc-noshrplib-nodebug-32
+#47M	perl_5.18.4_thr-nomulti-long-nomymalloc-noshrplib-nodebug-64a
+#47M	perl_5.18.4_thr-nomulti-long-nomymalloc-noshrplib-nodebug-64i
+#61M	perl_5.18.4_thr-nomulti-long-nomymalloc-shrplib-debug-32
+#61M	perl_5.18.4_thr-nomulti-long-nomymalloc-shrplib-debug-64a
+#61M	perl_5.18.4_thr-nomulti-long-nomymalloc-shrplib-debug-64i
+#45M	perl_5.18.4_thr-nomulti-long-nomymalloc-shrplib-nodebug-32
+#45M	perl_5.18.4_thr-nomulti-long-nomymalloc-shrplib-nodebug-64a
+#45M	perl_5.18.4_thr-nomulti-long-nomymalloc-shrplib-nodebug-64i
+#84M	perl_5.18.4_thr-nomulti-nolong-mymalloc-noshrplib-debug-32
+#84M	perl_5.18.4_thr-nomulti-nolong-mymalloc-noshrplib-debug-64a
+#84M	perl_5.18.4_thr-nomulti-nolong-mymalloc-noshrplib-debug-64i
+#47M	perl_5.18.4_thr-nomulti-nolong-mymalloc-noshrplib-nodebug-32
+#47M	perl_5.18.4_thr-nomulti-nolong-mymalloc-noshrplib-nodebug-64a
+#47M	perl_5.18.4_thr-nomulti-nolong-mymalloc-noshrplib-nodebug-64i
+#61M	perl_5.18.4_thr-nomulti-nolong-mymalloc-shrplib-debug-32
+#61M	perl_5.18.4_thr-nomulti-nolong-mymalloc-shrplib-debug-64a
+#61M	perl_5.18.4_thr-nomulti-nolong-mymalloc-shrplib-debug-64i
+#45M	perl_5.18.4_thr-nomulti-nolong-mymalloc-shrplib-nodebug-32
+#45M	perl_5.18.4_thr-nomulti-nolong-mymalloc-shrplib-nodebug-64a
+#45M	perl_5.18.4_thr-nomulti-nolong-mymalloc-shrplib-nodebug-64i
+#83M	perl_5.18.4_thr-nomulti-nolong-nomymalloc-noshrplib-debug-32
+#83M	perl_5.18.4_thr-nomulti-nolong-nomymalloc-noshrplib-debug-64a
+#83M	perl_5.18.4_thr-nomulti-nolong-nomymalloc-noshrplib-debug-64i
+#47M	perl_5.18.4_thr-nomulti-nolong-nomymalloc-noshrplib-nodebug-32
+#47M	perl_5.18.4_thr-nomulti-nolong-nomymalloc-noshrplib-nodebug-64a
+#47M	perl_5.18.4_thr-nomulti-nolong-nomymalloc-noshrplib-nodebug-64i
+#61M	perl_5.18.4_thr-nomulti-nolong-nomymalloc-shrplib-debug-32
+#61M	perl_5.18.4_thr-nomulti-nolong-nomymalloc-shrplib-debug-64a
+#61M	perl_5.18.4_thr-nomulti-nolong-nomymalloc-shrplib-debug-64i
+#45M	perl_5.18.4_thr-nomulti-nolong-nomymalloc-shrplib-nodebug-32
+#45M	perl_5.18.4_thr-nomulti-nolong-nomymalloc-shrplib-nodebug-64a
+#45M	perl_5.18.4_thr-nomulti-nolong-nomymalloc-shrplib-nodebug-64i
 
 # this script does everything, but we need some layout to be specified!
 # /home/cpan					<-- the main directory
@@ -123,13 +318,7 @@ my %stuff = (
 	'perldist'	=> undef,		# the full perl dist ( perl_5.6.2_default or perl_$perlver_$perlopts )
 );
 
-# Do some basic sanity checks
-do_sanity_checks();
-
-# What option do we want to do?
-prompt_action();
-
-# all done!
+main();
 exit;
 
 sub do_error {
@@ -238,7 +427,9 @@ sub do_prompt {
 }
 
 
-sub prompt_action {
+sub main {
+	do_sanity_checks();
+
 	my $res;
 	while ( ! defined $res ) {
 		print "\n";
@@ -636,8 +827,22 @@ sub prompt_select_perlver {
 	while ( ! defined $res ) {
 		$res = do_prompt( "Which perl version to use? [ver/(d)isplay/(a)ll/(e)xit]", $perls->[-1] );
 		if ( lc( $res ) eq 'd' ) {
-			# display available versions
-			print "Perl versions (" . scalar @$perls . "): " . join( ' ', @$perls ) . "\n";
+			# display available versions prettily
+			print "Perl versions (" . scalar @$perls . ")\n";
+			my $v;
+			foreach my $p ( @$perls ) {
+				my $pv = (split('\.',$p))[1];
+				if ( ! defined $v ) {
+					$v = $pv;
+				}
+				if ( $v == $pv ) {
+					print "\t$p";
+				} else {
+					print "\n\t$p";
+					$v = $pv;
+				}
+			}
+			print "\n";
 		} elsif ( lc( $res ) eq 'a' ) {
 			return $perls;
 		} elsif ( lc( $res ) eq 'e' ) {
@@ -1176,12 +1381,12 @@ sub do_initCPANP_BOXED {
 		if ( $^O eq 'MSWin32' ) {
 			local $ENV{PATH} = cleanse_strawberry_path();
 			do_shellcommand( 'cpan Term::ReadKey' );
-			return 0 if ! do_cpanpboxed_action( "x --update_source" );
+			return do_cpanpboxed_action( "x --update_source" );
 		}
 		return 0;
+	} else {
+		return 1;
 	}
-
-	return 1;
 }
 
 sub do_archive_extract {
@@ -1732,7 +1937,7 @@ sub do_shellcommand {
 #        main::do_cpanp_action('perl-5.8.2-default', 's selfupdate all') called at ./compile.pl line 214
 #        main::__ANON__('perl-5.8.2-default') called at ./compile.pl line 386
 #        main::iterate_perls('CODE(0x966b78)') called at ./compile.pl line 253
-#        main::prompt_action() called at ./compile.pl line 92
+#        main::main() called at ./compile.pl line 92
 	my $fails = 1;
 	until ( ! $fails ) {
 		eval {
