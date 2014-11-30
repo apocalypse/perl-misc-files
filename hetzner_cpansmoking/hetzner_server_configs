@@ -16,7 +16,7 @@ then use this for the install.conf:
 
 The first step is of course, to update:
 
-	apt-get update && apt-get upgrade
+	apt-get update && apt-get upgrade && apt-get dist-upgrade
 	nano /etc/fstab # and add noatime
 	apt-get purge mdadm # we don't use it!
 	passwd # passwd is F+PHax$c5statRa
