@@ -318,8 +318,16 @@ my %stuff = (
 	'perldist'	=> undef,		# the full perl dist ( perl_5.6.2_default or perl_$perlver_$perlopts )
 );
 
+#---------------------------------------------
+# end of config section, start of program area
+#---------------------------------------------
+$SIG{'INT'} = sub {
+        print "\n\nCaught SIGINT\n";
+        exit;
+};
 main();
 exit;
+#---------------------------------------------
 
 sub do_error {
 	my $cat = shift;
@@ -1426,7 +1434,7 @@ use strict;
 sub setup {
 	my $conf = shift;
 	$conf->set_conf( allow_build_interactivity => 0 );
-	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/CPANPLUS-XXXCPANPLUSXXX/.cpanplus/XXXUSERXXXXXX' );
+	$conf->set_conf( base => 'XXXCATDIR-XXXPATHXXX/CPANPLUS-XXXCPANPLUSXXX/.cpanplus/XXXGETLOGINXXXXXX' );
 	$conf->set_conf( buildflags => 'XXXBUILDFLAGSXXX' );
 	$conf->set_conf( debug => 1 );
 	$conf->set_conf( email => 'XXXCONFIG-EMAILXXX' );
@@ -1464,7 +1472,7 @@ END
 	if ( $^O eq 'MSWin32' ) {
 		$cpanp_dir = File::Spec->catdir( $C{home}, "CPANPLUS-$stuff{cpanp_ver}", '.cpanplus', $ENV{USERNAME}, 'lib', 'CPANPLUS', 'Config' );
 	} else {
-		$cpanp_dir = File::Spec->catdir( $C{home}, "CPANPLUS-$stuff{cpanp_ver}", '.cpanplus', $ENV{USER}, 'lib', 'CPANPLUS', 'Config' );
+		$cpanp_dir = File::Spec->catdir( $C{home}, "CPANPLUS-$stuff{cpanp_ver}", '.cpanplus', getlogin(), 'lib', 'CPANPLUS', 'Config' );
 	}
 	do_mkdir( $cpanp_dir );
 	do_replacefile( File::Spec->catfile( $cpanp_dir, 'Boxed.pm' ), $boxed );
@@ -1490,6 +1498,9 @@ sub do_replacements {
 		$str =~ s/XXXPREFERBINXXX/1/g;
 	}
 	$str =~ s/XXXPATHXXX/do_replacements_slash( $C{home} )/ge;
+
+	# we use getlogin to work with cpanp-boxed as it prefers that over getpwuid, arg!
+	$str =~ s/XXXGETLOGINXXX/getlogin()/ge;
 
 #<Apocalypse> BinGOs: Wondering what you put in the CPANPLUS config on your smoking setup for makemakerflags and buildflags
 #<@BinGOs> s conf makeflags UNINST=1 and s conf buildflags uninst=1
